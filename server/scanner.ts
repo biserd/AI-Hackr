@@ -373,6 +373,7 @@ export async function scanUrl(inputUrl: string) {
 
   return {
     url,
+    domain: signals.domain.replace(/^www\./, ''),
     framework: framework?.name || null,
     frameworkConfidence: framework?.confidence || null,
     hosting: hosting?.name || null,
