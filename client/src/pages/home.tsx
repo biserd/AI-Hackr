@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useScan } from "@/hooks/use-scan";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -99,6 +100,7 @@ function Navbar() {
 function StickyBar() {
   const [isVisible, setIsVisible] = useState(false);
   const [url, setUrl] = useState("");
+  const { scanUrl, isScanning } = useScan();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -107,6 +109,10 @@ function StickyBar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleScan = () => {
+    scanUrl(url);
+  };
 
   return (
     <AnimatePresence>
@@ -126,13 +132,27 @@ function StickyBar() {
                 placeholder="example.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                disabled={isScanning}
                 className="pl-10 h-10 bg-background border-0 font-mono text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0"
                 data-testid="input-sticky-url"
               />
             </div>
-            <Button className="h-10 px-5 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary text-sm" data-testid="button-sticky-scan">
-              Scan
-              <ArrowRight className="ml-1 w-4 h-4" />
+            <Button 
+              onClick={handleScan}
+              disabled={isScanning}
+              className="h-10 px-5 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary text-sm" 
+              data-testid="button-sticky-scan"
+            >
+              {isScanning ? (
+                <>
+                  <Loader2 className="ml-1 w-4 h-4 animate-spin" />
+                </>
+              ) : (
+                <>
+                  Scan
+                  <ArrowRight className="ml-1 w-4 h-4" />
+                </>
+              )}
             </Button>
             <Button variant="ghost" size="sm" className="h-10 text-muted-foreground hover:text-foreground text-xs" data-testid="link-sticky-sample">
               Sample
@@ -146,6 +166,17 @@ function StickyBar() {
 
 function Hero() {
   const [url, setUrl] = useState("");
+  const { scanUrl, isScanning } = useScan();
+
+  const handleScan = () => {
+    scanUrl(url);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isScanning) {
+      handleScan();
+    }
+  };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
@@ -192,17 +223,30 @@ function Hero() {
                   placeholder="example.com"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isScanning}
                   className="pl-12 h-14 bg-background border-0 text-lg font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0"
                   data-testid="input-url"
                 />
               </div>
               <Button 
-                size="lg" 
+                size="lg"
+                onClick={handleScan}
+                disabled={isScanning}
                 className="h-14 px-8 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold glow-primary group/btn"
                 data-testid="button-scan"
               >
-                Scan a URL
-                <ArrowRight className="ml-2 w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                {isScanning ? (
+                  <>
+                    <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    Scan a URL
+                    <ArrowRight className="ml-2 w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -1071,6 +1115,11 @@ function Pricing() {
 
 function Footer() {
   const [url, setUrl] = useState("");
+  const { scanUrl, isScanning } = useScan();
+
+  const handleScan = () => {
+    scanUrl(url);
+  };
 
   return (
     <footer className="py-24 relative border-t border-border">
@@ -1097,13 +1146,28 @@ function Footer() {
                   placeholder="example.com"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
+                  disabled={isScanning}
                   className="pl-12 h-12 bg-background border-0 font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0"
                   data-testid="input-footer-url"
                 />
               </div>
-              <Button className="h-12 px-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-footer-scan">
-                Scan URL
-                <ArrowRight className="ml-2 w-4 h-4" />
+              <Button 
+                onClick={handleScan}
+                disabled={isScanning}
+                className="h-12 px-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" 
+                data-testid="button-footer-scan"
+              >
+                {isScanning ? (
+                  <>
+                    <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    Scan URL
+                    <ArrowRight className="ml-2 w-4 h-4" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
