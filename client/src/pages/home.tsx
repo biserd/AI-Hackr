@@ -1183,7 +1183,7 @@ function Pricing() {
           >
             <h3 className="font-display text-2xl font-bold mb-1">Premium</h3>
             <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-3xl font-bold">$99-149</span>
+              <span className="text-3xl font-bold">$99</span>
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-6">Agencies + power users</p>
