@@ -1068,34 +1068,56 @@ function Pricing() {
         whileInView="animate"
         viewport={{ once: true, margin: "-100px" }}
         variants={stagger}
-        className="relative max-w-4xl mx-auto px-6"
+        className="relative max-w-6xl mx-auto px-6"
       >
         <motion.div variants={fadeInUp} className="text-center mb-16">
           <span className="text-primary font-mono text-sm tracking-wider uppercase">Pricing</span>
           <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3">Simple, transparent pricing</h2>
+          <p className="text-muted-foreground mt-4 max-w-xl mx-auto">Start free, upgrade when you need more power</p>
         </motion.div>
         
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-3 gap-6">
           <motion.div
             variants={fadeInUp}
             className="p-8 rounded-2xl border border-border bg-card/50"
           >
-            <h3 className="font-display text-2xl font-bold mb-2">Free</h3>
-            <p className="text-muted-foreground mb-6">Perfect for quick checks</p>
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-center gap-3 text-sm">
+            <h3 className="font-display text-2xl font-bold mb-1">Free</h3>
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-3xl font-bold">$0</span>
+            </div>
+            <p className="text-muted-foreground text-sm mb-6">Viral sharing + one-off checks</p>
+            <div className="space-y-3 mb-8">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">Limits</div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Passive scan
-              </li>
-              <li className="flex items-center gap-3 text-sm">
+                30 scans/month (passive+render)
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Public Stack Card
-              </li>
-              <li className="flex items-center gap-3 text-sm">
+                0-3 probe scans/month
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Share badge
-              </li>
-            </ul>
+                3 pages per scan
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                7-day history
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-4 mb-2">Includes</div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Shareable Stack Card
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Basic tech detection
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Save reports via login
+              </div>
+            </div>
             <Button variant="outline" className="w-full" data-testid="button-start-free">
               Start free
             </Button>
@@ -1108,28 +1130,105 @@ function Pricing() {
             <div className="absolute -top-3 left-8 px-3 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
               Popular
             </div>
-            <h3 className="font-display text-2xl font-bold mb-2">Pro</h3>
-            <p className="text-muted-foreground mb-6">For serious competitive analysis</p>
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-center gap-3 text-sm">
+            <h3 className="font-display text-2xl font-bold mb-1">Pro</h3>
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-3xl font-bold">$29</span>
+              <span className="text-muted-foreground">/month</span>
+            </div>
+            <p className="text-muted-foreground text-sm mb-6">Founders + solo builders</p>
+            <div className="space-y-3 mb-8">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">Limits</div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Probe scans
-              </li>
-              <li className="flex items-center gap-3 text-sm">
+                300 scans/month
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Monitoring & change alerts
-              </li>
-              <li className="flex items-center gap-3 text-sm">
+                30 probe scans/month
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Exports & API access
-              </li>
-              <li className="flex items-center gap-3 text-sm">
+                10 pages per scan
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Change history
-              </li>
-            </ul>
-            <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-view-pricing">
-              View pricing
+                12-month history
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Weekly monitoring (25 domains)
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-4 mb-2">Includes</div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Diffs ("what changed")
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Compare & exports (PDF/CSV)
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Saved folders, priority queue
+              </div>
+            </div>
+            <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-get-pro">
+              Get Pro
+            </Button>
+          </motion.div>
+          
+          <motion.div
+            variants={fadeInUp}
+            className="p-8 rounded-2xl border border-border bg-card/50"
+          >
+            <h3 className="font-display text-2xl font-bold mb-1">Premium</h3>
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-3xl font-bold">$99-149</span>
+              <span className="text-muted-foreground">/month</span>
+            </div>
+            <p className="text-muted-foreground text-sm mb-6">Agencies + power users</p>
+            <div className="space-y-3 mb-8">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">Limits</div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                2,000 scans/month
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                200 probe scans/month
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                30 pages per scan
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                24+ month history
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Daily monitoring (100 domains)
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                5 team seats
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-4 mb-2">Includes</div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Client folders, white-label exports
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                Webhook alerts, bulk scanning
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="w-4 h-4 text-secondary flex-shrink-0" />
+                API access (light)
+              </div>
+            </div>
+            <Button variant="outline" className="w-full" data-testid="button-get-premium">
+              Get Premium
             </Button>
           </motion.div>
         </div>
