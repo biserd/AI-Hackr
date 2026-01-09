@@ -86,7 +86,7 @@ function Navbar() {
         </div>
         <div className="flex items-center gap-2">
           <a href="#features">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-sample">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-features">
               Features
             </Button>
           </a>
@@ -95,6 +95,12 @@ function Navbar() {
               Pricing
             </Button>
           </a>
+          <Link href="/showhn">
+            <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10" data-testid="link-showhn">
+              <TrendingUp className="w-3 h-3 mr-1" />
+              Show HN
+            </Button>
+          </Link>
           <ThemeToggle />
           {!isLoading && (
             user ? (

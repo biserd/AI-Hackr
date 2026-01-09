@@ -182,3 +182,41 @@ export const insertScanSchema = createInsertSchema(scans).omit({
 
 export type InsertScan = z.infer<typeof insertScanSchema>;
 export type Scan = typeof scans.$inferSelect;
+
+export const showHnProducts = pgTable("show_hn_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hnId: text("hn_id").notNull().unique(),
+  title: text("title").notNull(),
+  author: text("author").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+  score: text("score").notNull(),
+  commentsCount: text("comments_count"),
+  hnLink: text("hn_link").notNull(),
+  productUrl: text("product_url").notNull(),
+  domain: text("domain").notNull(),
+  scanId: varchar("scan_id").references(() => scans.id, { onDelete: "set null" }),
+  scanStatus: text("scan_status").default("pending"),
+  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+});
+
+export type ShowHnProduct = typeof showHnProducts.$inferSelect;
+
+export const showHnReports = pgTable("show_hn_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  productCount: text("product_count").notNull(),
+  dateRangeStart: timestamp("date_range_start").notNull(),
+  dateRangeEnd: timestamp("date_range_end").notNull(),
+  aggregateStats: jsonb("aggregate_stats").$type<{
+    topFrameworks: Array<{ name: string; count: number; percentage: number }>;
+    topHosting: Array<{ name: string; count: number; percentage: number }>;
+    topPayments: Array<{ name: string; count: number; percentage: number }>;
+    topAuth: Array<{ name: string; count: number; percentage: number }>;
+    topAnalytics: Array<{ name: string; count: number; percentage: number }>;
+    topAiProviders: Array<{ name: string; count: number; percentage: number }>;
+    aiSignalPercentage: number;
+    topStackCombos: Array<{ stack: string; count: number }>;
+  }>(),
+});
+
+export type ShowHnReport = typeof showHnReports.$inferSelect;

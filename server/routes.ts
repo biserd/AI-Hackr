@@ -6,6 +6,9 @@ import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFrom
 import { insertScanSchema, insertSubscriptionSchema } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
+import { showHnProducts, showHnReports, scans } from "@shared/schema";
+import { db } from "./storage";
+import { sql, desc as descOrder } from "drizzle-orm";
 
 // In-memory queue for background scans
 const backgroundScanQueue: Map<string, { phase: "render" | "probe"; url: string }> = new Map();
@@ -499,13 +502,98 @@ export async function registerRoutes(
   app.get("/api/scans/recent", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-      const scans = await storage.getRecentScans(limit);
-      return res.json(scans);
+      const recentScans = await storage.getRecentScans(limit);
+      return res.json(recentScans);
     } catch (error) {
       console.error("Get recent scans error:", error);
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to retrieve scans" 
       });
+    }
+  });
+
+  // === SHOW HN REPORT ROUTES ===
+  
+  // Get latest Show HN report
+  app.get("/api/showhn/report", async (req, res) => {
+    try {
+      const [report] = await db.select()
+        .from(showHnReports)
+        .orderBy(descOrder(showHnReports.generatedAt))
+        .limit(1);
+      
+      if (!report) {
+        return res.status(404).json({ error: "No report found. Run the Show HN job first." });
+      }
+      
+      return res.json(report);
+    } catch (error) {
+      console.error("Get Show HN report error:", error);
+      return res.status(500).json({ error: "Failed to get report" });
+    }
+  });
+
+  // Get Show HN products with scan data
+  app.get("/api/showhn/products", async (req, res) => {
+    try {
+      const products = await db.select({
+        product: showHnProducts,
+        scan: scans,
+      })
+        .from(showHnProducts)
+        .leftJoin(scans, sql`${showHnProducts.scanId} = ${scans.id}`)
+        .orderBy(descOrder(sql`CAST(${showHnProducts.score} AS INTEGER)`));
+      
+      return res.json(products);
+    } catch (error) {
+      console.error("Get Show HN products error:", error);
+      return res.status(500).json({ error: "Failed to get products" });
+    }
+  });
+
+  // Get Show HN CSV export
+  app.get("/api/showhn/export.csv", async (req, res) => {
+    try {
+      const products = await db.select({
+        product: showHnProducts,
+        scan: scans,
+      })
+        .from(showHnProducts)
+        .leftJoin(scans, sql`${showHnProducts.scanId} = ${scans.id}`)
+        .orderBy(descOrder(sql`CAST(${showHnProducts.score} AS INTEGER)`));
+      
+      const headers = [
+        "HN ID", "Title", "Author", "Score", "Comments", "Domain",
+        "Product URL", "HN Link", "Framework", "Hosting", "Payments",
+        "Auth", "Analytics", "AI Provider", "Report Link"
+      ];
+      
+      const rows = products.map(({ product, scan }) => [
+        product.hnId,
+        `"${(product.title || "").replace(/"/g, '""')}"`,
+        product.author,
+        product.score,
+        product.commentsCount,
+        product.domain,
+        product.productUrl,
+        product.hnLink,
+        scan?.framework || "",
+        scan?.hosting || "",
+        scan?.payments || "",
+        scan?.auth || "",
+        scan?.analytics || "",
+        scan?.aiProvider || "",
+        scan ? `/scan/${product.domain}` : "",
+      ]);
+      
+      const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=showhn-stack-report.csv");
+      return res.send(csv);
+    } catch (error) {
+      console.error("Export CSV error:", error);
+      return res.status(500).json({ error: "Failed to export CSV" });
     }
   });
 

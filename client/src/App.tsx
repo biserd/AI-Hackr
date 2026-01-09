@@ -14,6 +14,7 @@ import Privacy from "@/pages/privacy";
 import Login from "@/pages/login";
 import AuthCallback from "@/pages/auth-callback";
 import Dashboard from "@/pages/dashboard";
+import ShowHNReport from "@/pages/showhn";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/login" component={Login}/>
       <Route path="/auth/verify" component={AuthCallback}/>
       <Route path="/dashboard" component={Dashboard}/>
+      <Route path="/showhn" component={ShowHNReport}/>
       <Route component={NotFound} />
     </Switch>
   );
