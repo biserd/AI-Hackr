@@ -239,6 +239,9 @@ export async function scanUrl(inputUrl: string) {
   let html = "";
   let headers: Record<string, string> = {};
   
+  console.log(`[Scanner] Starting passive scan for: ${url}`);
+  const startTime = Date.now();
+  
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -246,28 +249,37 @@ export async function scanUrl(inputUrl: string) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "AIHackr/1.0 (Tech Stack Analyzer)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
       },
       redirect: "follow",
     });
     
     clearTimeout(timeoutId);
     
+    console.log(`[Scanner] Received response: ${response.status} from ${response.url}`);
+    
     response.headers.forEach((value, key) => {
       headers[key.toLowerCase()] = value;
     });
     
     const contentType = headers["content-type"] || "";
-    if (contentType.includes("text/html") || contentType.includes("application/xhtml")) {
+    if (contentType.includes("text/html") || contentType.includes("application/xhtml") || !contentType) {
       html = await response.text();
+      console.log(`[Scanner] Fetched HTML: ${html.length} bytes`);
       if (html.length > 5 * 1024 * 1024) {
         html = html.substring(0, 5 * 1024 * 1024);
       }
     }
   } catch (error) {
-    console.error("Fetch error:", error);
+    console.error("[Scanner] Fetch error:", error);
   }
+  
+  const fetchTime = Date.now() - startTime;
+  console.log(`[Scanner] Fetch completed in ${fetchTime}ms`);
 
   const signals = extractSignals(html, headers, url);
   const techDetections = detectAllTechnologies(signals);

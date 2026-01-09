@@ -10,7 +10,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Passive scan - fast, HTML/header analysis only
+  // Scan endpoint - supports passive and probe modes
   app.post("/api/scan", async (req, res) => {
     try {
       const { url, mode = "passive" } = req.body;
@@ -19,18 +19,32 @@ export async function registerRoutes(
         return res.status(400).json({ error: "URL is required" });
       }
 
+      console.log(`[API] Starting ${mode} scan for: ${url}`);
+      const startTime = Date.now();
+
       // Perform passive scan first
       let scanResult = await scanUrl(url);
+      const passiveTime = Date.now() - startTime;
+      console.log(`[API] Passive scan completed in ${passiveTime}ms`);
+      console.log(`[API] Detected: framework=${scanResult.framework}, hosting=${scanResult.hosting}, ai=${scanResult.aiProvider}`);
 
       // If probe mode requested, run Playwright scan
       if (mode === "probe") {
+        console.log("[API] Starting probe scan with Playwright...");
+        const probeStartTime = Date.now();
         try {
           const probeResult = await probeScan(url);
+          const probeTime = Date.now() - probeStartTime;
+          console.log(`[API] Probe scan completed in ${probeTime}ms`);
+          console.log(`[API] Probe results: gateway=${probeResult.detectedGateway?.name}, payload=${probeResult.detectedPayloadProvider}, html=${probeResult.html.length} bytes`);
           scanResult = mergeProbeResults(scanResult, probeResult);
         } catch (probeError) {
-          console.error("Probe scan failed, using passive results:", probeError);
+          console.error("[API] Probe scan failed, using passive results:", probeError);
         }
       }
+
+      const totalTime = Date.now() - startTime;
+      console.log(`[API] Total scan time: ${totalTime}ms`);
       
       // Validate and save to database
       const validatedScan = insertScanSchema.parse(scanResult);
