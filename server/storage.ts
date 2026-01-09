@@ -1,38 +1,61 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pkg from "pg";
+const { Pool } = pkg;
+import { eq, desc } from "drizzle-orm";
+import { users, scans, type User, type InsertUser, type Scan, type InsertScan } from "@shared/schema";
 
-// modify the interface with any CRUD methods
-// you might need
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const db = drizzle(pool);
 
 export interface IStorage {
+  // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Scan methods
+  createScan(scan: InsertScan): Promise<Scan>;
+  getScan(id: string): Promise<Scan | undefined>;
+  getRecentScans(limit?: number): Promise<Scan[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const result = await db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async createScan(insertScan: InsertScan): Promise<Scan> {
+    const result = await db.insert(scans).values(insertScan).returning();
+    return result[0];
+  }
+
+  async getScan(id: string): Promise<Scan | undefined> {
+    const result = await db.select().from(scans).where(eq(scans.id, id));
+    return result[0];
+  }
+
+  async getRecentScans(limit: number = 10): Promise<Scan[]> {
+    const result = await db
+      .select()
+      .from(scans)
+      .orderBy(desc(scans.scannedAt))
+      .limit(limit);
+    return result;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
