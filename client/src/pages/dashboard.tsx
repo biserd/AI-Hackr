@@ -55,6 +55,7 @@ export default function Dashboard() {
   const { scanUrl, isScanning } = useScan();
 
   const [newUrl, setNewUrl] = useState("");
+  const [scanInputUrl, setScanInputUrl] = useState("");
   const [activeTab, setActiveTab] = useState<"scans" | "tracking">("scans");
 
   const { data: scans = [], isLoading: scansLoading } = useQuery<Scan[]>({
@@ -136,6 +137,14 @@ export default function Dashboard() {
     }
   };
 
+  const handleScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (scanInputUrl.trim() && !isScanning) {
+      scanUrl(scanInputUrl.trim());
+      setScanInputUrl("");
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen noise bg-background flex items-center justify-center">
@@ -173,9 +182,40 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">Track competitors and view your scan history</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="font-display text-3xl font-bold mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Track competitors and view your scan history</p>
+          </div>
+          <form onSubmit={handleScan} className="flex gap-2">
+            <div className="relative">
+              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Enter URL to scan..."
+                value={scanInputUrl}
+                onChange={(e) => setScanInputUrl(e.target.value)}
+                className="pl-9 w-64"
+                disabled={isScanning}
+                data-testid="input-scan-url"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              disabled={!scanInputUrl.trim() || isScanning}
+              className="bg-primary text-primary-foreground"
+              data-testid="button-scan"
+            >
+              {isScanning ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Scan
+                </>
+              )}
+            </Button>
+          </form>
         </div>
 
         <div className="flex gap-2 mb-6 border-b border-border">
