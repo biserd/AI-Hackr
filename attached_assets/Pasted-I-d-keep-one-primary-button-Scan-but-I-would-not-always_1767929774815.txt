@@ -1,0 +1,67 @@
+I’d keep one primary button: “Scan”, but I would not always run two full scans concurrently by default.
+
+Best pattern for MVP (fast + cheap + feels magical):
+
+Recommended UX
+
+One button: Scan
+
+Behind the scenes you run a progressive scan and deliver one report that fills in as results arrive.
+
+Phase 1 (immediate, 1–3s): Passive scan
+	•	Headers, HTML, obvious scripts, cookies
+	•	Produces quick wins (Cloudflare, GA4, Stripe.js, etc.)
+	•	Show these results immediately
+
+Phase 2 (auto, 5–15s): Rendered scan (browser)
+	•	Playwright loads page, executes JS, captures final DOM + network
+	•	Adds missing framework/stack signals (Next.js, client analytics, chat widgets)
+
+Phase 3 (optional): Probe scan (interaction)
+	•	Click “AI/chat” UI, submit a test prompt, capture network calls
+	•	This is the AI provider detection unlock
+	•	Make this a clear upgrade or “Run deeper probe” button (often Pro), because it’s costlier + more brittle
+
+So the user experiences: one scan → one report, progressively enriched.
+
+⸻
+
+Why not run both “passive + full probe” concurrently by default?
+	•	Cost: Playwright + interaction probes are the expensive part.
+	•	Latency: Users want instant feedback; passive gives that.
+	•	Brittleness: Interaction probes fail often (logins, captchas, dynamic UI). You don’t want MVP “Scan” to feel flaky.
+	•	Ethics/perception: “Probing” interactions feels more invasive; better as an explicit action.
+
+⸻
+
+Implementation model (clean + simple)
+
+Create a single scan_id and attach sub-jobs:
+	•	scan: { id, url, status, started_at }
+	•	scan_runs: [{ type: passive|render|probe, status, started_at, finished_at }]
+	•	signals are stored per run, then merged into one normalized signals object:
+	•	headers, html, script_src, script_body, network_domains, network_paths, etc.
+	•	Run detection on:
+	•	Phase 1 signals → emit interim report
+	•	Merge Phase 2 signals → re-run detection → update report
+	•	Phase 3 signals → re-run AI detection → update report
+
+Report update behavior
+	•	The report page loads with a skeleton and “Scan in progress”
+	•	Cards appear as detections land (“Hosting”, “Analytics”, etc.)
+	•	A small pill at the top: Passive ✅ | Render ✅ | Probe ⏳/Locked
+
+⸻
+
+How to present the CTA(s)
+
+Primary button (always):
+
+Scan →
+
+Secondary (only shows after initial results):
+	•	Run Rendered Scan (if you don’t auto-run it)
+	•	Run AI Probe Scan (upgrade / explicit)
+
+If you choose to auto-run render (I would), then only keep:
+Run AI Probe Scan (deeper
