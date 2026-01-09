@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, 
@@ -1192,6 +1193,11 @@ function Footer() {
               <Cpu className="w-3 h-3 text-primary" />
             </div>
             <span className="font-display font-medium text-sm">AIHackr</span>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <Link href="/about" className="hover:text-primary transition-colors" data-testid="link-footer-about">About</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors" data-testid="link-footer-terms">Terms</Link>
+            <Link href="/privacy" className="hover:text-primary transition-colors" data-testid="link-footer-privacy">Privacy</Link>
           </div>
           <p className="text-sm text-muted-foreground">
             © 2025 AIHackr. Built for builders.

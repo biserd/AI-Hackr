@@ -8,6 +8,9 @@ import { ThemeProvider } from "next-themes";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import CardPage from "@/pages/card";
+import About from "@/pages/about";
+import Terms from "@/pages/terms";
+import Privacy from "@/pages/privacy";
 
 function Router() {
   return (
@@ -15,6 +18,9 @@ function Router() {
       <Route path="/" component={Home}/>
       <Route path="/card/:id" component={CardPage}/>
       <Route path="/scan/:domain" component={CardPage}/>
+      <Route path="/about" component={About}/>
+      <Route path="/terms" component={Terms}/>
+      <Route path="/privacy" component={Privacy}/>
       <Route component={NotFound} />
     </Switch>
   );
