@@ -1,0 +1,46 @@
+You are my lead engineer. One-time project: create a “Top Show HN Stack Report” for AIHackr.
+
+Outcome
+- A script/job that pulls ~100 “Show HN” products, scans their websites with our existing scanner, and generates:
+  1) one public aggregate report page (charts + summary)
+  2) one directory table of the 100 products with links to per-site stack reports
+
+Data source (Hacker News)
+- Use the official HN Firebase JSON API (no auth).
+- Find “Show HN” posts (title starts with “Show HN:” or contains “Show HN”).
+- Select top 100 by score from roughly the last 30 days (use created_at filter or fetch enough items and then filter).
+- For each post, capture: hn_id, title, author, created_at, score, comments_count, hn_link, and product URL.
+- Product URL logic:
+  - Prefer post.url if it is an external site.
+  - Otherwise parse the first external URL from the post text.
+  - Normalize URLs (https, remove tracking params), dedupe by registrable domain (keep highest score).
+
+Scanning (bounded, polite)
+- For each unique domain, run a single scan and store a per-site public report URL (Stack Card).
+- Scan should visit a small high-signal set of pages (max 4 per site):
+  - “/” plus up to 3 routes like /pricing, /login, /signup, /docs (use nav links after render; fallback to trying /pricing and /login if nav parsing fails).
+- Use passive + rendered (Playwright) for all sites.
+- Probe scan is optional: only do it if a chat/AI UI is detected; otherwise skip to save time/cost.
+- Block images/fonts/media, apply strict timeouts, and cap captured network entries.
+
+Detection rules / honesty
+- Do not claim an AI model/provider unless evidence exists (network domain/paths/SDK artifacts). Otherwise show “No public AI signal”.
+- Save “receipts” (matched headers/scripts/network domains) for every detection.
+
+Aggregate report output
+- Build a single page: “What Top Show HN Launches Use (Last 30 Days)”
+- Include:
+  - Top technologies by category (CDN/Edge, Framework, Payments, Auth, Analytics, Support, AI)
+  - Top stack combinations
+  - % with public AI signals detected
+  - Table of the 100 products: name/title, domain, HN score, detected stack chips, link to per-site report
+
+Deliverables
+1) One runnable script/job that produces the dataset + scans + aggregate stats
+2) The generated aggregate report page + per-site public report links
+3) CSV export of the table (for sharing)
+
+Constraints
+- One-time run is fine; no cron/monitoring needed.
+- Keep it polite and stable: page budget, throttling, concurrency limits (e.g., 5–10 Playwright workers).
+- Never submit forms/checkout; read-only scanning only.
