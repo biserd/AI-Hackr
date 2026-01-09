@@ -236,6 +236,25 @@ export async function registerRoutes(
     }
   });
 
+  // Get a scan by domain (most recent scan for that domain)
+  app.get("/api/scan/domain/:domain", async (req, res) => {
+    try {
+      const { domain } = req.params;
+      const scan = await storage.getScanByDomain(decodeURIComponent(domain));
+      
+      if (!scan) {
+        return res.status(404).json({ error: "Scan not found" });
+      }
+      
+      return res.json(scan);
+    } catch (error) {
+      console.error("Get scan by domain error:", error);
+      return res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to retrieve scan" 
+      });
+    }
+  });
+
   // Get a scan by ID
   app.get("/api/scan/:id", async (req, res) => {
     try {

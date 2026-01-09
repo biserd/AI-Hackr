@@ -14,6 +14,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home}/>
       <Route path="/card/:id" component={CardPage}/>
+      <Route path="/scan/:domain" component={CardPage}/>
       <Route component={NotFound} />
     </Switch>
   );

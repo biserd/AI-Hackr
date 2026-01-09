@@ -81,16 +81,22 @@ function Navbar() {
           <span className="font-display font-semibold text-lg tracking-tight">AIHackr</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-sample">
-            Sample Report
-          </Button>
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-pricing">
-            Pricing
-          </Button>
+          <a href="#features">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-sample">
+              Features
+            </Button>
+          </a>
+          <a href="#pricing">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-pricing">
+              Pricing
+            </Button>
+          </a>
           <ThemeToggle />
-          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-scan">
-            Scan URL
-          </Button>
+          <a href="#hero">
+            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-scan">
+              Scan URL
+            </Button>
+          </a>
         </div>
       </div>
     </motion.nav>
@@ -171,6 +177,7 @@ function StickyBar() {
 }
 
 function Hero() {
+  // Section with id="hero" for nav scroll
   const [url, setUrl] = useState("");
   const { scanUrl, isScanning } = useScan();
 
@@ -185,7 +192,7 @@ function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+    <section id="hero" className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
       <div className="absolute inset-0 grid-bg" />
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
@@ -207,15 +214,15 @@ function Hero() {
           variants={fadeInUp}
           className="font-display text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.1]"
         >
-          What's this SaaS built with—
-          <span className="text-gradient glow-text block mt-2">especially the AI stack?</span>
+          What's this SaaS built with?
+          <span className="text-gradient glow-text block mt-2">Especially the AI stack.</span>
         </motion.h1>
         
         <motion.p 
           variants={fadeInUp}
           className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Paste a URL to get a shareable Stack Card: framework, hosting, Stripe/auth/analytics—and AI provider signals when they're publicly detectable (with confidence levels and evidence).
+          Paste a URL to get a shareable Stack Card: framework, hosting, payments, auth, analytics, and AI provider signals when publicly detectable (with confidence levels and evidence).
         </motion.p>
         
         <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-4">
@@ -386,7 +393,7 @@ function LiveDemo() {
   };
 
   return (
-    <section className="py-32 relative overflow-hidden">
+    <section id="features" className="py-32 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
       <motion.div 
         initial="initial"
@@ -676,7 +683,7 @@ function HowItWorks() {
     {
       num: "01",
       title: "We scan the public surface",
-      desc: "HTML, headers, scripts, DNS records—everything publicly visible."
+      desc: "HTML, headers, scripts, DNS records. Everything publicly visible."
     },
     {
       num: "02",
@@ -1035,7 +1042,7 @@ function FAQ() {
 
 function Pricing() {
   return (
-    <section className="py-32 relative">
+    <section id="pricing" className="py-32 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/50 to-transparent" />
       <motion.div 
         initial="initial"

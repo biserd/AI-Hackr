@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Code2,
@@ -204,7 +204,9 @@ function getConfidenceReason(scan: Scan, originHost: { origin: string | null; co
 }
 
 export default function CardPage() {
-  const [, params] = useRoute("/card/:id");
+  const [, cardParams] = useRoute("/card/:id");
+  const [, domainParams] = useRoute("/scan/:domain");
+  const [location] = useLocation();
   const [scan, setScan] = useState<Scan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,9 +214,12 @@ export default function CardPage() {
   const [probeLoading, setProbeLoading] = useState(false);
   const { triggerProbeScan } = useScan();
 
-  const fetchScan = useCallback(async (id: string, isPolling = false) => {
+  const fetchScan = useCallback(async (identifier: string, byDomain = false, isPolling = false) => {
     try {
-      const response = await fetch(`/api/scan/${id}`);
+      const endpoint = byDomain 
+        ? `/api/scan/domain/${encodeURIComponent(identifier)}`
+        : `/api/scan/${identifier}`;
+      const response = await fetch(endpoint);
       if (!response.ok) {
         throw new Error("Scan not found");
       }
@@ -229,16 +234,18 @@ export default function CardPage() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch - check if we're using domain or ID route
   useEffect(() => {
-    if (params?.id) {
-      fetchScan(params.id);
+    if (domainParams?.domain) {
+      fetchScan(decodeURIComponent(domainParams.domain), true);
+    } else if (cardParams?.id) {
+      fetchScan(cardParams.id, false);
     }
-  }, [params?.id, fetchScan]);
+  }, [cardParams?.id, domainParams?.domain, fetchScan]);
 
   // Poll for updates while phases are in progress
   useEffect(() => {
-    if (!scan || !params?.id) return;
+    if (!scan) return;
     
     const phases = scan.scanPhases as ScanPhases | null;
     const isInProgress = phases && (
@@ -251,11 +258,15 @@ export default function CardPage() {
     if (!isInProgress) return;
     
     const interval = setInterval(() => {
-      fetchScan(params.id, true);
+      if (domainParams?.domain) {
+        fetchScan(decodeURIComponent(domainParams.domain), true, true);
+      } else if (cardParams?.id) {
+        fetchScan(cardParams.id, false, true);
+      }
     }, 2000);
     
     return () => clearInterval(interval);
-  }, [scan, params?.id, fetchScan]);
+  }, [scan, cardParams?.id, domainParams?.domain, fetchScan]);
 
   const handleProbeScan = async () => {
     if (!scan) return;

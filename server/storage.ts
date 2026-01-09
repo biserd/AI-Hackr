@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, like } from "drizzle-orm";
 import { users, scans, type User, type InsertUser, type Scan, type InsertScan } from "@shared/schema";
 
 const pool = new Pool({
@@ -19,6 +19,7 @@ export interface IStorage {
   // Scan methods
   createScan(scan: InsertScan): Promise<Scan>;
   getScan(id: string): Promise<Scan | undefined>;
+  getScanByDomain(domain: string): Promise<Scan | undefined>;
   getRecentScans(limit?: number): Promise<Scan[]>;
   updateScan(id: string, updates: Partial<InsertScan>): Promise<Scan | undefined>;
 }
@@ -46,6 +47,17 @@ export class DatabaseStorage implements IStorage {
 
   async getScan(id: string): Promise<Scan | undefined> {
     const result = await db.select().from(scans).where(eq(scans.id, id));
+    return result[0];
+  }
+
+  async getScanByDomain(domain: string): Promise<Scan | undefined> {
+    // Look for most recent scan matching this domain
+    const result = await db
+      .select()
+      .from(scans)
+      .where(like(scans.url, `%${domain}%`))
+      .orderBy(desc(scans.scannedAt))
+      .limit(1);
     return result[0];
   }
 

@@ -32,7 +32,9 @@ export function useScan() {
       const result = await response.json();
       toast.dismiss(toastId);
       toast.success("Scan started! Deeper analysis running in background.");
-      setLocation(`/card/${result.id}`);
+      // Use domain in URL for cleaner sharing
+      const domain = new URL(result.url).hostname.replace(/^www\./, '');
+      setLocation(`/scan/${encodeURIComponent(domain)}`);
     } catch (error) {
       console.error("Scan error:", error);
       toast.dismiss(toastId);
