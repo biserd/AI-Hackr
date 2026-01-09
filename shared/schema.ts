@@ -70,6 +70,10 @@ export const scans = pgTable("scans", {
       tps?: number;
       totalTime?: number;
     };
+    networkDomains?: string[];
+    networkPaths?: string[];
+    websockets?: string[];
+    windowHints?: string[];
   }>(),
 });
 

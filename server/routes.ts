@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { scanUrl } from "./scanner";
-import { probeScan, mergeProbeResults } from "./probeScanner";
+import { scanUrl, mergeWithBrowserSignals } from "./scanner";
+import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
 import { insertScanSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -28,18 +28,25 @@ export async function registerRoutes(
       console.log(`[API] Passive scan completed in ${passiveTime}ms`);
       console.log(`[API] Detected: framework=${scanResult.framework}, hosting=${scanResult.hosting}, ai=${scanResult.aiProvider}`);
 
-      // If probe mode requested, run Playwright scan
+      // If probe mode requested, run browser scan with Playwright
       if (mode === "probe") {
-        console.log("[API] Starting probe scan with Playwright...");
+        console.log("[API] Starting browser scan with Playwright...");
         const probeStartTime = Date.now();
         try {
-          const probeResult = await probeScan(url);
+          const browserSignals = await browserScan(url);
           const probeTime = Date.now() - probeStartTime;
-          console.log(`[API] Probe scan completed in ${probeTime}ms`);
-          console.log(`[API] Probe results: gateway=${probeResult.detectedGateway?.name}, payload=${probeResult.detectedPayloadProvider}, html=${probeResult.html.length} bytes`);
-          scanResult = mergeProbeResults(scanResult, probeResult);
+          console.log(`[API] Browser scan completed in ${probeTime}ms`);
+          console.log(`[API] Browser results: ${browserSignals.network.requests.length} requests, ${browserSignals.html.length} bytes HTML, ${browserSignals.network.domains.length} domains`);
+          
+          const aiFromNetwork = detectAIFromNetwork(browserSignals);
+          const frameworkFromHints = detectFrameworkFromHints(browserSignals.windowHints);
+          
+          console.log(`[API] Detected from network: provider=${aiFromNetwork.provider}, gateway=${aiFromNetwork.gateway}`);
+          console.log(`[API] Detected from hints: framework=${frameworkFromHints.framework}`);
+          
+          scanResult = mergeWithBrowserSignals(scanResult, browserSignals, aiFromNetwork, frameworkFromHints);
         } catch (probeError) {
-          console.error("[API] Probe scan failed, using passive results:", probeError);
+          console.error("[API] Browser scan failed, using passive results:", probeError);
         }
       }
 
@@ -59,7 +66,7 @@ export async function registerRoutes(
     }
   });
 
-  // Probe scan only - deep AI detection with browser automation
+  // Probe scan with interaction - deep AI detection with chat interaction
   app.post("/api/scan/probe", async (req, res) => {
     try {
       const { url } = req.body;
@@ -68,12 +75,28 @@ export async function registerRoutes(
         return res.status(400).json({ error: "URL is required" });
       }
 
-      // Run both passive and probe scans
+      console.log(`[API] Starting full probe scan with interaction for: ${url}`);
+
       const passiveResult = await scanUrl(url);
-      const probeResult = await probeScan(url);
-      const mergedResult = mergeProbeResults(passiveResult, probeResult);
+      const browserSignals = await browserScan(url);
+      const aiFromNetwork = detectAIFromNetwork(browserSignals);
+      const frameworkFromHints = detectFrameworkFromHints(browserSignals.windowHints);
       
-      // Validate and save to database
+      let mergedResult = mergeWithBrowserSignals(passiveResult, browserSignals, aiFromNetwork, frameworkFromHints);
+      
+      const interactionResult = await interactionProbe(url);
+      if (interactionResult.detectedProvider) {
+        mergedResult.aiProvider = interactionResult.detectedProvider;
+        mergedResult.aiConfidence = "High";
+      }
+      if (interactionResult.inferredModel) {
+        mergedResult.inferredModel = interactionResult.inferredModel;
+      }
+      if (interactionResult.aiInteraction) {
+        mergedResult.ttft = `${interactionResult.aiInteraction.ttft}ms`;
+        mergedResult.tps = `${interactionResult.aiInteraction.tps} tokens/sec`;
+      }
+      
       const validatedScan = insertScanSchema.parse(mergedResult);
       const savedScan = await storage.createScan(validatedScan);
       

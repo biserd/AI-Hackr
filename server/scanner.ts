@@ -340,3 +340,73 @@ export async function scanUrl(inputUrl: string) {
     },
   };
 }
+
+import type { BrowserSignals } from "./probeScanner";
+
+export function mergeWithBrowserSignals(
+  passiveResult: any,
+  browserSignals: BrowserSignals,
+  aiFromNetwork: { provider?: string; gateway?: string; confidence: string },
+  frameworkFromHints: { framework?: string; confidence: string }
+): any {
+  const merged: any = { ...passiveResult };
+
+  if (frameworkFromHints.framework && (!merged.framework || frameworkFromHints.confidence === "High")) {
+    merged.framework = frameworkFromHints.framework;
+    merged.frameworkConfidence = frameworkFromHints.confidence as "High" | "Medium" | "Low";
+  }
+
+  if (aiFromNetwork.provider && (!merged.aiProvider || aiFromNetwork.confidence === "High")) {
+    merged.aiProvider = aiFromNetwork.provider;
+    merged.aiConfidence = aiFromNetwork.confidence as "High" | "Medium" | "Low";
+  }
+
+  if (aiFromNetwork.gateway) {
+    merged.aiGateway = aiFromNetwork.gateway;
+  }
+
+  merged.scanMode = "probe";
+
+  const aiNetworkDomains = browserSignals.network.domains.filter(d => 
+    d.includes("openai") || 
+    d.includes("anthropic") || 
+    d.includes("google") ||
+    d.includes("groq") ||
+    d.includes("cohere") ||
+    d.includes("mistral") ||
+    d.includes("replicate") ||
+    d.includes("together") ||
+    d.includes("perplexity") ||
+    d.includes("fireworks") ||
+    d.includes("stripe") ||
+    d.includes("auth0") ||
+    d.includes("clerk") ||
+    d.includes("supabase") ||
+    d.includes("firebase")
+  );
+
+  const relevantPaths = browserSignals.network.paths.filter(p => 
+    p.includes("/v1/") || 
+    p.includes("/api/") || 
+    p.includes("/chat/") ||
+    p.includes("/completions")
+  ).slice(0, 20);
+
+  const windowHintsList = Object.entries(browserSignals.windowHints)
+    .filter(([_, v]) => v)
+    .map(([k]) => k);
+
+  merged.evidence = {
+    domains: [
+      ...(merged.evidence?.domains || []),
+      ...aiNetworkDomains,
+    ],
+    patterns: merged.evidence?.patterns || [],
+    networkDomains: browserSignals.network.domains.slice(0, 50),
+    networkPaths: relevantPaths,
+    websockets: browserSignals.network.websockets,
+    windowHints: windowHintsList,
+  };
+
+  return merged;
+}

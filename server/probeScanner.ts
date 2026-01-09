@@ -1,18 +1,224 @@
-import { chromium, type Browser, type Page, type Request, type Response } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { AI_GATEWAY_SIGNATURES, PAYLOAD_SIGNATURES, SPEED_FINGERPRINTS } from "./signatures";
 
-interface NetworkCapture {
-  url: string;
-  method: string;
-  contentType?: string;
-  requestHeaders?: Record<string, string>;
-  responseHeaders?: Record<string, string>;
-  responseBody?: string;
-  timing?: {
-    startTime: number;
-    endTime: number;
-    duration: number;
+export type BrowserSignals = {
+  finalUrl: string;
+  mainResponse: {
+    status: number | null;
+    headers: Record<string, string>;
   };
+  html: string;
+  scriptSrcs: string[];
+  meta: Record<string, string[]>;
+  cookies: { name: string; value: string; domain?: string; path?: string }[];
+  windowHints: Record<string, boolean>;
+  network: {
+    requests: Array<{
+      url: string;
+      method: string;
+      resourceType: string;
+    }>;
+    responses: Array<{
+      url: string;
+      status: number;
+      contentType: string | null;
+      headers: Record<string, string>;
+    }>;
+    websockets: string[];
+    domains: string[];
+    paths: string[];
+  };
+};
+
+type BrowserScanOptions = {
+  timeoutMs?: number;
+  maxHtmlChars?: number;
+  maxNetworkEntries?: number;
+  blockResources?: boolean;
+};
+
+const BROWSER_DEFAULTS: Required<BrowserScanOptions> = {
+  timeoutMs: 15000,
+  maxHtmlChars: 2_000_000,
+  maxNetworkEntries: 400,
+  blockResources: true,
+};
+
+function safeLower(s: string | undefined | null): string {
+  return (s ?? "").toLowerCase();
+}
+
+function getDomain(u: string): string {
+  try { return new URL(u).hostname; } catch { return ""; }
+}
+
+function getPath(u: string): string {
+  try { return new URL(u).pathname; } catch { return ""; }
+}
+
+export async function browserScan(url: string, opts: BrowserScanOptions = {}): Promise<BrowserSignals> {
+  const o = { ...BROWSER_DEFAULTS, ...opts };
+
+  let browser: Browser | null = null;
+  try {
+    console.log(`[BrowserScan] Launching browser for: ${url}`);
+    const startTime = Date.now();
+
+    browser = await chromium.launch({ 
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 800 },
+    });
+
+    const page = await context.newPage();
+
+    if (o.blockResources) {
+      await page.route("**/*", (route) => {
+        const rt = route.request().resourceType();
+        if (rt === "image" || rt === "font" || rt === "media") return route.abort();
+        return route.continue();
+      });
+    }
+
+    const reqs: BrowserSignals["network"]["requests"] = [];
+    const resps: BrowserSignals["network"]["responses"] = [];
+    const ws: string[] = [];
+
+    page.on("request", (req) => {
+      if (reqs.length >= o.maxNetworkEntries) return;
+      reqs.push({
+        url: req.url(),
+        method: req.method(),
+        resourceType: req.resourceType(),
+      });
+    });
+
+    page.on("response", async (resp) => {
+      if (resps.length >= o.maxNetworkEntries) return;
+      const headers = resp.headers();
+      resps.push({
+        url: resp.url(),
+        status: resp.status(),
+        contentType: headers["content-type"] ?? null,
+        headers: headers,
+      });
+    });
+
+    page.on("websocket", (socket) => {
+      ws.push(socket.url());
+    });
+
+    const mainResp = await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: o.timeoutMs,
+    });
+
+    await page.waitForTimeout(1500);
+
+    let html = await page.content();
+    if (html.length > o.maxHtmlChars) html = html.slice(0, o.maxHtmlChars);
+
+    const scriptSrcs = await page.$$eval("script[src]", (els) =>
+      els.map((e) => (e as HTMLScriptElement).src).filter(Boolean)
+    );
+
+    const meta = await page.$$eval("meta", (els) => {
+      const out: Record<string, string[]> = {};
+      for (const el of els) {
+        const name = el.getAttribute("name") || el.getAttribute("property") || el.getAttribute("http-equiv");
+        const content = el.getAttribute("content");
+        if (!name || !content) continue;
+        (out[name] ||= []).push(content);
+      }
+      return out;
+    });
+
+    const windowHints = await page.evaluate(() => {
+      const w = window as any;
+      return {
+        __NEXT_DATA__: Boolean(w.__NEXT_DATA__),
+        __NUXT__: Boolean(w.__NUXT__),
+        Shopify: Boolean(w.Shopify),
+        __GATSBY: Boolean(w.__GATSBY),
+        __remixContext: Boolean(w.__remixContext),
+        __svelte: Boolean(w.__svelte),
+        Angular: Boolean((w as any).getAllAngularRootElements),
+        Vue: Boolean((document as any).__vue_app__),
+        Streamlit: Boolean(document.querySelector('[data-testid="stAppViewContainer"]')),
+        Gradio: Boolean(document.querySelector('.gradio-container')),
+      };
+    });
+
+    const cookies = (await context.cookies()).map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+    }));
+
+    const mainHeaders = (mainResp ? mainResp.headers() : {}) as Record<string, string>;
+
+    const domains = Array.from(
+      new Set([
+        ...reqs.map((r) => getDomain(r.url)).filter(Boolean),
+        ...resps.map((r) => getDomain(r.url)).filter(Boolean),
+      ])
+    );
+
+    const paths = Array.from(
+      new Set([
+        ...reqs.map((r) => getPath(r.url)).filter(Boolean),
+        ...resps.map((r) => getPath(r.url)).filter(Boolean),
+      ])
+    );
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[BrowserScan] Completed in ${elapsed}ms - ${reqs.length} requests, ${html.length} bytes HTML`);
+
+    await browser.close();
+    browser = null;
+
+    return {
+      finalUrl: page.url(),
+      mainResponse: {
+        status: mainResp ? mainResp.status() : null,
+        headers: Object.fromEntries(Object.entries(mainHeaders).map(([k, v]) => [safeLower(k), v])),
+      },
+      html,
+      scriptSrcs,
+      meta,
+      cookies,
+      windowHints,
+      network: {
+        requests: reqs,
+        responses: resps,
+        websockets: ws,
+        domains,
+        paths,
+      },
+    };
+  } catch (error) {
+    console.error("[BrowserScan] Error:", error);
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    return {
+      finalUrl: url,
+      mainResponse: { status: null, headers: {} },
+      html: "",
+      scriptSrcs: [],
+      meta: {},
+      cookies: [],
+      windowHints: {},
+      network: { requests: [], responses: [], websockets: [], domains: [], paths: [] },
+    };
+  }
 }
 
 interface AIInteraction {
@@ -22,16 +228,6 @@ interface AIInteraction {
   tps: number;
   totalTime: number;
   tokenCount: number;
-}
-
-interface ProbeResult {
-  networkRequests: NetworkCapture[];
-  aiInteraction?: AIInteraction;
-  detectedGateway?: { name: string; confidence: string };
-  detectedPayloadProvider?: string;
-  inferredModel?: string;
-  html: string;
-  headers: Record<string, string>;
 }
 
 const CHAT_SELECTORS = [
@@ -82,263 +278,269 @@ async function findSendButton(page: Page): Promise<string | null> {
   return null;
 }
 
-function detectGatewayFromHeaders(headers: Record<string, string>): { name: string; confidence: string } | null {
-  for (const sig of AI_GATEWAY_SIGNATURES) {
-    const headerValue = headers[sig.headerKey.toLowerCase()];
-    if (headerValue) {
-      return { name: sig.name, confidence: sig.confidence };
-    }
-  }
-  return null;
-}
-
-function detectPayloadProvider(body: string): string | null {
-  for (const sig of PAYLOAD_SIGNATURES) {
-    if (sig.pattern.test(body)) {
-      return sig.provider;
-    }
-  }
-  return null;
-}
-
-function inferModelFromSpeed(tps: number, ttft: number): string {
-  if (ttft > 3000 && tps > 50) {
-    return "Reasoning Model (o1 / DeepSeek R1)";
-  }
-  
-  for (const fp of SPEED_FINGERPRINTS) {
-    if (tps >= fp.minTps && tps < fp.maxTps) {
-      return `${fp.provider} - ${fp.model || "Unknown Model"}`;
-    }
-  }
-  
-  return "Unknown";
-}
-
 function approximateTokenCount(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-export async function probeScan(url: string): Promise<ProbeResult> {
+export async function interactionProbe(url: string): Promise<{
+  aiInteraction?: AIInteraction;
+  newNetworkCalls: Array<{ url: string; method: string; contentType?: string }>;
+  detectedProvider?: string;
+  inferredModel?: string;
+}> {
   let browser: Browser | null = null;
-  const networkRequests: NetworkCapture[] = [];
-  let html = "";
-  let headers: Record<string, string> = {};
-  let detectedGateway: { name: string; confidence: string } | null = null;
-  let detectedPayloadProvider: string | null = null;
-  let aiInteraction: AIInteraction | undefined;
+  const newNetworkCalls: Array<{ url: string; method: string; contentType?: string }> = [];
 
   try {
-    browser = await chromium.launch({
+    console.log(`[InteractionProbe] Starting for: ${url}`);
+    
+    browser = await chromium.launch({ 
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
     const context = await browser.newContext({
-      userAgent: "AIHackr/1.0 Probe Scanner",
-      viewport: { width: 1280, height: 720 },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 800 },
     });
 
     const page = await context.newPage();
 
-    const requestTimings = new Map<string, number>();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.waitForTimeout(2000);
 
-    page.on("request", (request: Request) => {
-      const reqUrl = request.url();
-      requestTimings.set(reqUrl, Date.now());
-      
-      const capture: NetworkCapture = {
-        url: reqUrl,
-        method: request.method(),
-        requestHeaders: request.headers(),
-      };
-      networkRequests.push(capture);
-    });
+    const chatInputSelector = await findChatInput(page);
+    
+    if (!chatInputSelector) {
+      console.log("[InteractionProbe] No chat input found");
+      await browser.close();
+      return { newNetworkCalls };
+    }
 
-    page.on("response", async (response: Response) => {
+    console.log(`[InteractionProbe] Found chat input: ${chatInputSelector}`);
+    const sendButtonSelector = await findSendButton(page);
+
+    let detectedProvider: string | undefined;
+    let firstTokenTime: number | null = null;
+    let responseText = "";
+    const startTime = Date.now();
+
+    page.on("response", async (response) => {
       const respUrl = response.url();
-      const startTime = requestTimings.get(respUrl);
-      const endTime = Date.now();
+      const contentType = response.headers()["content-type"] || "";
       
-      const respHeaders = response.headers();
-      
-      const gateway = detectGatewayFromHeaders(respHeaders);
-      if (gateway && !detectedGateway) {
-        detectedGateway = gateway;
+      newNetworkCalls.push({
+        url: respUrl,
+        method: response.request().method(),
+        contentType,
+      });
+
+      if (respUrl.includes("api.openai.com") || respUrl.includes("openai.azure.com")) {
+        detectedProvider = "OpenAI";
+      } else if (respUrl.includes("api.anthropic.com")) {
+        detectedProvider = "Anthropic";
+      } else if (respUrl.includes("generativelanguage.googleapis.com")) {
+        detectedProvider = "Google Gemini";
+      } else if (respUrl.includes("/v1/chat/completions") || respUrl.includes("/v1/completions")) {
+        detectedProvider = detectedProvider || "OpenAI-compatible";
       }
 
-      const existing = networkRequests.find(r => r.url === respUrl);
-      if (existing) {
-        existing.responseHeaders = respHeaders;
-        existing.contentType = respHeaders["content-type"];
-        if (startTime) {
-          existing.timing = {
-            startTime,
-            endTime,
-            duration: endTime - startTime,
-          };
+      if (contentType.includes("text/event-stream") || contentType.includes("application/json")) {
+        if (!firstTokenTime) {
+          firstTokenTime = Date.now();
         }
-
         try {
-          const contentType = respHeaders["content-type"] || "";
-          if (contentType.includes("application/json") || 
-              contentType.includes("text/event-stream") ||
-              contentType.includes("text/plain")) {
-            const body = await response.text();
-            existing.responseBody = body.substring(0, 5000);
-            
-            const provider = detectPayloadProvider(body);
-            if (provider && !detectedPayloadProvider) {
-              detectedPayloadProvider = provider;
+          const body = await response.text();
+          responseText += body;
+          
+          for (const sig of PAYLOAD_SIGNATURES) {
+            if (sig.pattern.test(body)) {
+              detectedProvider = sig.provider;
+              break;
             }
           }
         } catch {}
       }
     });
 
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-
-    const pageHeaders = await page.evaluate(() => {
-      const meta: Record<string, string> = {};
-      document.querySelectorAll("meta").forEach((m) => {
-        const name = m.getAttribute("name") || m.getAttribute("property");
-        const content = m.getAttribute("content");
-        if (name && content) meta[name] = content;
-      });
-      return meta;
-    });
-    headers = pageHeaders;
-
-    html = await page.content();
-
-    await page.waitForTimeout(2000);
-
-    const chatInputSelector = await findChatInput(page);
-    
-    if (chatInputSelector) {
-      const sendButtonSelector = await findSendButton(page);
+    try {
+      await page.fill(chatInputSelector, "Hi");
       
-      try {
-        const testPrompt = "Hi";
-        const startTime = Date.now();
-        let firstTokenTime: number | null = null;
-        let responseText = "";
-        
-        await page.fill(chatInputSelector, testPrompt);
-        
-        const networkPromise = new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 15000);
-          
-          page.on("response", async (response: Response) => {
-            const contentType = response.headers()["content-type"] || "";
-            if (contentType.includes("text/event-stream") || 
-                contentType.includes("application/json")) {
-              if (!firstTokenTime) {
-                firstTokenTime = Date.now();
-              }
-              
-              try {
-                const body = await response.text();
-                responseText += body;
-              } catch {}
-            }
-          });
-          
-          setTimeout(() => {
-            clearTimeout(timeout);
-            resolve();
-          }, 10000);
-        });
+      if (sendButtonSelector) {
+        await page.click(sendButtonSelector);
+      } else {
+        await page.keyboard.press("Enter");
+      }
 
-        if (sendButtonSelector) {
-          await page.click(sendButtonSelector);
-        } else {
-          await page.keyboard.press("Enter");
+      await page.waitForTimeout(8000);
+    } catch (interactionError) {
+      console.log("[InteractionProbe] Interaction failed:", interactionError);
+    }
+
+    const endTime = Date.now();
+    const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
+    const totalTime = endTime - startTime;
+    const tokenCount = approximateTokenCount(responseText);
+    const generationTime = totalTime - ttft;
+    const tps = generationTime > 0 ? (tokenCount / (generationTime / 1000)) : 0;
+
+    let inferredModel: string | undefined;
+    if (tokenCount > 0) {
+      for (const fp of SPEED_FINGERPRINTS) {
+        if (tps >= fp.minTps && tps < fp.maxTps) {
+          inferredModel = `${fp.provider} - ${fp.model || "Unknown Model"}`;
+          break;
         }
-
-        await networkPromise;
-        
-        const endTime = Date.now();
-        const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
-        const totalTime = endTime - startTime;
-        const tokenCount = approximateTokenCount(responseText);
-        const generationTime = totalTime - ttft;
-        const tps = generationTime > 0 ? (tokenCount / (generationTime / 1000)) : 0;
-
-        aiInteraction = {
-          promptSent: testPrompt,
-          responseReceived: responseText.substring(0, 500),
-          ttft,
-          tps: Math.round(tps),
-          totalTime,
-          tokenCount,
-        };
-      } catch (interactionError) {
-        console.error("Chat interaction failed:", interactionError);
+      }
+      if (!inferredModel) {
+        if (ttft > 3000 && tps > 50) {
+          inferredModel = "Reasoning Model (o1 / DeepSeek R1)";
+        }
       }
     }
 
     await browser.close();
     browser = null;
 
+    const aiInteraction: AIInteraction | undefined = tokenCount > 0 ? {
+      promptSent: "Hi",
+      responseReceived: responseText.substring(0, 500),
+      ttft,
+      tps: Math.round(tps),
+      totalTime,
+      tokenCount,
+    } : undefined;
+
+    console.log(`[InteractionProbe] Completed - provider=${detectedProvider}, tokens=${tokenCount}, tps=${Math.round(tps)}`);
+
     return {
-      networkRequests: networkRequests.slice(0, 50),
       aiInteraction,
-      detectedGateway: detectedGateway || undefined,
-      detectedPayloadProvider: detectedPayloadProvider || undefined,
-      inferredModel: aiInteraction ? inferModelFromSpeed(aiInteraction.tps, aiInteraction.ttft) : undefined,
-      html,
-      headers,
+      newNetworkCalls,
+      detectedProvider,
+      inferredModel,
     };
   } catch (error) {
-    console.error("Probe scan error:", error);
-    
+    console.error("[InteractionProbe] Error:", error);
     if (browser) {
-      await browser.close();
+      await browser.close().catch(() => {});
     }
-    
-    return {
-      networkRequests,
-      html,
-      headers,
-    };
+    return { newNetworkCalls };
   }
 }
 
-export function mergeProbeResults(passiveResult: any, probeResult: ProbeResult): any {
-  const merged = { ...passiveResult };
+export function detectAIFromNetwork(signals: BrowserSignals): {
+  provider?: string;
+  gateway?: string;
+  confidence: string;
+} {
+  const { domains, paths, responses } = signals.network;
 
-  if (probeResult.detectedGateway) {
-    merged.aiGateway = probeResult.detectedGateway.name;
-  }
-
-  if (probeResult.detectedPayloadProvider && !merged.aiProvider) {
-    merged.aiProvider = probeResult.detectedPayloadProvider;
-    merged.aiConfidence = "High";
-  }
-
-  if (probeResult.aiInteraction) {
-    merged.ttft = `${probeResult.aiInteraction.ttft}ms`;
-    merged.tps = `${probeResult.aiInteraction.tps} tokens/sec`;
-    merged.inferredModel = probeResult.inferredModel;
-  }
-
-  merged.scanMode = "probe";
-
-  merged.evidence = {
-    ...merged.evidence,
-    networkRequests: probeResult.networkRequests.map(r => ({
-      url: r.url,
-      method: r.method,
-      contentType: r.contentType,
-    })).slice(0, 20),
-    payloadSignatures: probeResult.detectedPayloadProvider ? [probeResult.detectedPayloadProvider] : [],
-    timingMetrics: probeResult.aiInteraction ? {
-      ttft: probeResult.aiInteraction.ttft,
-      tps: probeResult.aiInteraction.tps,
-      totalTime: probeResult.aiInteraction.totalTime,
-    } : undefined,
+  const aiDomains: Record<string, string> = {
+    "api.openai.com": "OpenAI",
+    "openai.azure.com": "OpenAI (Azure)",
+    "api.anthropic.com": "Anthropic",
+    "generativelanguage.googleapis.com": "Google Gemini",
+    "api.groq.com": "Groq",
+    "api.cohere.ai": "Cohere",
+    "api.mistral.ai": "Mistral",
+    "api.replicate.com": "Replicate",
+    "api.together.ai": "Together AI",
+    "api.perplexity.ai": "Perplexity",
+    "api.fireworks.ai": "Fireworks AI",
   };
 
-  return merged;
+  const gatewayDomains: Record<string, string> = {
+    "gateway.ai.cloudflare.com": "Cloudflare AI Gateway",
+    "api.portkey.ai": "Portkey",
+    "gateway.helicone.ai": "Helicone",
+    "api.braintrust.dev": "Braintrust",
+  };
+
+  let provider: string | undefined;
+  let gateway: string | undefined;
+  let confidence = "Low";
+
+  for (const domain of domains) {
+    if (aiDomains[domain]) {
+      provider = aiDomains[domain];
+      confidence = "High";
+      break;
+    }
+    for (const [partial, name] of Object.entries(aiDomains)) {
+      if (domain.includes(partial.replace("api.", ""))) {
+        provider = name;
+        confidence = "Medium";
+      }
+    }
+  }
+
+  for (const domain of domains) {
+    if (gatewayDomains[domain]) {
+      gateway = gatewayDomains[domain];
+      break;
+    }
+  }
+
+  for (const path of paths) {
+    if (path.includes("/v1/chat/completions") || path.includes("/v1/completions")) {
+      if (!provider) {
+        provider = "OpenAI-compatible";
+        confidence = "Medium";
+      }
+    }
+    if (path.includes("/v1/messages")) {
+      if (!provider) {
+        provider = "Anthropic-compatible";
+        confidence = "Medium";
+      }
+    }
+  }
+
+  for (const sig of AI_GATEWAY_SIGNATURES) {
+    for (const resp of responses) {
+      const headerValue = resp.headers[sig.headerKey.toLowerCase()];
+      if (headerValue) {
+        gateway = sig.name;
+        break;
+      }
+    }
+    if (gateway) break;
+  }
+
+  for (const resp of responses) {
+    if (resp.headers["x-vercel-ai-provider"]) {
+      const aiProvider = resp.headers["x-vercel-ai-provider"];
+      if (aiProvider.includes("openai")) provider = "OpenAI";
+      else if (aiProvider.includes("anthropic")) provider = "Anthropic";
+      else if (aiProvider.includes("google")) provider = "Google Gemini";
+      confidence = "High";
+    }
+    if (resp.headers["anthropic-version"]) {
+      provider = "Anthropic";
+      confidence = "High";
+    }
+    if (resp.headers["openai-organization"]) {
+      provider = "OpenAI";
+      confidence = "High";
+    }
+  }
+
+  return { provider, gateway, confidence };
+}
+
+export function detectFrameworkFromHints(hints: BrowserSignals["windowHints"]): {
+  framework?: string;
+  confidence: string;
+} {
+  if (hints.__NEXT_DATA__) return { framework: "Next.js", confidence: "High" };
+  if (hints.__NUXT__) return { framework: "Nuxt", confidence: "High" };
+  if (hints.Shopify) return { framework: "Shopify", confidence: "High" };
+  if (hints.__GATSBY) return { framework: "Gatsby", confidence: "High" };
+  if (hints.__remixContext) return { framework: "Remix", confidence: "High" };
+  if (hints.__svelte) return { framework: "Svelte", confidence: "High" };
+  if (hints.Angular) return { framework: "Angular", confidence: "High" };
+  if (hints.Vue) return { framework: "Vue.js", confidence: "High" };
+  if (hints.Streamlit) return { framework: "Streamlit", confidence: "High" };
+  if (hints.Gradio) return { framework: "Gradio", confidence: "High" };
+  return { confidence: "Low" };
 }
