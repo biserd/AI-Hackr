@@ -116,6 +116,41 @@ export const SIGNATURE_DB: TechSignature[] = [
     thresholds: { high: 0.8, medium: 0.5 },
   },
 
+  // AI Frameworks
+  {
+    id: "streamlit",
+    name: "Streamlit",
+    category: "framework",
+    rules: [
+      { type: "html", pattern: "st-emotion-cache", weight: 0.9 },
+      { type: "html", pattern: "stApp", weight: 0.8 },
+      { type: "html", pattern: "streamlit", weight: 0.6 },
+      { type: "script_src", pattern: "streamlit", weight: 0.7 },
+    ],
+    thresholds: { high: 0.8, medium: 0.5 },
+  },
+  {
+    id: "gradio",
+    name: "Gradio",
+    category: "framework",
+    rules: [
+      { type: "html", pattern: "gradio-container", weight: 0.9 },
+      { type: "html", pattern: "gradio-app", weight: 0.8 },
+      { type: "script_src", pattern: "gradio", weight: 0.7 },
+    ],
+    thresholds: { high: 0.8, medium: 0.5 },
+  },
+  {
+    id: "chainlit",
+    name: "Chainlit",
+    category: "framework",
+    rules: [
+      { type: "html", pattern: "chainlit", weight: 0.8 },
+      { type: "script_src", pattern: "chainlit", weight: 0.7 },
+    ],
+    thresholds: { high: 0.8, medium: 0.5 },
+  },
+
   // Hosting
   {
     id: "vercel",
@@ -616,4 +651,50 @@ export const AI_SIGNATURES: AISignature[] = [
     ],
     thresholds: { high: 0.8, medium: 0.5 },
   },
+];
+
+export interface AIGatewaySignature {
+  id: string;
+  name: string;
+  headerKey: string;
+  pattern: string;
+  confidence: "High" | "Medium";
+}
+
+export const AI_GATEWAY_SIGNATURES: AIGatewaySignature[] = [
+  { id: "portkey", name: "Portkey Gateway", headerKey: "x-portkey-provider", pattern: ".*", confidence: "High" },
+  { id: "helicone", name: "Helicone Observability", headerKey: "helicone-request-id", pattern: ".*", confidence: "High" },
+  { id: "vercel_ai", name: "Vercel AI SDK", headerKey: "x-vercel-ai-provider", pattern: ".*", confidence: "High" },
+  { id: "anthropic_version", name: "Anthropic Claude", headerKey: "anthropic-version", pattern: ".*", confidence: "High" },
+  { id: "openai_stainless", name: "OpenAI SDK", headerKey: "x-stainless-lang", pattern: ".*", confidence: "Medium" },
+  { id: "openai_runtime", name: "OpenAI Runtime", headerKey: "x-stainless-runtime", pattern: ".*", confidence: "Medium" },
+  { id: "groq_region", name: "Groq", headerKey: "x-groq-region", pattern: ".*", confidence: "High" },
+];
+
+export interface PayloadSignature {
+  id: string;
+  name: string;
+  pattern: RegExp;
+  provider: string;
+}
+
+export const PAYLOAD_SIGNATURES: PayloadSignature[] = [
+  { id: "openai_stream", name: "OpenAI Streaming", pattern: /"choices":\s*\[\s*\{\s*"delta":\s*\{/, provider: "OpenAI" },
+  { id: "anthropic_stream", name: "Anthropic Streaming", pattern: /"type":\s*"content_block_delta"/, provider: "Anthropic" },
+  { id: "vercel_ai_stream", name: "Vercel AI SDK Stream", pattern: /^0:"[^"]*"$/m, provider: "Vercel AI SDK" },
+];
+
+export interface SpeedFingerprint {
+  minTps: number;
+  maxTps: number;
+  provider: string;
+  model?: string;
+}
+
+export const SPEED_FINGERPRINTS: SpeedFingerprint[] = [
+  { minTps: 250, maxTps: Infinity, provider: "Groq/Cerebras", model: "High-performance LPU" },
+  { minTps: 100, maxTps: 250, provider: "OpenAI", model: "GPT-4o" },
+  { minTps: 60, maxTps: 100, provider: "Anthropic", model: "Claude 3.5 Sonnet" },
+  { minTps: 30, maxTps: 60, provider: "OpenAI", model: "GPT-4o-mini" },
+  { minTps: 0, maxTps: 30, provider: "Unknown", model: "Legacy/Self-hosted" },
 ];

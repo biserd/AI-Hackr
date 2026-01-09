@@ -47,12 +47,29 @@ export const scans = pgTable("scans", {
   aiTransport: text("ai_transport"),
   aiGateway: text("ai_gateway"),
   
+  // Probe scan metrics
+  scanMode: text("scan_mode").default("passive"),
+  ttft: text("ttft"),
+  tps: text("tps"),
+  inferredModel: text("inferred_model"),
+  
   // Evidence and metadata
   evidence: jsonb("evidence").$type<{
     domains?: string[];
     scripts?: string[];
     headers?: Record<string, string>;
     patterns?: string[];
+    networkRequests?: Array<{
+      url: string;
+      method: string;
+      contentType?: string;
+    }>;
+    payloadSignatures?: string[];
+    timingMetrics?: {
+      ttft?: number;
+      tps?: number;
+      totalTime?: number;
+    };
   }>(),
 });
 

@@ -166,7 +166,7 @@ function StickyBar() {
 
 function Hero() {
   const [url, setUrl] = useState("");
-  const { scanUrl, isScanning } = useScan();
+  const { scanUrl, isScanning, scanMode, setScanMode } = useScan();
 
   const handleScan = () => {
     scanUrl(url);
@@ -212,7 +212,7 @@ function Hero() {
           Paste a URL to get a shareable Stack Card: framework, hosting, Stripe/auth/analytics—and AI provider signals when they're publicly detectable (with confidence levels and evidence).
         </motion.p>
         
-        <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-6">
+        <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-4">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 via-secondary/50 to-primary/50 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500" />
             <div className="relative flex gap-2 p-2 bg-card border border-border rounded-xl">
@@ -239,11 +239,11 @@ function Hero() {
                 {isScanning ? (
                   <>
                     <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                    Scanning...
+                    {scanMode === "probe" ? "Probing..." : "Scanning..."}
                   </>
                 ) : (
                   <>
-                    Scan a URL
+                    {scanMode === "probe" ? "Probe Scan" : "Scan URL"}
                     <ArrowRight className="ml-2 w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -252,15 +252,39 @@ function Hero() {
           </div>
         </motion.div>
         
-        <motion.div variants={fadeInUp} className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-secondary" />
-            Free passive scan
-          </span>
-          <span className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-primary" />
-            Probe scan for deeper detection
-          </span>
+        <motion.div variants={fadeInUp} className="flex items-center justify-center gap-2 mb-6">
+          <button
+            onClick={() => setScanMode("passive")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              scanMode === "passive"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid="button-passive-mode"
+          >
+            <Check className="w-3 h-3 inline mr-1" />
+            Passive Scan
+          </button>
+          <button
+            onClick={() => setScanMode("probe")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              scanMode === "probe"
+                ? "bg-secondary text-secondary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid="button-probe-mode"
+          >
+            <Zap className="w-3 h-3 inline mr-1" />
+            Probe Scan
+          </button>
+        </motion.div>
+
+        <motion.div variants={fadeInUp} className="text-xs text-muted-foreground max-w-md mx-auto">
+          {scanMode === "passive" ? (
+            <p>Fast HTML & header analysis. Detects frameworks, hosting, payments, and static AI signals.</p>
+          ) : (
+            <p>Deep browser automation. Captures network requests, interacts with chat, measures AI performance (TTFT, TPS).</p>
+          )}
         </motion.div>
         
         <motion.div variants={fadeInUp} className="mt-6">

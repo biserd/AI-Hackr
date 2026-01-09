@@ -14,7 +14,11 @@ import {
   Loader2,
   ArrowLeft,
   Copy,
-  Check
+  Check,
+  Zap,
+  Timer,
+  Gauge,
+  Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -213,7 +217,7 @@ export default function CardPage() {
 
             {/* AI Stack */}
             {scan.aiProvider && (
-              <div className="p-6 rounded-xl bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30">
+              <div className="p-6 rounded-xl bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30 mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Cpu className="w-6 h-6 text-primary" />
                   <span className="font-semibold text-lg">AI Stack</span>
@@ -236,6 +240,45 @@ export default function CardPage() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Gateway</span>
                       <span className="font-medium">{scan.aiGateway}</span>
+                    </div>
+                  )}
+                  {scan.inferredModel && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Inferred Model</span>
+                      <span className="font-medium">{scan.inferredModel}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Probe Scan Metrics */}
+            {scan.scanMode === "probe" && (scan.ttft || scan.tps) && (
+              <div className="p-6 rounded-xl bg-gradient-to-r from-secondary/20 to-primary/20 border border-secondary/30 mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap className="w-6 h-6 text-secondary" />
+                  <span className="font-semibold text-lg">Performance Metrics</span>
+                  <span className="ml-auto text-xs px-3 py-1 rounded-full bg-primary/20 text-primary font-medium">
+                    Probe Scan
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {scan.ttft && (
+                    <div className="p-4 rounded-lg bg-background/50 border border-border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Timer className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Time to First Token</span>
+                      </div>
+                      <span className="text-xl font-bold font-mono">{scan.ttft}</span>
+                    </div>
+                  )}
+                  {scan.tps && (
+                    <div className="p-4 rounded-lg bg-background/50 border border-border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Gauge className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Tokens Per Second</span>
+                      </div>
+                      <span className="text-xl font-bold font-mono">{scan.tps}</span>
                     </div>
                   )}
                 </div>
