@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRoute } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Code2,
   Server,
@@ -21,11 +21,20 @@ import {
   Activity,
   Eye,
   Cloud,
-  Shield
+  Shield,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { toast } from "sonner";
 import type { Scan } from "@shared/schema";
+import { useScan } from "@/hooks/use-scan";
+
+type ScanPhases = {
+  passive: "pending" | "running" | "complete" | "failed";
+  render: "pending" | "running" | "complete" | "failed" | "skipped";
+  probe: "pending" | "running" | "complete" | "failed" | "locked";
+};
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -61,14 +70,10 @@ export default function CardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [probeLoading, setProbeLoading] = useState(false);
+  const { triggerProbeScan } = useScan();
 
-  useEffect(() => {
-    if (params?.id) {
-      fetchScan(params.id);
-    }
-  }, [params?.id]);
-
-  const fetchScan = async (id: string) => {
+  const fetchScan = useCallback(async (id: string, isPolling = false) => {
     try {
       const response = await fetch(`/api/scan/${id}`);
       if (!response.ok) {
@@ -76,11 +81,52 @@ export default function CardPage() {
       }
       const data = await response.json();
       setScan(data);
+      if (!isPolling) setLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load scan");
-    } finally {
-      setLoading(false);
+      if (!isPolling) {
+        setError(err instanceof Error ? err.message : "Failed to load scan");
+        setLoading(false);
+      }
     }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    if (params?.id) {
+      fetchScan(params.id);
+    }
+  }, [params?.id, fetchScan]);
+
+  // Poll for updates while phases are in progress
+  useEffect(() => {
+    if (!scan || !params?.id) return;
+    
+    const phases = scan.scanPhases as ScanPhases | null;
+    const isInProgress = phases && (
+      phases.render === "pending" || 
+      phases.render === "running" ||
+      phases.probe === "pending" ||
+      phases.probe === "running"
+    );
+    
+    if (!isInProgress) return;
+    
+    const interval = setInterval(() => {
+      fetchScan(params.id, true);
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [scan, params?.id, fetchScan]);
+
+  const handleProbeScan = async () => {
+    if (!scan) return;
+    setProbeLoading(true);
+    const success = await triggerProbeScan(scan.id);
+    if (success) {
+      // Start polling by re-fetching
+      fetchScan(scan.id, true);
+    }
+    setProbeLoading(false);
   };
 
   const copyShareLink = () => {
@@ -95,6 +141,28 @@ export default function CardPage() {
       return new URL(url).hostname;
     } catch {
       return url;
+    }
+  };
+
+  const getPhaseIcon = (status: string) => {
+    switch (status) {
+      case "complete": return <Check className="w-3 h-3" />;
+      case "running": return <Loader2 className="w-3 h-3 animate-spin" />;
+      case "pending": return <RefreshCw className="w-3 h-3" />;
+      case "failed": return <span className="text-xs">!</span>;
+      case "locked": return <Lock className="w-3 h-3" />;
+      default: return null;
+    }
+  };
+
+  const getPhaseColor = (status: string) => {
+    switch (status) {
+      case "complete": return "bg-secondary/20 text-secondary border-secondary/30";
+      case "running": return "bg-primary/20 text-primary border-primary/30 animate-pulse";
+      case "pending": return "bg-muted text-muted-foreground border-border";
+      case "failed": return "bg-destructive/20 text-destructive border-destructive/30";
+      case "locked": return "bg-muted/50 text-muted-foreground/50 border-border";
+      default: return "bg-muted text-muted-foreground border-border";
     }
   };
 
@@ -156,20 +224,7 @@ export default function CardPage() {
                 {initials}
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h1 className="font-display text-2xl font-bold">{hostname}</h1>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    scan.scanMode === "probe" 
-                      ? "bg-secondary/20 text-secondary border border-secondary/30" 
-                      : "bg-muted text-muted-foreground border border-border"
-                  }`}>
-                    {scan.scanMode === "probe" ? (
-                      <><Zap className="w-3 h-3 inline mr-1" />Probe Scan</>
-                    ) : (
-                      <><Eye className="w-3 h-3 inline mr-1" />Passive Scan</>
-                    )}
-                  </span>
-                </div>
+                <h1 className="font-display text-2xl font-bold mb-1">{hostname}</h1>
                 <p className="text-sm text-muted-foreground">
                   Scanned {new Date(scan.scannedAt).toLocaleDateString()}
                 </p>
@@ -188,6 +243,45 @@ export default function CardPage() {
                 )}
               </Button>
             </div>
+            
+            {/* Phase Progress */}
+            {scan.scanPhases && (
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).passive)}`}>
+                  {getPhaseIcon((scan.scanPhases as ScanPhases).passive)}
+                  <span>Passive</span>
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).render)}`}>
+                  {getPhaseIcon((scan.scanPhases as ScanPhases).render)}
+                  <span>Render</span>
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).probe)}`}>
+                  {getPhaseIcon((scan.scanPhases as ScanPhases).probe)}
+                  <span>Probe</span>
+                </span>
+                
+                {/* Probe CTA */}
+                {(scan.scanPhases as ScanPhases).probe === "locked" && 
+                 (scan.scanPhases as ScanPhases).render === "complete" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleProbeScan}
+                    disabled={probeLoading}
+                    className="ml-2 text-xs h-7 bg-secondary/10 border-secondary/30 text-secondary hover:bg-secondary/20"
+                    data-testid="button-run-probe"
+                  >
+                    {probeLoading ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Zap className="w-3 h-3 mr-1" />
+                    )}
+                    Run AI Probe
+                  </Button>
+                )}
+              </div>
+            )}
+            
             <a
               href={scan.url}
               target="_blank"

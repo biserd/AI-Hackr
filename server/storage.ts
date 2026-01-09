@@ -20,6 +20,7 @@ export interface IStorage {
   createScan(scan: InsertScan): Promise<Scan>;
   getScan(id: string): Promise<Scan | undefined>;
   getRecentScans(limit?: number): Promise<Scan[]>;
+  updateScan(id: string, updates: Partial<InsertScan>): Promise<Scan | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -55,6 +56,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(scans.scannedAt))
       .limit(limit);
     return result;
+  }
+
+  async updateScan(id: string, updates: Partial<InsertScan>): Promise<Scan | undefined> {
+    const result = await db
+      .update(scans)
+      .set(updates)
+      .where(eq(scans.id, id))
+      .returning();
+    return result[0];
   }
 }
 

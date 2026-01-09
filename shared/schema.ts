@@ -47,6 +47,13 @@ export const scans = pgTable("scans", {
   aiTransport: text("ai_transport"),
   aiGateway: text("ai_gateway"),
   
+  // Scan phase tracking
+  scanPhases: jsonb("scan_phases").$type<{
+    passive: "pending" | "running" | "complete" | "failed";
+    render: "pending" | "running" | "complete" | "failed" | "skipped";
+    probe: "pending" | "running" | "complete" | "failed" | "locked";
+  }>().default({ passive: "pending", render: "pending", probe: "locked" }),
+  
   // Probe scan metrics
   scanMode: text("scan_mode").default("passive"),
   ttft: text("ttft"),

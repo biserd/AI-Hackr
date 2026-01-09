@@ -2,25 +2,18 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
-export type ScanMode = "passive" | "probe";
-
 export function useScan() {
   const [, setLocation] = useLocation();
   const [isScanning, setIsScanning] = useState(false);
-  const [scanMode, setScanMode] = useState<ScanMode>("passive");
 
-  const scanUrl = async (url: string, mode?: ScanMode) => {
+  const scanUrl = async (url: string) => {
     if (!url.trim()) {
       toast.error("Please enter a URL");
       return;
     }
 
-    const selectedMode = mode || scanMode;
     setIsScanning(true);
-
-    const toastId = selectedMode === "probe" 
-      ? toast.loading("Running deep probe scan... This may take up to 45 seconds")
-      : toast.loading("Scanning...");
+    const toastId = toast.loading("Scanning... Results appear as they're detected");
 
     try {
       const response = await fetch("/api/scan", {
@@ -28,7 +21,7 @@ export function useScan() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url, mode: selectedMode }),
+        body: JSON.stringify({ url }),
       });
 
       if (!response.ok) {
@@ -38,9 +31,7 @@ export function useScan() {
 
       const result = await response.json();
       toast.dismiss(toastId);
-      toast.success(selectedMode === "probe" 
-        ? "Probe scan complete! AI detection enhanced." 
-        : "Scan complete!");
+      toast.success("Scan started! Deeper analysis running in background.");
       setLocation(`/card/${result.id}`);
     } catch (error) {
       console.error("Scan error:", error);
@@ -51,5 +42,29 @@ export function useScan() {
     }
   };
 
-  return { scanUrl, isScanning, scanMode, setScanMode };
+  const triggerProbeScan = async (scanId: string) => {
+    const toastId = toast.loading("Running AI probe scan... This may take 30-60 seconds");
+    
+    try {
+      const response = await fetch(`/api/scan/${scanId}/probe`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Probe scan failed");
+      }
+
+      toast.dismiss(toastId);
+      toast.success("AI probe scan started!");
+      return true;
+    } catch (error) {
+      console.error("Probe scan error:", error);
+      toast.dismiss(toastId);
+      toast.error(error instanceof Error ? error.message : "Failed to start probe scan");
+      return false;
+    }
+  };
+
+  return { scanUrl, isScanning, triggerProbeScan };
 }
