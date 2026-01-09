@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { sendMagicLinkEmail } from "./email";
+import { sendMagicLinkEmail, sendAdminMagicLinkNotification } from "./email";
 import type { User } from "@shared/schema";
 
 const MAGIC_LINK_EXPIRY_MINUTES = 15;
@@ -94,6 +94,11 @@ export async function requestMagicLink(email: string, baseUrl: string): Promise<
     if (!emailSent) {
       return { success: false, error: "Failed to send email. Please try again." };
     }
+
+    // Notify admin (don't await, fire and forget)
+    sendAdminMagicLinkNotification(normalizedEmail).catch(err => {
+      console.error("[Auth] Failed to notify admin:", err);
+    });
 
     console.log(`[Auth] Magic link requested for ${normalizedEmail}`);
     return { success: true };

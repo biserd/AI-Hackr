@@ -5,6 +5,7 @@ import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
 import { insertScanSchema, insertSubscriptionSchema } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
+import { sendAdminNewScanNotification } from "./email";
 
 // In-memory queue for background scans
 const backgroundScanQueue: Map<string, { phase: "render" | "probe"; url: string }> = new Map();
@@ -361,6 +362,15 @@ export async function registerRoutes(
       // Save to database
       const validatedScan = insertScanSchema.parse(scanResult);
       const savedScan = await storage.createScan(validatedScan);
+      
+      // Notify admin of new scan (fire and forget)
+      sendAdminNewScanNotification(
+        savedScan.domain || new URL(savedScan.url).hostname,
+        savedScan.url,
+        req.user?.email
+      ).catch(err => {
+        console.error("[API] Failed to notify admin of scan:", err);
+      });
       
       // Queue render scan in background
       console.log(`[API] Queuing render scan for ${savedScan.id}`);

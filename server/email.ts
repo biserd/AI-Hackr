@@ -3,6 +3,7 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "AIHackr <hello@aihackr.com>";
+const ADMIN_EMAIL = "hello@bigappledigital.nyc";
 
 export async function sendMagicLinkEmail(email: string, magicLink: string): Promise<boolean> {
   try {
@@ -155,6 +156,112 @@ export async function sendChangeNotificationEmail(
     return true;
   } catch (error) {
     console.error("[Email] Error sending change notification:", error);
+    return false;
+  }
+}
+
+export async function sendAdminNewScanNotification(
+  domain: string,
+  url: string,
+  userEmail?: string
+): Promise<boolean> {
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ADMIN_EMAIL,
+      subject: `New scan: ${domain}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; margin: 0;">
+          <div style="max-width: 480px; margin: 0 auto;">
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px;">
+              <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">New Scan Report Created</h2>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Domain:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600;">${domain}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">URL:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${url}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">User:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${userEmail || "Anonymous"}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Time:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${new Date().toISOString()}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error("[Email] Failed to send admin scan notification:", error);
+      return false;
+    }
+
+    console.log(`[Email] Admin notified of new scan: ${domain}`);
+    return true;
+  } catch (error) {
+    console.error("[Email] Error sending admin scan notification:", error);
+    return false;
+  }
+}
+
+export async function sendAdminMagicLinkNotification(
+  userEmail: string
+): Promise<boolean> {
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ADMIN_EMAIL,
+      subject: `Magic link requested: ${userEmail}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; margin: 0;">
+          <div style="max-width: 480px; margin: 0 auto;">
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px;">
+              <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">Magic Link Requested</h2>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Email:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600;">${userEmail}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Time:</td>
+                  <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${new Date().toISOString()}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error("[Email] Failed to send admin magic link notification:", error);
+      return false;
+    }
+
+    console.log(`[Email] Admin notified of magic link request: ${userEmail}`);
+    return true;
+  } catch (error) {
+    console.error("[Email] Error sending admin magic link notification:", error);
     return false;
   }
 }
