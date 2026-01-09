@@ -1,0 +1,116 @@
+Here’s a landing-page copy kit for AIHackr that’s crisp, evidence-based (no overclaims), and built around one primary action: scan a URL.
+
+Positioning
+
+AIHackr reverse-engineers any SaaS and generates an “AI Stack Card” — framework, hosting, payments, analytics, auth, and (when detectable) the LLM/provider — with receipts + confidence.
+
+⸻
+
+Above-the-fold (hero)
+
+Headline options (pick one)
+	1.	What’s this SaaS built with—especially the AI stack?
+	2.	Reverse-engineer any SaaS: stack + AI provider, with receipts.
+	3.	The “BuiltWith” for AI SaaS—without the guesswork.
+
+Subheadline (tight + honest)
+Paste a URL to get a shareable Stack Card: framework, hosting, Stripe/auth/analytics—and AI provider signals when they’re publicly detectable (with confidence levels and evidence).
+
+Primary CTA (big button)
+Scan a URL →
+
+Input placeholder
+example.com
+
+Secondary CTA (text link next to button)
+See a sample report
+
+Trust microcopy (under CTA)
+Free passive scan. Probe scan available for deeper detection.
+
+⸻
+
+Problem → Promise (3 bullets)
+
+Stop guessing what competitors are running.
+	•	See the stack in seconds (Next/Vercel/Stripe/Clerk/etc.)
+	•	Detect AI provider signals when they leak (OpenAI / Gemini / Anthropic / Azure)
+	•	Every claim comes with evidence + confidence (High / Medium / Low)
+
+⸻
+
+“How it works” (3 steps)
+	1.	We scan the public surface (HTML, headers, scripts, DNS)
+	2.	Optional probe scan captures network calls during real interactions
+	3.	You get an AI Stack Card with receipts, confidence, and a share badge
+
+CTA under this section: Run a scan
+
+⸻
+
+What you get (deliverables)
+
+Your report includes:
+	•	Stack summary: framework, hosting/CDN, payments, auth, analytics, support
+	•	AI layer (if detectable): provider / gateway signals + transport (streaming/ws)
+	•	Evidence: observed domains, script signatures, request patterns
+	•	Share card: public URL + embed badge
+	•	Change history (Pro): what changed since last scan
+
+CTA: Generate my Stack Card
+
+⸻
+
+Social proof / virality section
+
+Make it shareable
+Post your AI Stack Card on X/LinkedIn—or drop the badge in your footer.
+
+Buttons:
+	•	View sample card
+	•	Scan my product
+
+⸻
+
+Pricing teaser (keep it simple)
+
+Free
+Passive scan + public Stack Card
+
+Pro
+Probe scans, monitoring, change alerts, exports, API
+
+CTA: Start free + View pricing
+
+⸻
+
+Footer CTAs (final push)
+
+Ready to reverse-engineer a SaaS?
+[ Scan a URL ]  [ View sample report ]
+
+⸻
+
+CTA strategy (clear + actionable)
+
+You want one primary CTA throughout: Scan a URL
+And two secondary CTAs:
+	•	See a sample report (reduces anxiety)
+	•	Probe scan (for power users, behind Pro or as a one-off upgrade)
+
+Suggested button labels
+	•	Primary: Scan a URL →
+	•	Secondary: View sample report
+	•	Upgrade moment: Run a deeper probe scan
+
+⸻
+
+Optional: “sticky” CTA bar (high conversion)
+
+A small bar that stays on scroll:
+	•	Input + Scan
+	•	Link: Sample report
+
+⸻
+
+If you tell me your preferred vibe (minimal/technical vs bold/viral), I’ll rewrite this into a single polished page (hero → sections → FAQs) with two versions: one optimized for builders and one for growth/marketers.
