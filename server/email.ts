@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "AIHackr <noreply@aihackr.dev>";
+const FROM_EMAIL = "AIHackr <onboarding@resend.dev>";
 
 export async function sendMagicLinkEmail(email: string, magicLink: string): Promise<boolean> {
   try {
