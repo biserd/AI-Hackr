@@ -1,6 +1,6 @@
 import { db } from "../storage";
 import { showHnProducts, scans, showHnReports, type Scan, type ShowHnProduct } from "@shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import { scanUrl } from "../scanner";
 import { browserScan, detectAIFromNetwork, detectFrameworkFromHints } from "../probeScanner";
 import { insertScanSchema } from "@shared/schema";
@@ -154,9 +154,14 @@ export async function generateAggregateReport(): Promise<string> {
   
   const scanIds = products.map(p => p.scanId).filter((id): id is string => id !== null);
   
+  if (scanIds.length === 0) {
+    console.log("[Report] No completed scans found");
+    throw new Error("No completed scans to generate report from");
+  }
+  
   const scanResults = await db.select()
     .from(scans)
-    .where(sql`${scans.id} = ANY(${scanIds})`);
+    .where(inArray(scans.id, scanIds));
   
   const countByField = (field: keyof Scan): Array<{ name: string; count: number; percentage: number }> => {
     const counts: Record<string, number> = {};
