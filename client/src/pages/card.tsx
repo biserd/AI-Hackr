@@ -18,7 +18,10 @@ import {
   Zap,
   Timer,
   Gauge,
-  Activity
+  Activity,
+  Eye,
+  Cloud,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -45,6 +48,11 @@ function formatPattern(pattern: string): string {
     return `${typeLabels[type] || type}: ${value.length > 30 ? value.slice(0, 30) + "..." : value}`;
   }
   return pattern.length > 35 ? pattern.slice(0, 35) + "..." : pattern;
+}
+
+function isCdnProvider(hosting: string): boolean {
+  const cdnProviders = ["Cloudflare", "Fastly", "Akamai", "CloudFront", "KeyCDN", "StackPath", "Bunny CDN"];
+  return cdnProviders.some(cdn => hosting.toLowerCase().includes(cdn.toLowerCase()));
 }
 
 export default function CardPage() {
@@ -148,7 +156,20 @@ export default function CardPage() {
                 {initials}
               </div>
               <div className="flex-1">
-                <h1 className="font-display text-2xl font-bold mb-1">{hostname}</h1>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="font-display text-2xl font-bold">{hostname}</h1>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    scan.scanMode === "probe" 
+                      ? "bg-secondary/20 text-secondary border border-secondary/30" 
+                      : "bg-muted text-muted-foreground border border-border"
+                  }`}>
+                    {scan.scanMode === "probe" ? (
+                      <><Zap className="w-3 h-3 inline mr-1" />Probe Scan</>
+                    ) : (
+                      <><Eye className="w-3 h-3 inline mr-1" />Passive Scan</>
+                    )}
+                  </span>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Scanned {new Date(scan.scannedAt).toLocaleDateString()}
                 </p>
@@ -192,8 +213,8 @@ export default function CardPage() {
               )}
               {scan.hosting && (
                 <TechCard
-                  icon={Server}
-                  label="Hosting"
+                  icon={isCdnProvider(scan.hosting) ? Cloud : Server}
+                  label={isCdnProvider(scan.hosting) ? "CDN / Edge" : "Hosting"}
                   value={scan.hosting}
                   confidence={scan.hostingConfidence}
                 />

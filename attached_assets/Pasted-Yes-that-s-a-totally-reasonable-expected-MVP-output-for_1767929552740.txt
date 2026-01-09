@@ -1,0 +1,54 @@
+Yes — that’s a totally reasonable “expected” MVP output for a passive + light DOM scan.
+
+From your screenshot, the tool is doing the two most common, most reliable detections:
+	•	Cloudflare: cf-ray, server: cloudflare, cf-cache-status headers → that’s strong evidence, so “High confidence” is correct.
+	•	GA4: googletagmanager.com/gtag, gtag('config', and a G-XXXX style measurement ID → also strong evidence.
+
+So the shape (Tech Stack cards → Detection Evidence → Third-Party Services) is correct.
+
+Two small “fixes” I’d recommend so it looks/feels right
+	1.	Rename “Hosting: Cloudflare” → “CDN / Edge: Cloudflare”
+Cloudflare is often an edge/CDN/proxy in front of the real host. Calling it “Hosting” can be misleading (unless you’re specifically detecting Cloudflare Pages/Workers origin).
+Better categories: CDN/Edge, Hosting, DNS, WAF.
+	2.	Label the scan type
+Right now the user doesn’t know if this was:
+
+	•	Passive scan (HTTP + headers + HTML)
+	•	Rendered scan (headless browser executes JS)
+	•	Probe scan (browser + interactions)
+
+Add a little pill at the top: “Passive Scan”.
+If you later add Playwright mode, it becomes a strong upgrade CTA: “Run Probe Scan to detect AI provider & app stack”.
+
+What’s “missing” (and why that’s okay)
+
+On a modern site you’d also expect to see possible detection of:
+	•	Framework (Next.js/React/etc.)
+	•	Hosting (Vercel/Netlify/etc.) behind Cloudflare
+	•	Payments/Auth/Support widgets, etc.
+
+If those aren’t showing, that’s usually because:
+	•	the content is JS-rendered and your passive scanner didn’t fetch/parse the right assets, or
+	•	the site is simple (no third-party tools beyond GA), or
+	•	Cloudflare is masking origin host headers (common)
+
+One UI tweak that increases trust
+
+In “Detection Signals,” consider showing:
+	•	the matched value (masked) and
+	•	the weight/score contribution (optional)
+
+Example:
+	•	Header: cf-ray: ******** (0.9)
+	•	Script: https://www.googletagmanager.com/gtag/js?id=G-**** (0.95)
+
+Quick “expected output” checklist for MVP
+
+If your MVP goal is “BuiltWith-lite”, your output is expected if it includes:
+	•	✅ Detected tech + confidence
+	•	✅ Receipts/evidence
+	•	✅ Third-party domains list
+
+If your goal is “AI stack detection,” then this output is expected as the baseline, but you’ll need the render/probe scan to start surfacing AI provider signals.
+
+If you paste the JSON your scanner emits for this page (signals + detections), I can tell you exactly what rules you should add next to detect framework/hosting behind Cloudflare and set up probe-mode AI detection.
