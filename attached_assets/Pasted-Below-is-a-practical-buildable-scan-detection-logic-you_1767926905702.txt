@@ -1,0 +1,277 @@
+Below is a practical, buildable scan + detection logic you can implement for AIHackr. It’s essentially “Wappalyzer-style fingerprinting” + an optional Playwright probe to catch AI/provider signals that only show up during real interactions.
+
+⸻
+
+1) Scan pipeline logic
+
+A) Normalize + safety gates
+	1.	Normalize URL
+	•	If user enters example.com, try https://example.com first, then http://.
+	•	Follow redirects; keep final_url, store full redirect chain.
+	2.	Scope
+	•	Only scan the origin of final_url (avoid crawling external sites).
+	3.	Robots & rate limits
+	•	Fetch /robots.txt (mostly informational for MVP; still useful to show “crawl blocked”).
+	•	Apply strict timeouts and max bytes for downloads.
+
+B) Passive scan (fast, cheap, works for most stack signals)
+	1.	Fetch final_url HTML with headers (GET)
+	2.	Collect:
+	•	Response headers
+	•	Cookies (Set-Cookie)
+	•	HTML (cap to e.g., 2–5MB)
+	3.	Parse HTML:
+	•	<meta> tags
+	•	<script src=…> list (absolute + relative)
+	•	inline script snippets (first N chars, or hash)
+	•	<link rel=…> (preloads can hint frameworks)
+	4.	Fetch top scripts (optional but high value):
+	•	Only same-origin or well-known CDNs; cap count (e.g., 5–10) and size (e.g., 300KB each).
+	•	Store a content hash + a small text sample (for signature matching).
+	5.	DNS + TLS hints (optional but helpful):
+	•	Resolve CNAME/A for host (hosting hints)
+	•	Check certificate issuer / SAN (rarely needed, but can help)
+
+C) Probe scan (the AI differentiator)
+
+Run Playwright headless to capture “what happens when a user uses the app”.
+	1.	Launch browser → visit page
+	2.	Capture:
+	•	All network requests (url, method, headers, content-type)
+	•	WebSocket connections
+	•	Response status codes
+	3.	Minimal interaction heuristics (MVP):
+	•	Look for buttons/links containing: ask, chat, assistant, ai, copilot, help
+	•	Click to open chat if found
+	•	Type a harmless prompt like: “Hi” / “What can you do?”
+	•	Submit (Enter or click send)
+	4.	Observe network calls triggered by that interaction.
+	5.	Stop after time budget (e.g., 30–45s total) and build evidence.
+
+⸻
+
+2) Detection engine: how to identify technologies
+
+Core idea: “signature rules”
+
+Each technology is detected from multiple evidence types:
+	•	headers
+	•	cookies
+	•	meta
+	•	html snippets
+	•	script_src URLs
+	•	script_body snippets/hashes
+	•	dns records
+	•	network_requests (probe mode)
+	•	dom (optional: specific nodes/attributes)
+
+You then score evidence and emit:
+	•	detected tech list
+	•	confidence per tech
+	•	evidence “receipts”
+
+Suggested signature schema (JSON)
+
+{
+  "tech_id": "nextjs",
+  "name": "Next.js",
+  "category": "framework",
+  "evidence_rules": [
+    { "type": "html", "pattern": "__NEXT_DATA__", "weight": 0.7 },
+    { "type": "script_src", "pattern": "/_next/static/", "weight": 0.6 },
+    { "type": "header", "key": "x-powered-by", "pattern": "Next.js", "weight": 0.6 }
+  ],
+  "thresholds": { "high": 0.8, "medium": 0.5 }
+}
+
+Scoring logic (simple, effective)
+	•	For each tech, sum weights of matched rules (cap at 1.0).
+	•	Confidence mapping:
+	•	>= high: High
+	•	>= medium: Medium
+	•	else: Low (don’t show, or show as “possible”)
+
+Also store the exact matches as receipts:
+	•	matched header key/value
+	•	matched URL
+	•	matched snippet location
+
+⸻
+
+3) Concrete detection rules (high-value MVP set)
+
+Hosting/CDN
+
+Vercel
+	•	Header: x-vercel-id exists
+	•	DNS: CNAME contains vercel-dns.com
+	•	Script: /_vercel/insights/
+
+HIGH if header x-vercel-id
+MED if vercel-dns cname OR vercel insights script
+
+Netlify
+	•	Header: server: Netlify or x-nf-request-id
+	•	DNS: netlify.app / Netlify CNAME patterns
+
+Cloudflare
+	•	Header: cf-ray or server: cloudflare
+	•	Presence of CF-related headers
+
+Framework
+
+Next.js
+	•	HTML: __NEXT_DATA__
+	•	Script path: /_next/static/
+	•	Header: x-powered-by: Next.js
+
+Nuxt
+	•	HTML: __NUXT__ or data-n-head
+	•	Script path includes /_nuxt/
+
+Payments
+
+Stripe
+	•	Script src: https://js.stripe.com/v3
+	•	Links: checkout.stripe.com
+	•	Network requests to api.stripe.com (rare client-side), or Stripe assets
+
+Auth
+
+Clerk
+	•	Script/dom markers: clerk.* assets, __clerk, Clerk endpoints
+
+Auth0
+	•	Scripts from cdn.auth0.com
+	•	Network calls to /authorize on Auth0 domains
+
+Supabase Auth
+	•	JS bundle contains supabase-js
+	•	Network calls to *.supabase.co/auth/v1
+
+Analytics
+
+GA4
+	•	Script: googletagmanager.com/gtag/js
+	•	Inline: gtag('config', 'G-...')
+
+PostHog
+	•	Script: posthog.com or array.js
+	•	Global window.posthog
+	•	Network calls to /e/ or PostHog ingest domains
+
+Support/Chat
+
+Intercom
+	•	widget.intercom.io
+	•	window.Intercom
+
+⸻
+
+4) AI provider / model detection (evidence + confidence)
+
+What you can reliably claim
+	•	Provider when you see direct provider endpoints or SDK artifacts.
+	•	Exact model only when a model ID appears in:
+	•	request payloads
+	•	response payloads
+	•	error messages
+
+Provider signatures (MVP)
+
+OpenAI
+	•	Network: api.openai.com
+	•	Path: /v1/chat/completions, /v1/responses
+	•	JS artifacts: openai SDK strings
+
+Azure OpenAI
+	•	Network: *.openai.azure.com
+	•	Query contains api-version=
+
+Google Gemini
+	•	Network: generativelanguage.googleapis.com
+	•	JS artifacts: @google/generative-ai
+	•	(Sometimes) Vertex AI endpoints (harder to assert “Gemini” unless you see Gemini model names)
+
+Anthropic
+	•	Network: api.anthropic.com
+	•	JS artifacts: anthropic SDK strings
+
+OpenAI-compatible gateway (provider unknown)
+	•	Network calls to a first-party domain (e.g., app.com/api/chat) that forwards server-side (no evidence)
+	•	OR a non-provider domain using OpenAI-like paths: /v1/chat/completions
+	•	Then label:
+	•	“OpenAI-compatible API detected (provider unknown)” (Medium)
+
+Confidence rubric for AI detection
+	•	High: Direct call to provider domain OR SDK artifact present in client bundle
+	•	Medium: Strong protocol/path match but domain isn’t definitive (gateway)
+	•	Low: Only UI text (“Powered by…”) or marketing copy, no network/script evidence
+
+Example AI evidence object
+
+{
+  "ai_provider": { "value": "Google Gemini", "confidence": "high" },
+  "model": { "value": "unknown", "confidence": "low" },
+  "evidence": [
+    { "type": "network", "match": "generativelanguage.googleapis.com", "detail": "POST /v1beta/models/..." },
+    { "type": "script_body", "match": "@google/generative-ai", "detail": "bundle snippet hash: abc123" }
+  ]
+}
+
+
+⸻
+
+5) Putting it together: end-to-end pseudocode
+
+async function runScan(inputUrl: string, mode: "passive" | "probe") {
+  const url = await normalizeUrl(inputUrl);           // https-first, follow redirects
+  const passive = await passiveFetch(url);            // html + headers + cookies + scripts
+  const dns = await dnsHints(url.host);               // cname/a records (optional)
+  const passiveSignals = extractSignals(passive, dns);
+
+  let probeSignals = null;
+  if (mode === "probe") {
+    const probe = await playwrightProbe(url);         // network logs + optional interactions
+    probeSignals = extractProbeSignals(probe);
+  }
+
+  const signals = mergeSignals(passiveSignals, probeSignals);
+
+  const detections = detectTechnologies(signals, SIGNATURE_DB);
+  const aiDetections = detectAi(signals, AI_SIGNATURES);
+
+  const report = buildReport(url, detections, aiDetections, signals);
+  return report;
+}
+
+
+⸻
+
+6) MVP output recommendation (so users trust it)
+
+For every detection, show:
+	•	Technology name
+	•	Confidence
+	•	Receipts (“Matched script URL…”, “Observed header…”, “Observed network domain…”)
+
+That’s what makes this credible vs “guessy” tools.
+
+⸻
+
+7) Monetization hooks baked into detection
+
+Detection results naturally create paid upgrades:
+	•	Free: Passive scan + public Stack Card
+	•	Paid:
+	•	Probe scan (more AI/provider detections)
+	•	Monitoring + alerts (“AI provider changed”, “Stripe added”, “moved to Vercel”)
+	•	Bulk scanning + API
+	•	Export PDF/JSON
+
+⸻
+
+If you want, I’ll draft your initial SIGNATURE_DB (say 80–120 technologies) as a JSON file structure and include:
+	•	the top 20 AI-related signatures (providers + gateways + Vercel AI SDK patterns)
+	•	the top 60 SaaS stack signatures (Stripe/Clerk/Auth0/Vercel/Netlify/GA4/Segment/PostHog/Intercom/etc.)
+so your dev can implement detection immediately.
