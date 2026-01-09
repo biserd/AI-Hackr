@@ -1,0 +1,97 @@
+1) Make “Origin Host: Replit” explicitly inferred
+
+Right now it reads like a fact. Since Cloudflare sits in front, “origin” is often guessy.
+
+Change to: Origin host (inferred): Replit — Medium
+
+Add a tiny “Why” hover: “Observed replit.com + replit-dev-banner asset in network activity.”
+
+If you can’t prove it (DNS/CNAME/origin headers), label it Possible.
+
+2) Fix the mismatch: “3rd-party 7 detected” vs “Third-Party Services” showing 1
+
+You already list 7 external domains in Network Activity, but “Third-Party Services” only shows GTM.
+
+Make one canonical “Services detected (7)” section and group by vendor:
+
+Google Analytics/Tag Manager (googletagmanager.com, google-analytics.com, /g/collect)
+
+Google Fonts (fonts.googleapis.com, fonts.gstatic.com)
+
+Cloudflare Insights (static.cloudflareinsights.com)
+
+Replit (replit.com) (if you keep it as 3rd party)
+
+Then you can delete the separate “Third-Party Services” block or turn it into that grouped view.
+
+3) Rename “Confidence: Medium” to “Overall confidence” + explain why
+
+Overall confidence being “Medium” makes people wonder if the whole thing is shaky.
+
+Show Overall confidence: Medium
+
+Subtext: “Medium because framework not detected and origin host is inferred.”
+
+Keep per-item confidence on each tech card (already good).
+
+4) Probe Coverage: “Elements clicked 0/0” reads broken
+
+Change it to something explicit:
+
+Candidates found: 0
+
+Clicked: 0
+
+Chat UI found: No
+
+And add a CTA when probe can’t find anything:
+
+“Probe a specific path” (user enters /chat, /assistant, etc.)
+
+or “Tell us where the AI feature lives” (input field)
+
+5) AI Stack wording: “AI not detected” → “No public AI signal”
+
+This avoids the wrong interpretation (“this product doesn’t use AI”).
+
+Suggested copy:
+
+Provider: No public signal
+
+Gateway: Not observed
+
+Chat UI: Not found
+
+Helper: “This app may call AI server-side only, behind a proxy, or only after login.”
+
+6) Network Activity: add counts + separate first-party vs third-party
+
+Make it more forensic and less “chip spam”:
+
+Requests captured: 21
+
+External domains: 7
+
+Show per-domain counts: www.googletagmanager.com (5) etc.
+
+Split “Requested paths” into:
+
+First-party paths
+
+Third-party paths (like /g/collect)
+
+7) Share UX: reduce duplication
+
+You have Copy link (top card) + Share (report header). Consider:
+
+Keep Copy link in the Stack Card
+
+Make Share a dropdown: Copy link / Copy image / Copy badge / Embed
+
+8) Add one more “View all detections” affordance
+
+Because Tech Stack shows only 2 cards, it can feel sparse. Add:
+
+“View all (7)” which expands into the grouped services list.
+
+If you implement just #1–#4 and #2, the report will feel significantly more authoritative and less “tool-y”.
