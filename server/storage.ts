@@ -52,6 +52,7 @@ export interface IStorage {
   updateSubscription(id: string, updates: Partial<Subscription>): Promise<Subscription | undefined>;
   deleteSubscription(id: string): Promise<void>;
   getActiveSubscriptions(): Promise<Subscription[]>;
+  getAllSubscriptions(): Promise<Subscription[]>;
   
   // Change event methods
   createChangeEvent(event: Omit<ChangeEvent, 'id' | 'detectedAt'>): Promise<ChangeEvent>;
@@ -63,6 +64,7 @@ export interface IStorage {
   createScan(scan: InsertScan): Promise<Scan>;
   getScan(id: string): Promise<Scan | undefined>;
   getScanByDomain(domain: string): Promise<Scan | undefined>;
+  getScansByDomain(domain: string, limit?: number): Promise<Scan[]>;
   getRecentScans(limit?: number): Promise<Scan[]>;
   getUserScans(userId: string, limit?: number): Promise<Scan[]>;
   updateScan(id: string, updates: Partial<InsertScan>): Promise<Scan | undefined>;
@@ -176,6 +178,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(subscriptions).where(eq(subscriptions.isActive, true));
   }
 
+  async getAllSubscriptions(): Promise<Subscription[]> {
+    return await db.select().from(subscriptions);
+  }
+
   // Change event methods
   async createChangeEvent(event: Omit<ChangeEvent, 'id' | 'detectedAt'>): Promise<ChangeEvent> {
     const result = await db.insert(changeEvents).values(event).returning();
@@ -218,6 +224,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(scans.scannedAt))
       .limit(1);
     return result[0];
+  }
+
+  async getScansByDomain(domain: string, limit: number = 10): Promise<Scan[]> {
+    return await db
+      .select()
+      .from(scans)
+      .where(eq(scans.domain, domain))
+      .orderBy(desc(scans.scannedAt))
+      .limit(limit);
   }
 
   async getRecentScans(limit: number = 10): Promise<Scan[]> {
