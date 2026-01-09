@@ -185,9 +185,11 @@ function StickyBar() {
                 </>
               )}
             </Button>
-            <Button variant="ghost" size="sm" className="h-10 text-muted-foreground hover:text-foreground text-xs" data-testid="link-sticky-sample">
-              Sample
-            </Button>
+            <Link href="/scan/stripe.com">
+              <Button variant="ghost" size="sm" className="h-10 text-muted-foreground hover:text-foreground text-xs" data-testid="link-sticky-sample">
+                Sample
+              </Button>
+            </Link>
           </div>
         </motion.div>
       )}
@@ -289,10 +291,12 @@ function Hero() {
         </motion.div>
         
         <motion.div variants={fadeInUp} className="mt-6">
-          <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-sample-report">
-            See a sample report
-            <ExternalLink className="ml-2 w-4 h-4" />
-          </Button>
+          <Link href="/scan/stripe.com">
+            <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-sample-report">
+              See a sample report
+              <ExternalLink className="ml-2 w-4 h-4" />
+            </Button>
+          </Link>
         </motion.div>
       </motion.div>
     </section>
@@ -964,14 +968,18 @@ function Sharing() {
         </motion.div>
         
         <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button variant="outline" size="lg" className="border-border hover:border-primary/50 hover:bg-primary/5" data-testid="button-view-sample">
-            View sample card
-            <ExternalLink className="ml-2 w-4 h-4" />
-          </Button>
-          <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-scan-product">
-            Scan my product
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
+          <Link href="/scan/stripe.com">
+            <Button variant="outline" size="lg" className="border-border hover:border-primary/50 hover:bg-primary/5" data-testid="button-view-sample">
+              View sample card
+              <ExternalLink className="ml-2 w-4 h-4" />
+            </Button>
+          </Link>
+          <a href="#hero">
+            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-scan-product">
+              Scan my product
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+          </a>
         </motion.div>
       </motion.div>
     </section>
@@ -1298,10 +1306,12 @@ function Footer() {
         </motion.div>
         
         <motion.div variants={fadeInUp}>
-          <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-footer-sample">
-            View sample report
-            <ExternalLink className="ml-2 w-4 h-4" />
-          </Button>
+          <Link href="/scan/stripe.com">
+            <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-footer-sample">
+              View sample report
+              <ExternalLink className="ml-2 w-4 h-4" />
+            </Button>
+          </Link>
         </motion.div>
         
         <motion.div variants={fadeInUp} className="mt-16 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
