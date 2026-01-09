@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -78,13 +79,14 @@ function Navbar() {
           </div>
           <span className="font-display font-semibold text-lg tracking-tight">AIHackr</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-sample">
             Sample Report
           </Button>
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-pricing">
             Pricing
           </Button>
+          <ThemeToggle />
           <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-scan">
             Scan URL
           </Button>
