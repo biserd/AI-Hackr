@@ -1,0 +1,146 @@
+Technical Logic for "Modelalyzer" Detection Engine
+This document outlines the algorithmic logic for the Modelalyzer browser extension. The detection engine operates on a Hybrid Interception Architecture, running two parallel processes:
+ * Passive Observer: Scans the DOM and HTTP Headers (non-intrusive).
+ * Active Interceptor: Hooks into window.fetch and XMLHttpRequest to analyze the physics of the data stream (intrusive but invisible).
+Phase 1: The Passive Observer (Static Analysis)
+Runs immediately on page load.
+1. DOM Fingerprinting (Frontend Stack)
+The content script queries the DOM for specific class names and global variables that betray the underlying UI framework.
+| Framework | Detection Selector / Logic | Confidence |
+|---|---|---|
+| Streamlit | div[class*="st-emotion-cache"] OR div.stApp | 100% |
+| Gradio | div.gradio-container OR body > gradio-app | 100% |
+| Vercel v0 | Checks for specific Tailwind classes often paired with Shadcn UI and next attributes, but confirmed by headers. | Medium |
+| LlamaIndex | Checks for window.LlamaIndex (rare, only in dev builds) or specific citation metadata structures in HTML. | Low |
+| Next.js | script | High |
+2. Network Header Analysis (Infrastructure)
+The background worker listens to onHeadersReceived. It strips standard headers and looks for "Leaky Signals."
+ * Rule: If x-portkey-provider exists, STOP. We have 100% ID.
+ * Rule: If x-stainless-lang exists, mark as OpenAI-Compatible (could be OpenAI, Groq, or Together).
+ * Rule: If via: 1.1 google, check for server: scaffolding. If present -> Google Vertex AI.
+Header Signature Map:
+{
+  "x-portkey-provider": "Portkey Gateway",
+  "x-stainless-runtime": "OpenAI SDK (Python/Node)",
+  "anthropic-version": "Anthropic Claude",
+  "x-vercel-ai-provider": "Vercel AI SDK",
+  "x-groq-region": "Groq",
+  "helicone-request-id": "Helicone Observability"
+}
+
+Phase 2: The Active Interceptor (Dynamic/Behavioral Analysis)
+Runs when the user sends a message. This is the core "AI" detection logic.
+1. The Monkey Patch
+We inject a script to wrap the browser's native fetch API. This allows us to read the stream of data coming back from the LLM as it arrives, without breaking the application.
+Logic Flow:
+ * User clicks "Send".
+ * Interceptor captures fetch() call.
+ * Interceptor starts a stopwatch (T_Start).
+ * First Chunk Arrival: Record T_First_Byte.
+   * TTFT = T_First_Byte - T_Start
+ * Stream Parsing: As data chunks arrive, we clone the stream and count tokens (approximated as Chars / 4).
+ * Stream End: Record T_End and Total_Tokens.
+   * Generation_Time = T_End - T_First_Byte
+   * TPS (Tokens Per Second) = Total_Tokens / Generation_Time
+2. Payload Structure Analysis
+Even if headers are scrubbed, the shape of the JSON response often reveals the provider.
+ * OpenAI/Groq/Together:
+   {"choices": [{"delta": {"content": "..."}}]}
+
+ * Anthropic:
+   {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "..."}}
+
+ * Vercel AI SDK (Data Stream):
+   0:"The"
+   0:" quick"
+   0:" brown"
+   (Detects specific row-based streaming format)
+Phase 3: The Inference Engine (Scoring & Classification)
+This is the decision matrix that combines Phase 1 and Phase 2 data to output a final verdict.
+1. Speed-Based Fingerprinting (The "Speedometer")
+If we can't see the provider via headers, we guess based on TPS (Tokens Per Second).
+| Detected Speed | Classification Heuristic |
+|---|---|
+| > 250 TPS | Likely Groq (LPU) or Cerebras (Wafer). |
+| ~ 100 TPS | Likely GPT-4o or Claude Haiku. |
+| ~ 60 TPS | Likely Claude 3.5 Sonnet (Fast but "human" pace). |
+| ~ 20-30 TPS | Likely GPT-4 (Legacy) or Local/Self-Hosted Model. |
+| Variable | DeepSeek V3 (Often exhibits high burstiness). |
+2. The "Reasoning" Check
+If TTFT > 3000ms (3 seconds) AND TPS > 50 (Fast generation after wait):
+ * Verdict: Reasoning Model (o1 / DeepSeek R1). The delay was the model "thinking."
+3. Conflict Resolution
+Scenario: The header says server: openai but the speed is 300 TPS.
+ * Logic: The header is likely a proxy (e.g., LiteLLM masquerading as OpenAI).
+ * Override: Trust the Physics. Classification = "OpenAI-Compatible Model on High-Performance Hardware (Groq/Cerebras)."
+The Code Logic (JavaScript / Pseudocode)
+Here is the core logic you would implement in the content.js of your extension.
+// 1. DYNAMIC INJECTION: Wrap window.fetch
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+    const startTime = Date.now();
+    const response = await originalFetch(...args);
+
+    // Clone the response so we can read it without consuming it for the user
+    const clone = response.clone();
+    
+    // Check Headers Logic
+    const providerHeader = clone.headers.get("x-portkey-provider") |
+
+| 
+                           clone.headers.get("x-stainless-lang")? "OpenAI-Family" : null;
+
+    // Start Streaming Analysis
+    const reader = clone.body.getReader();
+    const decoder = new TextDecoder();
+    let firstTokenReceived = false;
+    let tokenCount = 0;
+    let ttft = 0;
+
+    // Process the stream
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const currentTime = Date.now();
+
+        // LOGIC: Calculate Time to First Token
+        if (!firstTokenReceived) {
+            ttft = currentTime - startTime;
+            firstTokenReceived = true;
+        }
+
+        // LOGIC: Approximate Token Count (Chars / 4)
+        const chunkText = decoder.decode(value, { stream: true });
+        tokenCount += chunkText.length / 4; 
+    }
+
+    const totalTime = Date.now() - startTime;
+    const generationTime = totalTime - ttft;
+    const tps = tokenCount / (generationTime / 1000);
+
+    // Send data to Extension Popup
+    reportMetrics({
+        ttft: ttft,
+        tps: Math.round(tps),
+        detectedHeader: providerHeader,
+        impliedModel: fingerprintModel(tps, ttft)
+    });
+
+    return response;
+};
+
+// 2. FINGERPRINTING LOGIC: The "Lookup Table"
+function fingerprintModel(tps, ttft) {
+    if (tps > 200) return "Groq / Cerebras (Llama 3)";
+    if (tps > 90 && tps < 120) return "GPT-4o";
+    if (tps > 50 && tps < 90) return "Claude 3.5 Sonnet / GPT-4o-mini";
+    if (ttft > 4000) return "Reasoning Model (o1 / DeepSeek R1)";
+    return "Standard LLM / Unknown";
+}
+
+Summary of Data Points for the User
+When the scan completes, your popup will display:
+ * Confidence Score: (e.g., "98% Sure it's OpenAI") based on header presence.
+ * Performance Grade: "Grade A (Groq speeds)" or "Grade D (Legacy speeds)."
+ * Stack Graph: A visual node graph connecting Frontend (Next.js) -> Orchestrator (LangChain) -> Provider (Anthropic).
