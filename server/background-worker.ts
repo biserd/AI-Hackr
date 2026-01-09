@@ -111,7 +111,7 @@ async function rescanSubscription(subscription: Subscription): Promise<void> {
         const user = await storage.getUser(subscription.userId);
         if (user?.email) {
           console.log(`[Worker] Sending notification email to ${user.email}`);
-          const scanPageUrl = `${process.env.APP_URL || 'https://aihackr.dev'}/scan/${subscription.domain}`;
+          const scanPageUrl = `${process.env.APP_URL || 'https://aihackr.com'}/scan/${subscription.domain}`;
           await sendChangeNotificationEmail(user.email, subscription.domain, changes, scanPageUrl);
         }
       }
