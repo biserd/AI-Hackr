@@ -70,24 +70,24 @@ function isCdnProvider(hosting: string): boolean {
   return cdnProviders.some(cdn => hosting.toLowerCase().includes(cdn.toLowerCase()));
 }
 
-function detectOriginHost(domains: string[], patterns?: string[]): { origin: string | null; confidence: string } {
+function detectOriginHost(domains: string[], patterns?: string[]): { origin: string | null; confidence: string; evidence: string } {
   const hostingProviders = [
-    { pattern: "replit", name: "Replit" },
-    { pattern: "vercel", name: "Vercel" },
-    { pattern: "netlify", name: "Netlify" },
-    { pattern: "heroku", name: "Heroku" },
-    { pattern: "railway", name: "Railway" },
-    { pattern: "render.com", name: "Render" },
-    { pattern: "fly.io", name: "Fly.io" },
-    { pattern: "amazonaws", name: "AWS" },
-    { pattern: "cloudfront", name: "AWS CloudFront" },
+    { pattern: "replit", name: "Replit", evidenceHint: "replit.com asset" },
+    { pattern: "vercel", name: "Vercel", evidenceHint: "vercel.app domain" },
+    { pattern: "netlify", name: "Netlify", evidenceHint: "netlify.app domain" },
+    { pattern: "heroku", name: "Heroku", evidenceHint: "herokuapp.com domain" },
+    { pattern: "railway", name: "Railway", evidenceHint: "railway.app domain" },
+    { pattern: "render.com", name: "Render", evidenceHint: "render.com domain" },
+    { pattern: "fly.io", name: "Fly.io", evidenceHint: "fly.io domain" },
+    { pattern: "amazonaws", name: "AWS", evidenceHint: "amazonaws.com domain" },
+    { pattern: "cloudfront", name: "AWS CloudFront", evidenceHint: "cloudfront.net domain" },
   ];
   
   // Check network domains
   for (const domain of domains) {
     for (const provider of hostingProviders) {
       if (domain.toLowerCase().includes(provider.pattern)) {
-        return { origin: provider.name, confidence: "Medium" };
+        return { origin: provider.name, confidence: "Medium", evidence: `Observed ${provider.evidenceHint} in network activity` };
       }
     }
   }
@@ -97,13 +97,13 @@ function detectOriginHost(domains: string[], patterns?: string[]): { origin: str
     for (const pattern of patterns) {
       for (const provider of hostingProviders) {
         if (pattern.toLowerCase().includes(provider.pattern)) {
-          return { origin: provider.name, confidence: "Low" };
+          return { origin: provider.name, confidence: "Low", evidence: `Found ${provider.pattern} in page patterns` };
         }
       }
     }
   }
   
-  return { origin: null, confidence: "Low" };
+  return { origin: null, confidence: "Low", evidence: "" };
 }
 
 function filterPlatformNoise(paths: string[], domains: string[], siteDomain: string): { paths: string[]; domains: string[] } {
@@ -122,18 +122,85 @@ function filterPlatformNoise(paths: string[], domains: string[], siteDomain: str
   return { paths: filteredPaths, domains: filteredDomains };
 }
 
+type ServiceGroup = {
+  name: string;
+  domains: string[];
+  category: string;
+};
+
+function groupThirdPartyServices(scan: Scan, siteDomain: string): ServiceGroup[] {
+  const vendorPatterns: { pattern: string; name: string; category: string }[] = [
+    { pattern: "googletagmanager", name: "Google Tag Manager", category: "Analytics" },
+    { pattern: "google-analytics", name: "Google Analytics", category: "Analytics" },
+    { pattern: "analytics.google", name: "Google Analytics", category: "Analytics" },
+    { pattern: "fonts.googleapis", name: "Google Fonts", category: "Fonts" },
+    { pattern: "fonts.gstatic", name: "Google Fonts", category: "Fonts" },
+    { pattern: "cloudflareinsights", name: "Cloudflare Insights", category: "Performance" },
+    { pattern: "cdn.cloudflare", name: "Cloudflare CDN", category: "CDN" },
+    { pattern: "replit", name: "Replit", category: "Hosting" },
+    { pattern: "stripe", name: "Stripe", category: "Payments" },
+    { pattern: "intercom", name: "Intercom", category: "Support" },
+    { pattern: "crisp", name: "Crisp", category: "Support" },
+    { pattern: "hotjar", name: "Hotjar", category: "Analytics" },
+    { pattern: "segment", name: "Segment", category: "Analytics" },
+    { pattern: "mixpanel", name: "Mixpanel", category: "Analytics" },
+    { pattern: "amplitude", name: "Amplitude", category: "Analytics" },
+    { pattern: "sentry", name: "Sentry", category: "Monitoring" },
+    { pattern: "auth0", name: "Auth0", category: "Auth" },
+    { pattern: "clerk", name: "Clerk", category: "Auth" },
+  ];
+  
+  const domains = scan.evidence?.networkDomains || [];
+  const grouped = new Map<string, string[]>();
+  const categorized = new Map<string, string>();
+  
+  domains.forEach(domain => {
+    if (domain.includes(siteDomain)) return;
+    
+    let matched = false;
+    for (const v of vendorPatterns) {
+      if (domain.toLowerCase().includes(v.pattern)) {
+        const existing = grouped.get(v.name) || [];
+        if (!existing.includes(domain)) existing.push(domain);
+        grouped.set(v.name, existing);
+        categorized.set(v.name, v.category);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const existing = grouped.get("Other") || [];
+      existing.push(domain);
+      grouped.set("Other", existing);
+      categorized.set("Other", "Other");
+    }
+  });
+  
+  return Array.from(grouped.entries()).map(([name, domains]) => ({
+    name,
+    domains,
+    category: categorized.get(name) || "Other",
+  }));
+}
+
 function countThirdPartyServices(scan: Scan): number {
-  const services = new Set<string>();
-  if (scan.analytics) services.add(scan.analytics);
-  if (scan.payments) services.add(scan.payments);
-  if (scan.auth) services.add(scan.auth);
-  if (scan.support) services.add(scan.support);
-  if (scan.evidence?.networkDomains) {
-    scan.evidence.networkDomains.forEach(d => {
-      if (!d.includes(new URL(scan.url).hostname)) services.add(d);
-    });
+  try {
+    const siteDomain = new URL(scan.url).hostname;
+    const groups = groupThirdPartyServices(scan, siteDomain);
+    return groups.length;
+  } catch {
+    return 0;
   }
-  return Math.min(services.size, 20);
+}
+
+function getConfidenceReason(scan: Scan, originHost: { origin: string | null; confidence: string }): string {
+  const reasons: string[] = [];
+  if (!scan.framework) reasons.push("framework not detected");
+  if (originHost.confidence === "Low" || originHost.confidence === "Medium") reasons.push("origin inferred");
+  if (!scan.aiProvider) reasons.push("no AI signal");
+  
+  if (reasons.length === 0) return "All detections confirmed";
+  return reasons.slice(0, 2).join(", ");
 }
 
 export default function CardPage() {
@@ -324,7 +391,7 @@ export default function CardPage() {
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="px-2 py-0.5 rounded bg-muted">{isCdn ? scan.hosting : (scan.framework || "Unknown")}</span>
                 {scan.analytics && <span className="px-2 py-0.5 rounded bg-muted">{scan.analytics}</span>}
-                <span className="px-2 py-0.5 rounded bg-muted">{scan.aiProvider ? scan.aiProvider : "AI not detected"}</span>
+                <span className="px-2 py-0.5 rounded bg-muted">{scan.aiProvider ? scan.aiProvider : "No AI signal"}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -354,10 +421,6 @@ export default function CardPage() {
                   <span>{formattedTime}</span>
                 </div>
               </div>
-              <Button onClick={copyShareLink} variant="outline" size="sm" data-testid="button-share">
-                {copied ? <Check className="mr-1 w-4 h-4" /> : <Share2 className="mr-1 w-4 h-4" />}
-                Share
-              </Button>
             </div>
             
             {/* Phase Progress */}
@@ -403,7 +466,7 @@ export default function CardPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
               <SummaryItem
                 label="AI Provider"
-                value={scan.aiProvider || "Not detected"}
+                value={scan.aiProvider || "No public signal"}
                 status={probeRan ? "complete" : (scan.aiProvider ? "detected" : "pending")}
                 icon={Bot}
               />
@@ -414,23 +477,26 @@ export default function CardPage() {
                 icon={Code2}
               />
               <SummaryItem
-                label={isCdn ? "Origin Host" : "Hosting"}
+                label={isCdn ? "Origin (inferred)" : "Hosting"}
                 value={isCdn ? (originHost.origin || "Unknown") : (scan.hosting || "Unknown")}
                 status={isCdn ? (originHost.origin ? "detected" : "pending") : (scan.hosting ? "complete" : "pending")}
                 icon={Server}
                 subtitle={isCdn ? `behind ${scan.hosting}` : undefined}
+                tooltip={isCdn && originHost.evidence ? originHost.evidence : undefined}
+                confidence={isCdn ? originHost.confidence : undefined}
               />
               <SummaryItem
-                label="3rd-party"
+                label="Services"
                 value={`${thirdPartyCount} detected`}
                 status="detected"
                 icon={Globe}
               />
               <SummaryItem
-                label="Confidence"
+                label="Overall confidence"
                 value={scan.aiConfidence || scan.frameworkConfidence || "Medium"}
                 status="complete"
                 icon={Sparkles}
+                subtitle={getConfidenceReason(scan, originHost)}
               />
             </div>
           </div>
@@ -508,19 +574,19 @@ export default function CardPage() {
                 <div className="flex justify-between p-2 rounded bg-background/50">
                   <span className="text-muted-foreground">Provider</span>
                   <span className={`font-medium ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`}>
-                    {scan.aiProvider || "Not detected"}
+                    {scan.aiProvider || "No public signal"}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 rounded bg-background/50">
                   <span className="text-muted-foreground">Gateway</span>
                   <span className={`font-medium ${scan.aiGateway ? "text-primary" : "text-muted-foreground"}`}>
-                    {scan.aiGateway || "Not detected"}
+                    {scan.aiGateway || "Not observed"}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 rounded bg-background/50">
                   <span className="text-muted-foreground">Streaming</span>
                   <span className="font-medium text-muted-foreground">
-                    {scan.aiTransport || "Not detected"}
+                    {scan.aiTransport || "Not observed"}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 rounded bg-background/50">
@@ -539,8 +605,7 @@ export default function CardPage() {
               {!scan.aiProvider && (
                 <div className="text-xs text-muted-foreground/80 p-3 rounded bg-background/30 border border-border">
                   <MessageSquare className="w-3 h-3 inline mr-1" />
-                  No calls to known LLM endpoints were observed in browser network activity. 
-                  This app may call AI server-side only, or behind a proxy.
+                  This app may call AI server-side only, behind a proxy, or only after login.
                   {!probeRan && " Run AI Probe for deeper detection."}
                 </div>
               )}
@@ -605,7 +670,7 @@ export default function CardPage() {
                   </div>
                 )}
 
-                {/* Network Activity - Filtered */}
+                {/* Network Activity - Enhanced */}
                 {((scan.evidence.networkDomains && scan.evidence.networkDomains.length > 0) ||
                   (scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0)) && (() => {
                   const { paths, domains } = filterPlatformNoise(
@@ -613,14 +678,24 @@ export default function CardPage() {
                     scan.evidence.networkDomains || [],
                     hostname
                   );
+                  const totalRequests = scan.evidence?.probeDiagnostics?.totalRequests || paths.length + domains.length * 2;
+                  
+                  // Separate first-party and third-party paths
+                  const thirdPartyPaths = paths.filter(p => 
+                    p.includes("/g/collect") || p.includes("/api.") || p.includes("analytics") || p.includes("gtm")
+                  );
+                  const firstPartyPaths = paths.filter(p => !thirdPartyPaths.includes(p));
+                  
                   return (paths.length > 0 || domains.length > 0) && (
                     <div className="p-4 rounded-lg bg-muted/30 border border-border">
                       <div className="flex items-center gap-2 mb-3">
                         <Server className="w-4 h-4 text-secondary" />
                         <span className="text-sm font-medium">Network Activity</span>
-                        <span className="ml-auto text-xs text-muted-foreground/60">Platform noise filtered</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {totalRequests} requests · {domains.length} external domains
+                        </span>
                       </div>
-                      <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         {domains.length > 0 && (
                           <div>
                             <div className="text-xs text-muted-foreground mb-2">External Domains</div>
@@ -636,17 +711,32 @@ export default function CardPage() {
                             </div>
                           </div>
                         )}
-                        {paths.length > 0 && (
+                        {firstPartyPaths.length > 0 && (
                           <div>
-                            <div className="text-xs text-muted-foreground mb-2">Requested Paths</div>
+                            <div className="text-xs text-muted-foreground mb-2">First-party Paths</div>
                             <div className="flex flex-wrap gap-1">
-                              {paths.slice(0, 6).map((path, i) => (
+                              {firstPartyPaths.slice(0, 4).map((path, i) => (
                                 <span key={i} className="px-2 py-0.5 rounded bg-secondary/10 text-xs font-mono text-secondary">
-                                  {path.length > 40 ? path.slice(0, 40) + "..." : path}
+                                  {path.length > 35 ? path.slice(0, 35) + "..." : path}
                                 </span>
                               ))}
-                              {paths.length > 6 && (
-                                <span className="px-2 py-0.5 text-xs text-muted-foreground">+{paths.length - 6}</span>
+                              {firstPartyPaths.length > 4 && (
+                                <span className="px-2 py-0.5 text-xs text-muted-foreground">+{firstPartyPaths.length - 4}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {thirdPartyPaths.length > 0 && (
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-2">Third-party Paths</div>
+                            <div className="flex flex-wrap gap-1">
+                              {thirdPartyPaths.slice(0, 3).map((path, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded bg-muted text-xs font-mono">
+                                  {path.length > 35 ? path.slice(0, 35) + "..." : path}
+                                </span>
+                              ))}
+                              {thirdPartyPaths.length > 3 && (
+                                <span className="px-2 py-0.5 text-xs text-muted-foreground">+{thirdPartyPaths.length - 3}</span>
                               )}
                             </div>
                           </div>
@@ -706,9 +796,15 @@ export default function CardPage() {
                       </div>
                       <div className="p-2 rounded bg-background/50 text-center">
                         <div className="font-medium">
-                          {scan.evidence?.probeDiagnostics?.elementsClicked || 0} / {scan.evidence?.probeDiagnostics?.elementsAttempted || 0}
+                          {scan.evidence?.probeDiagnostics?.elementsAttempted || 0}
                         </div>
-                        <div className="text-muted-foreground">Elements clicked</div>
+                        <div className="text-muted-foreground">Candidates found</div>
+                      </div>
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className="font-medium">
+                          {scan.evidence?.probeDiagnostics?.elementsClicked || 0}
+                        </div>
+                        <div className="text-muted-foreground">Clicked</div>
                       </div>
                       <div className="p-2 rounded bg-background/50 text-center">
                         <div className={`font-medium ${scan.evidence?.probeDiagnostics?.chatUiFound ? "text-secondary" : ""}`}>
@@ -720,34 +816,45 @@ export default function CardPage() {
                         <div className="font-medium">
                           {scan.evidence?.probeDiagnostics?.totalRequests || (scan.evidence?.networkDomains?.length || 0) * 3}
                         </div>
-                        <div className="text-muted-foreground">Requests captured</div>
-                      </div>
-                      <div className="p-2 rounded bg-background/50 text-center">
-                        <div className="font-medium">
-                          {scan.evidence?.probeDiagnostics?.externalDomains || scan.evidence?.networkDomains?.length || 0}
-                        </div>
-                        <div className="text-muted-foreground">External domains</div>
+                        <div className="text-muted-foreground">Requests</div>
                       </div>
                     </div>
+                    {(scan.evidence?.probeDiagnostics?.elementsAttempted === 0) && (
+                      <div className="mt-3 text-xs text-muted-foreground/80 p-2 rounded bg-background/30 border border-border">
+                        No chat UI candidates found. Try probing a specific path like /chat or /assistant.
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Third-Party Services */}
-                {scan.evidence.domains && scan.evidence.domains.length > 0 && (
-                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Globe className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Third-Party Services</span>
+                {/* Third-Party Services - Grouped by Vendor */}
+                {(() => {
+                  const serviceGroups = groupThirdPartyServices(scan, hostname);
+                  return serviceGroups.length > 0 && (
+                    <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Globe className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Services detected ({serviceGroups.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {serviceGroups.filter(g => g.name !== "Other").map((group, i) => (
+                          <div key={i} className="flex items-center gap-2 p-2 rounded bg-background/50">
+                            <span className="text-xs text-muted-foreground w-20">{group.category}</span>
+                            <span className="text-sm font-medium">{group.name}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {group.domains.length > 1 ? `${group.domains.length} domains` : group.domains[0]}
+                            </span>
+                          </div>
+                        ))}
+                        {serviceGroups.find(g => g.name === "Other") && (
+                          <div className="text-xs text-muted-foreground pt-2 border-t border-border">
+                            +{serviceGroups.find(g => g.name === "Other")?.domains.length || 0} other domains
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {scan.evidence.domains.map((domain, i) => (
-                        <span key={i} className="px-3 py-1 rounded-full bg-muted text-xs font-mono">
-                          {domain}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -819,12 +926,16 @@ function SummaryItem({
   status,
   icon: Icon,
   subtitle,
+  tooltip,
+  confidence,
 }: {
   label: string;
   value: string;
   status: "complete" | "detected" | "pending";
   icon: any;
   subtitle?: string;
+  tooltip?: string;
+  confidence?: string;
 }) {
   const statusColors = {
     complete: "text-secondary",
@@ -838,15 +949,33 @@ function SummaryItem({
     pending: <RefreshCw className="w-3 h-3" />,
   };
   
+  const confidenceColors: Record<string, string> = {
+    High: "text-secondary",
+    Medium: "text-yellow-500",
+    Low: "text-orange-500",
+  };
+  
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 group relative">
       <Icon className={`w-4 h-4 ${statusColors[status]}`} />
       <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground flex items-center gap-1">
+          {label}
+          {confidence && (
+            <span className={`text-[10px] ${confidenceColors[confidence] || "text-muted-foreground"}`}>
+              ({confidence})
+            </span>
+          )}
+        </div>
         <div className={`text-sm font-medium truncate ${statusColors[status]}`}>{value}</div>
         {subtitle && <div className="text-xs text-muted-foreground/60">{subtitle}</div>}
       </div>
       <span className={statusColors[status]}>{statusIcons[status]}</span>
+      {tooltip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+          {tooltip}
+        </div>
+      )}
     </div>
   );
 }
