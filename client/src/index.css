@@ -40,37 +40,37 @@
 
 :root {
   --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  --foreground: 220 13% 13%;
 
-  --border: 220 13% 90%;
+  --border: 220 13% 91%;
   --input: 220 13% 91%;
-  --ring: 222 47% 31%;
+  --ring: 221 100% 50%;
 
-  --card: 210 40% 98%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 220 13% 90%;
+  --card: 220 20% 98%;
+  --card-foreground: 220 13% 13%;
+  --card-border: 220 13% 91%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
+  --popover-foreground: 220 13% 13%;
 
-  --primary: 222 47% 31%;
+  --primary: 221 100% 50%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 217 33% 45%;
+  --secondary: 221 83% 60%;
   --secondary-foreground: 0 0% 100%;
 
   --muted: 220 14% 96%;
-  --muted-foreground: 222 20% 45%;
+  --muted-foreground: 220 10% 46%;
 
-  --accent: 226 70% 55%;
+  --accent: 221 90% 65%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --chart-1: 222 47% 31%;
-  --chart-2: 217 33% 45%;
-  --chart-3: 226 70% 55%;
+  --chart-1: 221 100% 50%;
+  --chart-2: 221 83% 60%;
+  --chart-3: 221 90% 65%;
   --chart-4: 45 93% 47%;
   --chart-5: 0 72% 51%;
 
