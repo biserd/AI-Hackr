@@ -30,6 +30,23 @@ const fadeIn = {
   transition: { duration: 0.5 }
 };
 
+function formatPattern(pattern: string): string {
+  const parts = pattern.split(": ");
+  if (parts.length >= 2) {
+    const type = parts[0];
+    const value = parts.slice(1).join(": ").replace(/\\\./g, ".").replace(/\.\*/g, "*");
+    const typeLabels: Record<string, string> = {
+      "header": "Header",
+      "html": "HTML",
+      "script_src": "Script",
+      "meta": "Meta",
+      "dns": "DNS"
+    };
+    return `${typeLabels[type] || type}: ${value.length > 30 ? value.slice(0, 30) + "..." : value}`;
+  }
+  return pattern.length > 35 ? pattern.slice(0, 35) + "..." : pattern;
+}
+
 export default function CardPage() {
   const [, params] = useRoute("/card/:id");
   const [scan, setScan] = useState<Scan | null>(null);
@@ -287,11 +304,114 @@ export default function CardPage() {
 
             {/* Evidence */}
             {scan.evidence && (
-              <div className="mt-8">
-                <h3 className="font-display text-lg font-semibold mb-4">Evidence</h3>
+              <div className="mt-8 space-y-6">
+                <h3 className="font-display text-lg font-semibold">Detection Evidence</h3>
+                
+                {/* Detection Signals */}
+                {scan.evidence.patterns && scan.evidence.patterns.length > 0 && (
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Detection Signals</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{scan.evidence.patterns.length} patterns matched</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {scan.evidence.patterns.slice(0, 12).map((pattern, i) => (
+                        <span key={i} className="px-2 py-1 rounded bg-background text-xs font-mono border border-border">
+                          {formatPattern(pattern)}
+                        </span>
+                      ))}
+                      {scan.evidence.patterns.length > 12 && (
+                        <span className="px-2 py-1 text-xs text-muted-foreground">+{scan.evidence.patterns.length - 12} more</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Network Activity */}
+                {((scan.evidence.networkDomains && scan.evidence.networkDomains.length > 0) ||
+                  (scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0)) && (
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Server className="w-4 h-4 text-secondary" />
+                      <span className="text-sm font-medium">Network Activity</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {scan.evidence.networkDomains && scan.evidence.networkDomains.length > 0 && (
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-2">External Domains</div>
+                          <div className="flex flex-wrap gap-1">
+                            {scan.evidence.networkDomains.slice(0, 8).map((domain, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded bg-primary/10 text-xs font-mono text-primary">
+                                {domain}
+                              </span>
+                            ))}
+                            {scan.evidence.networkDomains.length > 8 && (
+                              <span className="px-2 py-0.5 text-xs text-muted-foreground">+{scan.evidence.networkDomains.length - 8}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0 && (
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-2">API Paths</div>
+                          <div className="flex flex-wrap gap-1">
+                            {scan.evidence.networkPaths.slice(0, 6).map((path, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded bg-secondary/10 text-xs font-mono text-secondary">
+                                {path.length > 40 ? path.slice(0, 40) + "..." : path}
+                              </span>
+                            ))}
+                            {scan.evidence.networkPaths.length > 6 && (
+                              <span className="px-2 py-0.5 text-xs text-muted-foreground">+{scan.evidence.networkPaths.length - 6}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Window Hints */}
+                {scan.evidence.windowHints && scan.evidence.windowHints.length > 0 && (
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Code2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Runtime Detection</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {scan.evidence.windowHints.map((hint, i) => (
+                        <span key={i} className="px-3 py-1 rounded-full bg-primary/20 text-xs font-mono text-primary">
+                          {hint}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* WebSocket Connections */}
+                {scan.evidence.websockets && scan.evidence.websockets.length > 0 && (
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-yellow-500" />
+                      <span className="text-sm font-medium">WebSocket Connections</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {scan.evidence.websockets.map((ws, i) => (
+                        <span key={i} className="px-2 py-1 rounded bg-yellow-500/10 text-xs font-mono text-yellow-600">
+                          {ws}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy domains display */}
                 {scan.evidence.domains && scan.evidence.domains.length > 0 && (
-                  <div className="mb-4">
-                    <div className="text-sm text-muted-foreground mb-2">Detected Domains</div>
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Third-Party Services</span>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {scan.evidence.domains.map((domain, i) => (
                         <span key={i} className="px-3 py-1 rounded-full bg-muted text-xs font-mono">
