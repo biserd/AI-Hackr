@@ -1,0 +1,133 @@
+1) Add a top “Summary” row so the report isn’t empty-feeling
+
+Right now you land on 2 cards → feels like “that’s it?”. Add a compact summary bar above Tech Stack:
+
+AI Provider: Not detected (Probe ran ✅)
+
+Framework: Unknown (Render ran ✅)
+
+Origin Host: Unknown (behind Cloudflare)
+
+3rd-party services: 5 detected
+
+Confidence: High overall
+
+Even “Unknown / Not detected” is valuable when stated clearly.
+
+2) Split CDN/Edge vs Origin Hosting
+
+You fixed the “Cloudflare as hosting” issue ✅. Next step is:
+
+CDN/Edge: Cloudflare (High)
+
+Origin hosting: Detected / Unknown / Possibly Replit (Medium)
+
+Because your Network Activity shows replit.com — that’s a signal worth surfacing as Possible origin / platform, even if you keep it Medium.
+
+3) Fix “API Paths” → “Requested Paths” + filter Cloudflare noise
+
+Those paths (/cdn-cgi/*, /beacon.min.js, etc.) aren’t “API”. Rename and reduce noise:
+
+Requested paths (top 10)
+
+Toggle: Hide platform noise (Cloudflare /cdn-cgi, beacon, fonts, etc.)
+
+Also remove the first-party domain from “External Domains” (right now it lists aitracker.run as external).
+
+4) Deduplicate “Third-Party Services” vs “Network Activity”
+
+They overlap. Make one canonical section:
+
+Third-party services (grouped)
+
+Analytics: GA4 (google-analytics.com, googletagmanager.com)
+
+Fonts: Google Fonts (fonts.googleapis.com, fonts.gstatic.com)
+
+Performance: Cloudflare Insights (static.cloudflareinsights.com)
+
+Each group expands to show evidence + domains.
+
+5) Group evidence by technology (makes it feel more “engineered”)
+
+Instead of one big “Detection Signals” list, do:
+
+Cloudflare — High (score 0.92)
+
+Header: cf-ray:*
+
+Header: server: cloudflare
+
+Header: cf-cache-status:*
+
+GA4 — High (score 0.90)
+
+Script: googletagmanager.com/gtag
+
+HTML: gtag('config' …)
+
+HTML: G-XXXX
+
+This reads like a professional forensic report.
+
+Make it feel “AI-era” even when AI isn’t detected
+6) Add an “AI Stack” card group (always visible)
+
+Even if empty, show:
+
+AI Provider: Not detected
+
+AI Gateway: Not detected
+
+Streaming: Not detected
+
+AI UI found: No obvious chat widget
+
+And include “Why not?” helper text:
+
+“No calls to known LLM endpoints were observed in browser network activity. This app may call AI server-side only, or behind a proxy.”
+
+This prevents users from thinking the product “failed”.
+
+7) Add “Probe coverage” diagnostics (key for trust)
+
+Probe mode is brittle. Show a small “Probe log” summary:
+
+Page loaded ✅
+
+Interactive elements clicked: 0 / 3 attempted
+
+Chat UI found: No
+
+Total requests captured: 78
+
+External domains: 6
+
+If probe didn’t actually interact, the user understands why AI wasn’t detected.
+
+Growth/viral improvements
+8) Add a shareable “Stack Card” at the top
+
+A compact, screenshot-friendly card:
+
+AIHackr Stack Card — aitracker.run
+Cloudflare • GA4 • (AI not detected)
+[Copy link] [Embed badge]
+
+Your current Share button is fine, but “Copy link” + “Embed badge” will drive distribution.
+
+9) Add 2 CTAs inside the report (not just footer)
+
+Compare vs competitor (enter another URL)
+
+Monitor this site weekly (Pro)
+
+These are your natural monetization bridges.
+
+Small polish items (quick wins)
+
+“Scanned 1/9/2026” → add time + timezone, and a “Rescan” button.
+
+In Network Activity, show counts: googletagmanager.com (12 req).
+
+Expand/collapse sections; default Evidence collapsed to keep report “executive first”.
