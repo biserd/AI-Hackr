@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useScan } from "@/hooks/use-scan";
+import { useAuth } from "@/hooks/use-auth";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -67,6 +68,8 @@ const techLogos = [
 ];
 
 function Navbar() {
+  const { user, isLoading } = useAuth();
+  
   return (
     <motion.nav 
       initial={{ opacity: 0, y: -20 }}
@@ -93,6 +96,21 @@ function Navbar() {
             </Button>
           </a>
           <ThemeToggle />
+          {!isLoading && (
+            user ? (
+              <Link href="/dashboard">
+                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-dashboard">
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/login">
+                <Button size="sm" variant="outline" data-testid="button-nav-login">
+                  Sign in
+                </Button>
+              </Link>
+            )
+          )}
           <a href="#hero">
             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-scan">
               Scan URL

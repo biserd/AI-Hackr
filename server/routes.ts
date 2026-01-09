@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
-import { insertScanSchema } from "@shared/schema";
+import { insertScanSchema, insertSubscriptionSchema } from "@shared/schema";
+import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 
 // In-memory queue for background scans
 const backgroundScanQueue: Map<string, { phase: "render" | "probe"; url: string }> = new Map();
@@ -122,8 +123,213 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Apply auth middleware to all routes
+  app.use(authMiddleware);
+
+  // === AUTH ROUTES ===
+  
+  // Request magic link
+  app.post("/api/auth/magic-link", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || "http";
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      const result = await requestMagicLink(email, baseUrl);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json({ success: true, message: "Check your email for a sign-in link" });
+    } catch (error) {
+      console.error("Magic link error:", error);
+      return res.status(500).json({ error: "Failed to send magic link" });
+    }
+  });
+
+  // Verify magic link
+  app.get("/api/auth/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+      
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "Invalid token" });
+      }
+
+      const userAgent = req.headers["user-agent"];
+      const ipAddress = req.headers["x-forwarded-for"]?.toString().split(",")[0] || req.ip;
+
+      const result = await verifyMagicLink(token, res, userAgent, ipAddress);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json({ success: true, user: result.user });
+    } catch (error) {
+      console.error("Verify error:", error);
+      return res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // Get current user
+  app.get("/api/auth/me", (req: AuthenticatedRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    return res.json({ user: req.user });
+  });
+
+  // Logout
+  app.post("/api/auth/logout", async (req: AuthenticatedRequest, res) => {
+    await logout(req, res);
+    return res.json({ success: true });
+  });
+
+  // === USER DASHBOARD ROUTES ===
+
+  // Get user's scans
+  app.get("/api/me/scans", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const scans = await storage.getUserScans(req.user!.id, limit);
+      return res.json(scans);
+    } catch (error) {
+      console.error("Get user scans error:", error);
+      return res.status(500).json({ error: "Failed to get scans" });
+    }
+  });
+
+  // Get user's subscriptions
+  app.get("/api/me/subscriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const subscriptions = await storage.getUserSubscriptions(req.user!.id);
+      return res.json(subscriptions);
+    } catch (error) {
+      console.error("Get subscriptions error:", error);
+      return res.status(500).json({ error: "Failed to get subscriptions" });
+    }
+  });
+
+  // Create subscription
+  app.post("/api/me/subscriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { url, displayLabel } = req.body;
+      
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      // Extract domain from URL
+      let domain: string;
+      try {
+        const urlObj = new URL(url.startsWith("http") ? url : `https://${url}`);
+        domain = urlObj.hostname.replace(/^www\./, "");
+      } catch {
+        return res.status(400).json({ error: "Invalid URL" });
+      }
+
+      const subscription = await storage.createSubscription({
+        userId: req.user!.id,
+        url: url.startsWith("http") ? url : `https://${url}`,
+        domain,
+        displayLabel: displayLabel || domain,
+      });
+
+      return res.json(subscription);
+    } catch (error) {
+      console.error("Create subscription error:", error);
+      return res.status(500).json({ error: "Failed to create subscription" });
+    }
+  });
+
+  // Update subscription
+  app.patch("/api/me/subscriptions/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const subscription = await storage.getSubscription(id);
+      
+      if (!subscription || subscription.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const { isActive, notifyOnChange, displayLabel } = req.body;
+      const updates: any = {};
+      
+      if (typeof isActive === "boolean") updates.isActive = isActive;
+      if (typeof notifyOnChange === "boolean") updates.notifyOnChange = notifyOnChange;
+      if (typeof displayLabel === "string") updates.displayLabel = displayLabel;
+
+      const updated = await storage.updateSubscription(id, updates);
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update subscription error:", error);
+      return res.status(500).json({ error: "Failed to update subscription" });
+    }
+  });
+
+  // Delete subscription
+  app.delete("/api/me/subscriptions/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const subscription = await storage.getSubscription(id);
+      
+      if (!subscription || subscription.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      await storage.deleteSubscription(id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete subscription error:", error);
+      return res.status(500).json({ error: "Failed to delete subscription" });
+    }
+  });
+
+  // Get subscription change events
+  app.get("/api/me/subscriptions/:id/changes", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const subscription = await storage.getSubscription(id);
+      
+      if (!subscription || subscription.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const changes = await storage.getSubscriptionChangeEvents(id);
+      return res.json(changes);
+    } catch (error) {
+      console.error("Get change events error:", error);
+      return res.status(500).json({ error: "Failed to get change events" });
+    }
+  });
+
+  // Update user settings
+  app.patch("/api/me/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { displayName, notificationsEnabled } = req.body;
+      const updates: any = {};
+      
+      if (typeof displayName === "string") updates.displayName = displayName;
+      if (typeof notificationsEnabled === "boolean") updates.notificationsEnabled = notificationsEnabled;
+
+      const updated = await storage.updateUser(req.user!.id, updates);
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update settings error:", error);
+      return res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
   // Progressive scan endpoint - returns immediately after passive, queues render
-  app.post("/api/scan", async (req, res) => {
+  app.post("/api/scan", async (req: AuthenticatedRequest, res) => {
     try {
       const { url } = req.body;
       
@@ -146,6 +352,11 @@ export async function registerRoutes(
         probe: "locked",
       };
       scanResult.scanMode = "passive";
+
+      // Link to user if authenticated
+      if (req.user) {
+        (scanResult as any).userId = req.user.id;
+      }
 
       // Save to database
       const validatedScan = insertScanSchema.parse(scanResult);

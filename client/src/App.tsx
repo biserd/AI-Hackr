@@ -11,6 +11,9 @@ import CardPage from "@/pages/card";
 import About from "@/pages/about";
 import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
+import Login from "@/pages/login";
+import AuthCallback from "@/pages/auth-callback";
+import Dashboard from "@/pages/dashboard";
 
 function Router() {
   return (
@@ -21,6 +24,9 @@ function Router() {
       <Route path="/about" component={About}/>
       <Route path="/terms" component={Terms}/>
       <Route path="/privacy" component={Privacy}/>
+      <Route path="/login" component={Login}/>
+      <Route path="/auth/verify" component={AuthCallback}/>
+      <Route path="/dashboard" component={Dashboard}/>
       <Route component={NotFound} />
     </Switch>
   );
