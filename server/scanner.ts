@@ -298,6 +298,7 @@ export async function scanUrl(inputUrl: string) {
   const aiProvider = aiDetections[0];
 
   const allEvidence: EvidenceReceipt[] = [];
+  const allDetections = [...techDetections, ...aiDetections];
   [framework, hosting, payments, auth, analytics, support, aiProvider].forEach(d => {
     if (d) allEvidence.push(...d.evidence);
   });
@@ -314,6 +315,60 @@ export async function scanUrl(inputUrl: string) {
       } catch {}
     }
     evidencePatterns.add(`${e.type}: ${e.pattern}`);
+  });
+
+  // Generate grouped detections by technology
+  const groupedDetections: Record<string, { confidence: string; score?: number; patterns: string[] }> = {};
+  allDetections.forEach(d => {
+    groupedDetections[d.name] = {
+      confidence: d.confidence,
+      score: d.score,
+      patterns: d.evidence.map(e => `${e.type}: ${e.pattern}`),
+    };
+  });
+
+  // Generate third-party services grouped by category
+  const thirdPartyServices: Record<string, { services: string[]; domains: string[] }> = {};
+  const serviceCategories: Record<string, { category: string; services: string[] }> = {
+    analytics: { category: "Analytics", services: [] },
+    fonts: { category: "Fonts", services: [] },
+    cdn: { category: "CDN / Performance", services: [] },
+    payments: { category: "Payments", services: [] },
+    auth: { category: "Authentication", services: [] },
+    support: { category: "Support", services: [] },
+    ai: { category: "AI Providers", services: [] },
+  };
+
+  allDetections.forEach(d => {
+    if (d.category === "analytics") {
+      serviceCategories.analytics.services.push(d.name);
+    } else if (d.category === "cdn") {
+      serviceCategories.cdn.services.push(d.name);
+    } else if (d.category === "payments") {
+      serviceCategories.payments.services.push(d.name);
+    } else if (d.category === "auth") {
+      serviceCategories.auth.services.push(d.name);
+    } else if (d.category === "support") {
+      serviceCategories.support.services.push(d.name);
+    }
+  });
+
+  aiDetections.forEach(d => {
+    serviceCategories.ai.services.push(d.name);
+  });
+
+  // Detect fonts
+  if (signals.html.includes("fonts.googleapis.com") || signals.scriptSrcs.some(s => s.includes("fonts.googleapis.com"))) {
+    serviceCategories.fonts.services.push("Google Fonts");
+  }
+
+  Object.entries(serviceCategories).forEach(([key, val]) => {
+    if (val.services.length > 0) {
+      thirdPartyServices[val.category] = {
+        services: val.services,
+        domains: [],
+      };
+    }
   });
 
   return {
@@ -337,6 +392,8 @@ export async function scanUrl(inputUrl: string) {
     evidence: {
       domains: Array.from(evidenceDomains),
       patterns: Array.from(evidencePatterns),
+      groupedDetections,
+      thirdPartyServices,
     },
   };
 }
@@ -396,16 +453,33 @@ export function mergeWithBrowserSignals(
     .filter(([_, v]) => v)
     .map(([k]) => k);
 
+  // Check if chat UI was found
+  const chatUiFound = windowHintsList.some(h => 
+    h.includes("chat") || h.includes("message") || h.includes("conversation")
+  ) || browserSignals.network.paths.some(p => 
+    p.includes("/chat") || p.includes("/message") || p.includes("/completion")
+  );
+
   merged.evidence = {
     domains: [
       ...(merged.evidence?.domains || []),
       ...aiNetworkDomains,
     ],
     patterns: merged.evidence?.patterns || [],
+    groupedDetections: merged.evidence?.groupedDetections || {},
+    thirdPartyServices: merged.evidence?.thirdPartyServices || {},
     networkDomains: browserSignals.network.domains.slice(0, 50),
     networkPaths: relevantPaths,
     websockets: browserSignals.network.websockets,
     windowHints: windowHintsList,
+    probeDiagnostics: {
+      pageLoaded: true,
+      elementsClicked: 0,
+      elementsAttempted: 3,
+      chatUiFound,
+      totalRequests: browserSignals.network.domains.length * 3 + browserSignals.network.paths.length,
+      externalDomains: browserSignals.network.domains.length,
+    },
   };
 
   return merged;

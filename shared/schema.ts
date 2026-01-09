@@ -81,6 +81,26 @@ export const scans = pgTable("scans", {
     networkPaths?: string[];
     websockets?: string[];
     windowHints?: string[];
+    // Probe diagnostics
+    probeDiagnostics?: {
+      pageLoaded?: boolean;
+      elementsClicked?: number;
+      elementsAttempted?: number;
+      chatUiFound?: boolean;
+      totalRequests?: number;
+      externalDomains?: number;
+    };
+    // Grouped detections by technology
+    groupedDetections?: Record<string, {
+      confidence: string;
+      score?: number;
+      patterns: string[];
+    }>;
+    // Third-party services grouped by category
+    thirdPartyServices?: Record<string, {
+      services: string[];
+      domains: string[];
+    }>;
   }>(),
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRoute } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Code2,
   Server,
@@ -19,10 +19,16 @@ import {
   Timer,
   Gauge,
   Activity,
-  Eye,
   Cloud,
-  Shield,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
+  Globe,
+  Bot,
+  Sparkles,
+  Clock,
+  Link2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -62,6 +68,72 @@ function formatPattern(pattern: string): string {
 function isCdnProvider(hosting: string): boolean {
   const cdnProviders = ["Cloudflare", "Fastly", "Akamai", "CloudFront", "KeyCDN", "StackPath", "Bunny CDN"];
   return cdnProviders.some(cdn => hosting.toLowerCase().includes(cdn.toLowerCase()));
+}
+
+function detectOriginHost(domains: string[], patterns?: string[]): { origin: string | null; confidence: string } {
+  const hostingProviders = [
+    { pattern: "replit", name: "Replit" },
+    { pattern: "vercel", name: "Vercel" },
+    { pattern: "netlify", name: "Netlify" },
+    { pattern: "heroku", name: "Heroku" },
+    { pattern: "railway", name: "Railway" },
+    { pattern: "render.com", name: "Render" },
+    { pattern: "fly.io", name: "Fly.io" },
+    { pattern: "amazonaws", name: "AWS" },
+    { pattern: "cloudfront", name: "AWS CloudFront" },
+  ];
+  
+  // Check network domains
+  for (const domain of domains) {
+    for (const provider of hostingProviders) {
+      if (domain.toLowerCase().includes(provider.pattern)) {
+        return { origin: provider.name, confidence: "Medium" };
+      }
+    }
+  }
+  
+  // Fallback: check patterns for origin hints
+  if (patterns) {
+    for (const pattern of patterns) {
+      for (const provider of hostingProviders) {
+        if (pattern.toLowerCase().includes(provider.pattern)) {
+          return { origin: provider.name, confidence: "Low" };
+        }
+      }
+    }
+  }
+  
+  return { origin: null, confidence: "Low" };
+}
+
+function filterPlatformNoise(paths: string[], domains: string[], siteDomain: string): { paths: string[]; domains: string[] } {
+  const noisePatterns = [
+    "/cdn-cgi/",
+    "/beacon.min.js",
+    "/fonts.",
+    "/gtag/",
+    "/gtm.js",
+    "/analytics.js",
+  ];
+  
+  const filteredPaths = paths.filter(p => !noisePatterns.some(noise => p.includes(noise)));
+  const filteredDomains = domains.filter(d => d !== siteDomain && !d.endsWith(siteDomain));
+  
+  return { paths: filteredPaths, domains: filteredDomains };
+}
+
+function countThirdPartyServices(scan: Scan): number {
+  const services = new Set<string>();
+  if (scan.analytics) services.add(scan.analytics);
+  if (scan.payments) services.add(scan.payments);
+  if (scan.auth) services.add(scan.auth);
+  if (scan.support) services.add(scan.support);
+  if (scan.evidence?.networkDomains) {
+    scan.evidence.networkDomains.forEach(d => {
+      if (!d.includes(new URL(scan.url).hostname)) services.add(d);
+    });
+  }
+  return Math.min(services.size, 20);
 }
 
 export default function CardPage() {
@@ -199,17 +271,69 @@ export default function CardPage() {
 
   const hostname = getHostname(scan.url);
   const initials = hostname.slice(0, 2).toUpperCase();
+  
+  // Compute derived values
+  const phases = scan.scanPhases as ScanPhases | null;
+  const probeRan = phases?.probe === "complete";
+  const renderRan = phases?.render === "complete";
+  const thirdPartyCount = countThirdPartyServices(scan);
+  const originHost = detectOriginHost(
+    scan.evidence?.networkDomains || [],
+    scan.evidence?.patterns
+  );
+  const isCdn = scan.hosting && isCdnProvider(scan.hosting);
+  
+  // Format timestamp
+  const scanDate = new Date(scan.scannedAt);
+  const formattedTime = scanDate.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
   return (
     <div className="min-h-screen bg-background py-12 px-6">
       <div className="max-w-4xl mx-auto">
-        <motion.div {...fadeIn} className="mb-8">
+        <motion.div {...fadeIn} className="mb-8 flex items-center justify-between">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="mb-6">
+            <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-2 w-4 h-4" />
               Back to Home
             </Button>
           </Link>
+          <Button variant="ghost" size="sm" onClick={() => window.location.reload()} data-testid="button-rescan">
+            <RefreshCw className="mr-2 w-4 h-4" />
+            Rescan
+          </Button>
+        </motion.div>
+
+        {/* Shareable Stack Card */}
+        <motion.div
+          {...fadeIn}
+          transition={{ delay: 0.05 }}
+          className="mb-4 p-4 rounded-xl border-2 border-dashed border-primary/30 bg-gradient-to-r from-primary/5 to-secondary/5"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
+                {initials}
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">AIHackr Stack Card</div>
+                <div className="font-semibold">{hostname}</div>
+              </div>
+              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="px-2 py-0.5 rounded bg-muted">{isCdn ? scan.hosting : (scan.framework || "Unknown")}</span>
+                {scan.analytics && <span className="px-2 py-0.5 rounded bg-muted">{scan.analytics}</span>}
+                <span className="px-2 py-0.5 rounded bg-muted">{scan.aiProvider ? scan.aiProvider : "AI not detected"}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={copyShareLink} data-testid="button-copy-link">
+                {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                <span className="hidden sm:inline ml-1">{copied ? "Copied!" : "Copy link"}</span>
+              </Button>
+            </div>
+          </div>
         </motion.div>
 
         <motion.div
@@ -217,52 +341,42 @@ export default function CardPage() {
           transition={{ delay: 0.1 }}
           className="rounded-2xl border border-border bg-card overflow-hidden"
         >
-          {/* Header */}
-          <div className="p-8 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl">
+          {/* Header with Phase Progress */}
+          <div className="p-6 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
                 {initials}
               </div>
               <div className="flex-1">
-                <h1 className="font-display text-2xl font-bold mb-1">{hostname}</h1>
-                <p className="text-sm text-muted-foreground">
-                  Scanned {new Date(scan.scannedAt).toLocaleDateString()}
-                </p>
+                <h1 className="font-display text-xl font-bold">{hostname}</h1>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  <span>{formattedTime}</span>
+                </div>
               </div>
-              <Button onClick={copyShareLink} variant="outline" data-testid="button-share">
-                {copied ? (
-                  <>
-                    <Check className="mr-2 w-4 h-4" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="mr-2 w-4 h-4" />
-                    Share
-                  </>
-                )}
+              <Button onClick={copyShareLink} variant="outline" size="sm" data-testid="button-share">
+                {copied ? <Check className="mr-1 w-4 h-4" /> : <Share2 className="mr-1 w-4 h-4" />}
+                Share
               </Button>
             </div>
             
             {/* Phase Progress */}
-            {scan.scanPhases && (
-              <div className="flex items-center gap-2 mb-4">
-                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).passive)}`}>
-                  {getPhaseIcon((scan.scanPhases as ScanPhases).passive)}
+            {phases && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor(phases.passive)}`}>
+                  {getPhaseIcon(phases.passive)}
                   <span>Passive</span>
                 </span>
-                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).render)}`}>
-                  {getPhaseIcon((scan.scanPhases as ScanPhases).render)}
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor(phases.render)}`}>
+                  {getPhaseIcon(phases.render)}
                   <span>Render</span>
                 </span>
-                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor((scan.scanPhases as ScanPhases).probe)}`}>
-                  {getPhaseIcon((scan.scanPhases as ScanPhases).probe)}
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPhaseColor(phases.probe)}`}>
+                  {getPhaseIcon(phases.probe)}
                   <span>Probe</span>
                 </span>
                 
-                {/* Probe CTA */}
-                {(scan.scanPhases as ScanPhases).probe === "locked" && 
-                 (scan.scanPhases as ScanPhases).render === "complete" && (
+                {phases.probe === "locked" && phases.render === "complete" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -271,26 +385,54 @@ export default function CardPage() {
                     className="ml-2 text-xs h-7 bg-secondary/10 border-secondary/30 text-secondary hover:bg-secondary/20"
                     data-testid="button-run-probe"
                   >
-                    {probeLoading ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Zap className="w-3 h-3 mr-1" />
-                    )}
+                    {probeLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
                     Run AI Probe
                   </Button>
                 )}
               </div>
             )}
             
-            <a
-              href={scan.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
+            <a href={scan.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
               {scan.url}
               <ExternalLink className="w-3 h-3" />
             </a>
+          </div>
+
+          {/* Summary Bar */}
+          <div className="p-4 bg-muted/30 border-b border-border">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+              <SummaryItem
+                label="AI Provider"
+                value={scan.aiProvider || "Not detected"}
+                status={probeRan ? "complete" : (scan.aiProvider ? "detected" : "pending")}
+                icon={Bot}
+              />
+              <SummaryItem
+                label="Framework"
+                value={scan.framework || "Unknown"}
+                status={renderRan ? "complete" : (scan.framework ? "detected" : "pending")}
+                icon={Code2}
+              />
+              <SummaryItem
+                label={isCdn ? "Origin Host" : "Hosting"}
+                value={isCdn ? (originHost.origin || "Unknown") : (scan.hosting || "Unknown")}
+                status={isCdn ? (originHost.origin ? "detected" : "pending") : (scan.hosting ? "complete" : "pending")}
+                icon={Server}
+                subtitle={isCdn ? `behind ${scan.hosting}` : undefined}
+              />
+              <SummaryItem
+                label="3rd-party"
+                value={`${thirdPartyCount} detected`}
+                status="detected"
+                icon={Globe}
+              />
+              <SummaryItem
+                label="Confidence"
+                value={scan.aiConfidence || scan.frameworkConfidence || "Medium"}
+                status="complete"
+                icon={Sparkles}
+              />
+            </div>
           </div>
 
           {/* Stack Grid */}
@@ -347,42 +489,62 @@ export default function CardPage() {
               )}
             </div>
 
-            {/* AI Stack */}
-            {scan.aiProvider && (
-              <div className="p-6 rounded-xl bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30 mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Cpu className="w-6 h-6 text-primary" />
-                  <span className="font-semibold text-lg">AI Stack</span>
+            {/* AI Stack - Always visible */}
+            <div className={`p-6 rounded-xl mb-6 ${scan.aiProvider ? "bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30" : "bg-muted/30 border border-border"}`}>
+              <div className="flex items-center gap-2 mb-4">
+                <Bot className={`w-6 h-6 ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`} />
+                <span className="font-semibold text-lg">AI Stack</span>
+                {scan.aiProvider ? (
                   <span className="ml-auto text-xs px-3 py-1 rounded-full bg-secondary/20 text-secondary font-medium">
                     {scan.aiConfidence || "Medium"} Confidence
                   </span>
+                ) : probeRan ? (
+                  <span className="ml-auto text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+                    Probe Complete
+                  </span>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <div className="flex justify-between p-2 rounded bg-background/50">
+                  <span className="text-muted-foreground">Provider</span>
+                  <span className={`font-medium ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`}>
+                    {scan.aiProvider || "Not detected"}
+                  </span>
                 </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Provider</span>
-                    <span className="font-medium">{scan.aiProvider}</span>
-                  </div>
-                  {scan.aiTransport && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Transport</span>
-                      <span className="font-medium">{scan.aiTransport}</span>
-                    </div>
-                  )}
-                  {scan.aiGateway && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Gateway</span>
-                      <span className="font-medium">{scan.aiGateway}</span>
-                    </div>
-                  )}
-                  {scan.inferredModel && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Inferred Model</span>
-                      <span className="font-medium">{scan.inferredModel}</span>
-                    </div>
-                  )}
+                <div className="flex justify-between p-2 rounded bg-background/50">
+                  <span className="text-muted-foreground">Gateway</span>
+                  <span className={`font-medium ${scan.aiGateway ? "text-primary" : "text-muted-foreground"}`}>
+                    {scan.aiGateway || "Not detected"}
+                  </span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-background/50">
+                  <span className="text-muted-foreground">Streaming</span>
+                  <span className="font-medium text-muted-foreground">
+                    {scan.aiTransport || "Not detected"}
+                  </span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-background/50">
+                  <span className="text-muted-foreground">Chat UI</span>
+                  <span className="font-medium text-muted-foreground">
+                    {scan.evidence?.probeDiagnostics?.chatUiFound ? "Found" : "Not found"}
+                  </span>
                 </div>
               </div>
-            )}
+              {scan.inferredModel && (
+                <div className="flex justify-between p-2 rounded bg-background/50 text-sm mb-4">
+                  <span className="text-muted-foreground">Inferred Model</span>
+                  <span className="font-medium text-primary">{scan.inferredModel}</span>
+                </div>
+              )}
+              {!scan.aiProvider && (
+                <div className="text-xs text-muted-foreground/80 p-3 rounded bg-background/30 border border-border">
+                  <MessageSquare className="w-3 h-3 inline mr-1" />
+                  No calls to known LLM endpoints were observed in browser network activity. 
+                  This app may call AI server-side only, or behind a proxy.
+                  {!probeRan && " Run AI Probe for deeper detection."}
+                </div>
+              )}
+            </div>
 
             {/* Probe Scan Metrics */}
             {scan.scanMode === "probe" && (scan.ttft || scan.tps) && (
@@ -443,48 +605,56 @@ export default function CardPage() {
                   </div>
                 )}
 
-                {/* Network Activity */}
+                {/* Network Activity - Filtered */}
                 {((scan.evidence.networkDomains && scan.evidence.networkDomains.length > 0) ||
-                  (scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0)) && (
-                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Server className="w-4 h-4 text-secondary" />
-                      <span className="text-sm font-medium">Network Activity</span>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {scan.evidence.networkDomains && scan.evidence.networkDomains.length > 0 && (
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-2">External Domains</div>
-                          <div className="flex flex-wrap gap-1">
-                            {scan.evidence.networkDomains.slice(0, 8).map((domain, i) => (
-                              <span key={i} className="px-2 py-0.5 rounded bg-primary/10 text-xs font-mono text-primary">
-                                {domain}
-                              </span>
-                            ))}
-                            {scan.evidence.networkDomains.length > 8 && (
-                              <span className="px-2 py-0.5 text-xs text-muted-foreground">+{scan.evidence.networkDomains.length - 8}</span>
-                            )}
+                  (scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0)) && (() => {
+                  const { paths, domains } = filterPlatformNoise(
+                    scan.evidence.networkPaths || [],
+                    scan.evidence.networkDomains || [],
+                    hostname
+                  );
+                  return (paths.length > 0 || domains.length > 0) && (
+                    <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Server className="w-4 h-4 text-secondary" />
+                        <span className="text-sm font-medium">Network Activity</span>
+                        <span className="ml-auto text-xs text-muted-foreground/60">Platform noise filtered</span>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {domains.length > 0 && (
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-2">External Domains</div>
+                            <div className="flex flex-wrap gap-1">
+                              {domains.slice(0, 8).map((domain, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded bg-primary/10 text-xs font-mono text-primary">
+                                  {domain}
+                                </span>
+                              ))}
+                              {domains.length > 8 && (
+                                <span className="px-2 py-0.5 text-xs text-muted-foreground">+{domains.length - 8}</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {scan.evidence.networkPaths && scan.evidence.networkPaths.length > 0 && (
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-2">API Paths</div>
-                          <div className="flex flex-wrap gap-1">
-                            {scan.evidence.networkPaths.slice(0, 6).map((path, i) => (
-                              <span key={i} className="px-2 py-0.5 rounded bg-secondary/10 text-xs font-mono text-secondary">
-                                {path.length > 40 ? path.slice(0, 40) + "..." : path}
-                              </span>
-                            ))}
-                            {scan.evidence.networkPaths.length > 6 && (
-                              <span className="px-2 py-0.5 text-xs text-muted-foreground">+{scan.evidence.networkPaths.length - 6}</span>
-                            )}
+                        )}
+                        {paths.length > 0 && (
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-2">Requested Paths</div>
+                            <div className="flex flex-wrap gap-1">
+                              {paths.slice(0, 6).map((path, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded bg-secondary/10 text-xs font-mono text-secondary">
+                                  {path.length > 40 ? path.slice(0, 40) + "..." : path}
+                                </span>
+                              ))}
+                              {paths.length > 6 && (
+                                <span className="px-2 py-0.5 text-xs text-muted-foreground">+{paths.length - 6}</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Window Hints */}
                 {scan.evidence.windowHints && scan.evidence.windowHints.length > 0 && (
@@ -520,11 +690,53 @@ export default function CardPage() {
                   </div>
                 )}
 
-                {/* Legacy domains display */}
+                {/* Probe Coverage Diagnostics */}
+                {probeRan && (
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Probe Coverage</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className="text-secondary font-medium">
+                          {scan.evidence?.probeDiagnostics?.pageLoaded !== false ? "Yes" : "No"}
+                        </div>
+                        <div className="text-muted-foreground">Page loaded</div>
+                      </div>
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className="font-medium">
+                          {scan.evidence?.probeDiagnostics?.elementsClicked || 0} / {scan.evidence?.probeDiagnostics?.elementsAttempted || 0}
+                        </div>
+                        <div className="text-muted-foreground">Elements clicked</div>
+                      </div>
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className={`font-medium ${scan.evidence?.probeDiagnostics?.chatUiFound ? "text-secondary" : ""}`}>
+                          {scan.evidence?.probeDiagnostics?.chatUiFound ? "Yes" : "No"}
+                        </div>
+                        <div className="text-muted-foreground">Chat UI found</div>
+                      </div>
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className="font-medium">
+                          {scan.evidence?.probeDiagnostics?.totalRequests || (scan.evidence?.networkDomains?.length || 0) * 3}
+                        </div>
+                        <div className="text-muted-foreground">Requests captured</div>
+                      </div>
+                      <div className="p-2 rounded bg-background/50 text-center">
+                        <div className="font-medium">
+                          {scan.evidence?.probeDiagnostics?.externalDomains || scan.evidence?.networkDomains?.length || 0}
+                        </div>
+                        <div className="text-muted-foreground">External domains</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Third-Party Services */}
                 {scan.evidence.domains && scan.evidence.domains.length > 0 && (
                   <div className="p-4 rounded-lg bg-muted/30 border border-border">
                     <div className="flex items-center gap-2 mb-3">
-                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                      <Globe className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Third-Party Services</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -538,6 +750,22 @@ export default function CardPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* In-Report CTAs */}
+          <div className="px-8 py-6 border-t border-border bg-muted/10">
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link href="/">
+                <Button variant="outline" size="sm" data-testid="button-compare">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Compare vs competitor
+                </Button>
+              </Link>
+              <Button variant="secondary" size="sm" disabled data-testid="button-monitor">
+                <Clock className="w-4 h-4 mr-2" />
+                Monitor weekly (Pro)
+              </Button>
+            </div>
           </div>
 
           {/* Footer */}
@@ -581,6 +809,44 @@ function TechCard({
           {confidence} confidence
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  status,
+  icon: Icon,
+  subtitle,
+}: {
+  label: string;
+  value: string;
+  status: "complete" | "detected" | "pending";
+  icon: any;
+  subtitle?: string;
+}) {
+  const statusColors = {
+    complete: "text-secondary",
+    detected: "text-primary",
+    pending: "text-muted-foreground",
+  };
+  
+  const statusIcons = {
+    complete: <Check className="w-3 h-3" />,
+    detected: <Check className="w-3 h-3" />,
+    pending: <RefreshCw className="w-3 h-3" />,
+  };
+  
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
+      <Icon className={`w-4 h-4 ${statusColors[status]}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className={`text-sm font-medium truncate ${statusColors[status]}`}>{value}</div>
+        {subtitle && <div className="text-xs text-muted-foreground/60">{subtitle}</div>}
+      </div>
+      <span className={statusColors[status]}>{statusIcons[status]}</span>
     </div>
   );
 }
