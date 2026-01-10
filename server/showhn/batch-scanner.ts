@@ -6,8 +6,8 @@ import { browserScan, detectAIFromNetwork, detectFrameworkFromHints, type Browse
 import { insertScanSchema } from "@shared/schema";
 import { chromium, type Browser } from "playwright";
 
-const CONCURRENCY_LIMIT = 5;
-const SCAN_DELAY_MS = 2000;
+const CONCURRENCY_LIMIT = 2;
+const SCAN_DELAY_MS = 3000;
 
 const HIGH_VALUE_PATHS = [
   { path: "/pricing", type: "pricing" },
@@ -206,6 +206,196 @@ type PageScanResult = {
   networkDomains: string[];
 };
 
+function detectIndirectSignals(html: string, scriptSrcs: string[]): {
+  payments?: string;
+  aiProvider?: string;
+  auth?: string;
+  evidence: string[];
+} {
+  const evidence: string[] = [];
+  let payments: string | undefined;
+  let aiProvider: string | undefined;
+  let auth: string | undefined;
+
+  if (/pk_(live|test)_[a-zA-Z0-9]{20,}/.test(html)) {
+    payments = "Stripe";
+    evidence.push("Stripe public key found in HTML");
+  }
+  if (/stripe-pricing-table|data-stripe-key/i.test(html)) {
+    payments = "Stripe";
+    evidence.push("Stripe pricing table detected");
+  }
+  if (/stripe\.com\/v3|js\.stripe\.com/i.test(html)) {
+    payments = "Stripe";
+    evidence.push("Stripe.js reference in HTML");
+  }
+  if (/data-paddle-/i.test(html) || /paddle\.com\/checkout/i.test(html)) {
+    payments = "Paddle";
+    evidence.push("Paddle checkout reference found");
+  }
+  if (/lemonsqueezy\.com/i.test(html) || /data-lemonsqueezy/i.test(html)) {
+    payments = "Lemon Squeezy";
+    evidence.push("Lemon Squeezy reference found");
+  }
+
+  if (/openai\.com|api\.openai/i.test(html)) {
+    aiProvider = "OpenAI";
+    evidence.push("OpenAI reference in HTML");
+  }
+  if (/anthropic\.com|api\.anthropic/i.test(html)) {
+    aiProvider = "Anthropic";
+    evidence.push("Anthropic reference in HTML");
+  }
+  if (/useChat|useCompletion|ai\/react/i.test(html)) {
+    aiProvider = "Vercel AI SDK";
+    evidence.push("Vercel AI SDK hooks detected");
+  }
+  if (/gemini-pro|generativelanguage\.googleapis/i.test(html)) {
+    aiProvider = "Google Gemini";
+    evidence.push("Google Gemini reference found");
+  }
+  if (/replicate\.com|replicate\.delivery/i.test(html)) {
+    aiProvider = "Replicate";
+    evidence.push("Replicate reference found");
+  }
+  if (/together\.ai|togetherai/i.test(html)) {
+    aiProvider = "Together AI";
+    evidence.push("Together AI reference found");
+  }
+  if (/groq\.com|api\.groq/i.test(html)) {
+    aiProvider = "Groq";
+    evidence.push("Groq reference found");
+  }
+
+  if (/clerk\.com|clerk\.dev|__clerk/i.test(html)) {
+    auth = "Clerk";
+    evidence.push("Clerk auth reference found");
+  }
+  if (/auth0\.com|auth0-js/i.test(html)) {
+    auth = "Auth0";
+    evidence.push("Auth0 reference found");
+  }
+  if (/supabase\.(io|com|co)|supabase-js/i.test(html)) {
+    auth = "Supabase";
+    evidence.push("Supabase reference found");
+  }
+  if (/firebase\.google|firebaseapp\.com/i.test(html)) {
+    auth = "Firebase";
+    evidence.push("Firebase reference found");
+  }
+
+  return { payments, aiProvider, auth, evidence };
+}
+
+async function probePageForDynamicContent(
+  page: Awaited<ReturnType<Awaited<ReturnType<Browser["newContext"]>>["newPage"]>>,
+  pageType: string
+): Promise<{ newDomains: string[]; evidence: string[] }> {
+  const evidence: string[] = [];
+  const newDomains: string[] = [];
+  
+  const requestsAfterProbe: string[] = [];
+  
+  const captureRequest = (req: { url: () => string }) => {
+    try {
+      const hostname = new URL(req.url()).hostname;
+      if (!requestsAfterProbe.includes(hostname)) {
+        requestsAfterProbe.push(hostname);
+      }
+    } catch {}
+  };
+  
+  page.on("request", captureRequest);
+
+  try {
+    if (pageType === "pricing" || pageType === "homepage") {
+      const paymentButtonSelectors = [
+        'button:has-text("Subscribe")',
+        'button:has-text("Buy")',
+        'button:has-text("Upgrade")',
+        'button:has-text("Get Started")',
+        'button:has-text("Start")',
+        'a:has-text("Pricing")',
+        '[data-stripe]',
+        '[data-paddle]',
+        '.pricing-button',
+        '.buy-button',
+      ];
+      
+      for (const selector of paymentButtonSelectors) {
+        try {
+          const btn = page.locator(selector).first();
+          if (await btn.isVisible({ timeout: 500 })) {
+            await btn.hover({ timeout: 1000 });
+            evidence.push(`Hovered payment button: ${selector}`);
+            await page.waitForTimeout(500);
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    if (pageType === "homepage" || pageType === "docs") {
+      const aiButtonSelectors = [
+        'button:has-text("Generate")',
+        'button:has-text("Ask")',
+        'button:has-text("Submit")',
+        'button:has-text("Try")',
+        'textarea[placeholder*="message"]',
+        'input[placeholder*="Ask"]',
+        '.chat-input',
+        '[data-ai]',
+      ];
+      
+      for (const selector of aiButtonSelectors) {
+        try {
+          const el = page.locator(selector).first();
+          if (await el.isVisible({ timeout: 500 })) {
+            await el.hover({ timeout: 1000 });
+            evidence.push(`Found AI interaction element: ${selector}`);
+            await page.waitForTimeout(300);
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    if (pageType === "auth") {
+      const authButtonSelectors = [
+        'button:has-text("Sign in")',
+        'button:has-text("Log in")',
+        'button:has-text("Continue with Google")',
+        'button:has-text("Continue with GitHub")',
+        '[data-clerk]',
+        '.auth0-lock',
+      ];
+      
+      for (const selector of authButtonSelectors) {
+        try {
+          const btn = page.locator(selector).first();
+          if (await btn.isVisible({ timeout: 500 })) {
+            await btn.hover({ timeout: 1000 });
+            evidence.push(`Found auth button: ${selector}`);
+            await page.waitForTimeout(300);
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    await page.waitForTimeout(1000);
+
+  } catch (error) {
+    evidence.push(`Probe error: ${error}`);
+  }
+  
+  page.off("request", captureRequest);
+  
+  newDomains.push(...requestsAfterProbe);
+  
+  return { newDomains, evidence };
+}
+
 async function discoverValidPages(
   baseUrl: string,
   context: Awaited<ReturnType<Browser["newContext"]>>
@@ -340,52 +530,68 @@ async function scanMultiplePages(
       
       const aiFromNetwork = detectAIFromNetworkExtended(browserSignals);
       const aiFromScripts = detectAIFromScripts(scriptSrcs, html);
+      const indirectSignals = detectIndirectSignals(html, scriptSrcs);
+      
+      console.log(`[Probe] Running probe scan for ${pageInfo.url} (${pageInfo.type})...`);
+      const probeResults = await probePageForDynamicContent(page, pageInfo.type);
+      
+      const allDomains = [...domains, ...probeResults.newDomains];
+      const allEvidence = [
+        ...aiFromNetwork.evidence, 
+        ...aiFromScripts.evidence,
+        ...indirectSignals.evidence,
+        ...probeResults.evidence,
+      ];
       
       const result: PageScanResult = {
         url: pageInfo.url,
         type: pageInfo.type,
-        aiProvider: aiFromNetwork.provider || aiFromScripts.provider,
-        evidence: [...aiFromNetwork.evidence, ...aiFromScripts.evidence],
-        networkDomains: domains,
+        aiProvider: aiFromNetwork.provider || aiFromScripts.provider || indirectSignals.aiProvider,
+        payments: indirectSignals.payments,
+        auth: indirectSignals.auth,
+        evidence: allEvidence,
+        networkDomains: allDomains,
       };
       
+      const probedDomains = [...domains, ...probeResults.newDomains];
+      
       if (pageInfo.type === "pricing" || pageInfo.type === "homepage") {
-        if (domains.some(d => d.includes("stripe") || d.includes("js.stripe.com"))) {
+        if (!result.payments && probedDomains.some(d => d.includes("stripe") || d.includes("js.stripe.com"))) {
           result.payments = "Stripe";
-          result.evidence.push("Stripe JS loaded");
+          result.evidence.push("Stripe JS loaded after probe");
         }
-        if (domains.some(d => d.includes("paddle"))) {
+        if (!result.payments && probedDomains.some(d => d.includes("paddle"))) {
           result.payments = "Paddle";
-          result.evidence.push("Paddle detected");
+          result.evidence.push("Paddle detected after probe");
         }
-        if (domains.some(d => d.includes("lemonsqueezy"))) {
+        if (!result.payments && probedDomains.some(d => d.includes("lemonsqueezy"))) {
           result.payments = "Lemon Squeezy";
-          result.evidence.push("Lemon Squeezy detected");
+          result.evidence.push("Lemon Squeezy detected after probe");
         }
-        if (domains.some(d => d.includes("gumroad"))) {
+        if (!result.payments && probedDomains.some(d => d.includes("gumroad"))) {
           result.payments = "Gumroad";
-          result.evidence.push("Gumroad detected");
+          result.evidence.push("Gumroad detected after probe");
         }
       }
       
       if (pageInfo.type === "auth" || pageInfo.type === "homepage") {
-        if (domains.some(d => d.includes("clerk"))) {
+        if (!result.auth && probedDomains.some(d => d.includes("clerk"))) {
           result.auth = "Clerk";
-          result.evidence.push("Clerk auth detected");
+          result.evidence.push("Clerk auth detected after probe");
         }
-        if (domains.some(d => d.includes("auth0"))) {
+        if (!result.auth && probedDomains.some(d => d.includes("auth0"))) {
           result.auth = "Auth0";
-          result.evidence.push("Auth0 detected");
+          result.evidence.push("Auth0 detected after probe");
         }
-        if (domains.some(d => d.includes("supabase"))) {
+        if (!result.auth && probedDomains.some(d => d.includes("supabase"))) {
           result.auth = "Supabase";
-          result.evidence.push("Supabase detected");
+          result.evidence.push("Supabase detected after probe");
         }
-        if (domains.some(d => d.includes("firebase"))) {
+        if (!result.auth && probedDomains.some(d => d.includes("firebase"))) {
           result.auth = "Firebase";
-          result.evidence.push("Firebase detected");
+          result.evidence.push("Firebase detected after probe");
         }
-        if (html.includes("next-auth") || html.includes("NextAuth")) {
+        if (!result.auth && (html.includes("next-auth") || html.includes("NextAuth"))) {
           result.auth = "NextAuth";
           result.evidence.push("NextAuth detected");
         }
@@ -458,7 +664,7 @@ async function scanProductMultiPage(product: typeof showHnProducts.$inferSelect)
     (scanResult as any).scanPhases = {
       passive: "complete",
       render: "pending",
-      probe: "locked",
+      probe: "pending",
     };
     (scanResult as any).scanMode = "passive";
     
@@ -492,9 +698,9 @@ async function scanProductMultiPage(product: typeof showHnProducts.$inferSelect)
     (scanResult as any).scanPhases = {
       passive: "complete",
       render: "complete",
-      probe: "locked",
+      probe: "complete",
     };
-    (scanResult as any).scanMode = "multi-page";
+    (scanResult as any).scanMode = "full-probe";
     (scanResult as any).evidence = merged.evidence;
     
     const validatedScan = insertScanSchema.parse(scanResult);
