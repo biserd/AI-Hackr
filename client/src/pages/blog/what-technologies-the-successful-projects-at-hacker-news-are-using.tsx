@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO } from "@/components/seo";
 
 type AggregateStats = {
   topFrameworks: Array<{ name: string; count: number; percentage: number }>;
@@ -160,6 +161,14 @@ export default function HNTechStack() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO 
+        title="What Technologies the Successful Projects at Hacker News Are Using"
+        description={`Tech stack analysis of ${report.productCount} Show HN products. See which frameworks, hosting, payments, auth, and AI providers power top Hacker News launches.`}
+        url="https://aihackr.com/blog/what-technologies-the-successful-projects-at-hacker-news-are-using"
+        type="article"
+        publishedTime="2026-01-01"
+        keywords="Show HN, Hacker News, tech stack, Next.js, Vercel, Stripe, OpenAI, AI startups"
+      />
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/">

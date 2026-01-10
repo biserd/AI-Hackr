@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO } from "@/components/seo";
 
 const blogPosts = [
   {
@@ -20,6 +21,12 @@ const blogPosts = [
 export default function BlogIndex() {
   return (
     <div className="min-h-screen bg-background">
+      <SEO 
+        title="Blog - Tech Stack Insights & Research"
+        description="Deep dives into tech stack trends, AI adoption patterns, and what's powering successful SaaS products. Analysis from AIHackr."
+        url="https://aihackr.com/blog"
+        keywords="tech stack, AI providers, SaaS tools, framework analysis, hosting trends"
+      />
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/">
