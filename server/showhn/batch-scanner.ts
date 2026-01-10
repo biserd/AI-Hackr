@@ -824,50 +824,43 @@ async function scanProductMultiPage(product: typeof showHnProducts.$inferSelect)
   }
 }
 
+const BATCH_SIZE = 10;
+
 export async function runBatchScan(): Promise<void> {
   const pendingProducts = await db.select()
     .from(showHnProducts)
     .where(eq(showHnProducts.scanStatus, "pending"));
   
-  console.log(`[Batch Scanner] Found ${pendingProducts.length} products to scan (multi-page mode)`);
+  console.log(`[Batch Scanner] Found ${pendingProducts.length} products to scan in batches of ${BATCH_SIZE}`);
   
-  const queue = [...pendingProducts];
-  let activeScans = 0;
   let completedScans = 0;
+  const totalProducts = pendingProducts.length;
   
-  const scanNext = async (): Promise<void> => {
-    while (queue.length > 0 && activeScans < CONCURRENCY_LIMIT) {
-      const product = queue.shift();
-      if (!product) break;
-      
-      activeScans++;
-      
-      scanProductMultiPage(product)
-        .then(() => {
-          completedScans++;
-          activeScans--;
-          console.log(`[Batch Scanner] Progress: ${completedScans}/${pendingProducts.length}`);
-        })
-        .catch(() => {
-          activeScans--;
-        });
-      
+  for (let i = 0; i < pendingProducts.length; i += BATCH_SIZE) {
+    const batch = pendingProducts.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(pendingProducts.length / BATCH_SIZE);
+    
+    console.log(`[Batch Scanner] Starting batch ${batchNum}/${totalBatches} (${batch.length} products)`);
+    
+    for (const product of batch) {
+      try {
+        await scanProductMultiPage(product);
+        completedScans++;
+        console.log(`[Batch Scanner] Progress: ${completedScans}/${totalProducts}`);
+      } catch (error) {
+        console.error(`[Batch Scanner] Failed ${product.domain}:`, error);
+      }
       await delay(SCAN_DELAY_MS);
     }
     
-    if (queue.length > 0) {
-      await delay(1000);
-      await scanNext();
+    if (i + BATCH_SIZE < pendingProducts.length) {
+      console.log(`[Batch Scanner] Batch ${batchNum} complete. Pausing 5s before next batch...`);
+      await delay(5000);
     }
-  };
-  
-  await scanNext();
-  
-  while (activeScans > 0) {
-    await delay(1000);
   }
   
-  console.log(`[Batch Scanner] Batch scan complete. ${completedScans} scans completed.`);
+  console.log(`[Batch Scanner] All batches complete. ${completedScans}/${totalProducts} scans completed.`);
 }
 
 export async function generateAggregateReport(): Promise<string> {
