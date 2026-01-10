@@ -6,8 +6,8 @@ import { browserScan, detectAIFromNetwork, detectFrameworkFromHints, type Browse
 import { insertScanSchema } from "@shared/schema";
 import { chromium, type Browser } from "playwright";
 
-const CONCURRENCY_LIMIT = 2;
-const SCAN_DELAY_MS = 3000;
+const CONCURRENCY_LIMIT = 1;
+const SCAN_DELAY_MS = 2000;
 
 const HIGH_VALUE_PATHS = [
   { path: "/pricing", type: "pricing" },
@@ -216,72 +216,128 @@ function detectIndirectSignals(html: string, scriptSrcs: string[]): {
   let payments: string | undefined;
   let aiProvider: string | undefined;
   let auth: string | undefined;
+  
+  const allText = html + " " + scriptSrcs.join(" ");
 
-  if (/pk_(live|test)_[a-zA-Z0-9]{20,}/.test(html)) {
-    payments = "Stripe";
-    evidence.push("Stripe public key found in HTML");
-  }
-  if (/stripe-pricing-table|data-stripe-key/i.test(html)) {
-    payments = "Stripe";
-    evidence.push("Stripe pricing table detected");
-  }
-  if (/stripe\.com\/v3|js\.stripe\.com/i.test(html)) {
-    payments = "Stripe";
-    evidence.push("Stripe.js reference in HTML");
-  }
-  if (/data-paddle-/i.test(html) || /paddle\.com\/checkout/i.test(html)) {
-    payments = "Paddle";
-    evidence.push("Paddle checkout reference found");
-  }
-  if (/lemonsqueezy\.com/i.test(html) || /data-lemonsqueezy/i.test(html)) {
-    payments = "Lemon Squeezy";
-    evidence.push("Lemon Squeezy reference found");
-  }
-
-  if (/openai\.com|api\.openai/i.test(html)) {
-    aiProvider = "OpenAI";
-    evidence.push("OpenAI reference in HTML");
-  }
-  if (/anthropic\.com|api\.anthropic/i.test(html)) {
-    aiProvider = "Anthropic";
-    evidence.push("Anthropic reference in HTML");
-  }
-  if (/useChat|useCompletion|ai\/react/i.test(html)) {
-    aiProvider = "Vercel AI SDK";
-    evidence.push("Vercel AI SDK hooks detected");
-  }
-  if (/gemini-pro|generativelanguage\.googleapis/i.test(html)) {
-    aiProvider = "Google Gemini";
-    evidence.push("Google Gemini reference found");
-  }
-  if (/replicate\.com|replicate\.delivery/i.test(html)) {
-    aiProvider = "Replicate";
-    evidence.push("Replicate reference found");
-  }
-  if (/together\.ai|togetherai/i.test(html)) {
-    aiProvider = "Together AI";
-    evidence.push("Together AI reference found");
-  }
-  if (/groq\.com|api\.groq/i.test(html)) {
-    aiProvider = "Groq";
-    evidence.push("Groq reference found");
+  const stripePatterns = [
+    { pattern: /pk_(live|test)_[a-zA-Z0-9]{10,}/, name: "Stripe public key" },
+    { pattern: /js\.stripe\.com/i, name: "Stripe.js script" },
+    { pattern: /checkout\.stripe\.com/i, name: "Stripe Checkout" },
+    { pattern: /stripe-pricing-table/i, name: "Stripe pricing table" },
+    { pattern: /data-stripe/i, name: "Stripe data attribute" },
+    { pattern: /Stripe\s*\(/i, name: "Stripe SDK init" },
+    { pattern: /new\s+Stripe\s*\(/i, name: "new Stripe()" },
+    { pattern: /redirectToCheckout/i, name: "Stripe redirectToCheckout" },
+    { pattern: /createCheckoutSession/i, name: "Stripe checkout session" },
+    { pattern: /stripe\.elements/i, name: "Stripe Elements" },
+    { pattern: /stripePromise/i, name: "Stripe promise" },
+    { pattern: /@stripe\/stripe-js/i, name: "@stripe/stripe-js" },
+    { pattern: /stripe-button/i, name: "Stripe button class" },
+  ];
+  
+  for (const { pattern, name } of stripePatterns) {
+    if (pattern.test(allText)) {
+      payments = "Stripe";
+      evidence.push(`Stripe: ${name}`);
+      break;
+    }
   }
 
-  if (/clerk\.com|clerk\.dev|__clerk/i.test(html)) {
-    auth = "Clerk";
-    evidence.push("Clerk auth reference found");
+  if (!payments) {
+    if (/paddle\.js|paddle\.com|data-paddle/i.test(allText)) {
+      payments = "Paddle";
+      evidence.push("Paddle SDK detected");
+    } else if (/lemonsqueezy|lemon-squeezy|data-lemon/i.test(allText)) {
+      payments = "Lemon Squeezy";
+      evidence.push("Lemon Squeezy detected");
+    } else if (/gumroad\.com|gumroad-button/i.test(allText)) {
+      payments = "Gumroad";
+      evidence.push("Gumroad detected");
+    } else if (/chargebee\.com|chargebee\.js/i.test(allText)) {
+      payments = "Chargebee";
+      evidence.push("Chargebee detected");
+    } else if (/recurly\.com|recurly\.js/i.test(allText)) {
+      payments = "Recurly";
+      evidence.push("Recurly detected");
+    }
   }
-  if (/auth0\.com|auth0-js/i.test(html)) {
-    auth = "Auth0";
-    evidence.push("Auth0 reference found");
+
+  const aiPatterns = [
+    { pattern: /openai|gpt-4|gpt-3\.5|chatgpt|dall-e/i, provider: "OpenAI" },
+    { pattern: /anthropic|claude-3|claude-2|claude-instant/i, provider: "Anthropic" },
+    { pattern: /gemini|generativelanguage\.googleapis|google-ai/i, provider: "Google Gemini" },
+    { pattern: /groq\.com|api\.groq|llama-3/i, provider: "Groq" },
+    { pattern: /together\.ai|togetherai|together\.xyz/i, provider: "Together AI" },
+    { pattern: /replicate\.com|replicate\.delivery/i, provider: "Replicate" },
+    { pattern: /cohere\.ai|cohere\.com|command-r/i, provider: "Cohere" },
+    { pattern: /mistral\.ai|mistral-/i, provider: "Mistral" },
+    { pattern: /perplexity\.ai/i, provider: "Perplexity" },
+    { pattern: /fireworks\.ai/i, provider: "Fireworks AI" },
+    { pattern: /huggingface|hf\.co|transformers\.js/i, provider: "Hugging Face" },
+    { pattern: /deepseek/i, provider: "DeepSeek" },
+    { pattern: /cerebras/i, provider: "Cerebras" },
+    { pattern: /stability\.ai|stablediffusion/i, provider: "Stability AI" },
+    { pattern: /elevenlabs|eleven-labs/i, provider: "ElevenLabs" },
+    { pattern: /assemblyai/i, provider: "AssemblyAI" },
+    { pattern: /langchain|@langchain/i, provider: "LangChain" },
+    { pattern: /llamaindex|llama-index|llama_index/i, provider: "LlamaIndex" },
+    { pattern: /litellm|lite-llm/i, provider: "LiteLLM" },
+    { pattern: /openrouter\.ai|openrouter/i, provider: "OpenRouter" },
+    { pattern: /portkey\.ai|portkey/i, provider: "Portkey" },
+    { pattern: /helicone\.ai|helicone/i, provider: "Helicone" },
+    { pattern: /bedrock|aws.*ai|amazon.*titan/i, provider: "AWS Bedrock" },
+    { pattern: /vertex\.ai|vertexai|aiplatform\.googleapis/i, provider: "Google Vertex" },
+    { pattern: /azure\.openai|openai\.azure/i, provider: "Azure OpenAI" },
+    { pattern: /pinecone/i, provider: "Pinecone" },
+    { pattern: /chroma|chromadb/i, provider: "Chroma" },
+    { pattern: /weaviate/i, provider: "Weaviate" },
+    { pattern: /qdrant/i, provider: "Qdrant" },
+    { pattern: /useChat|useCompletion|ai\/react|@ai-sdk/i, provider: "Vercel AI SDK" },
+  ];
+  
+  for (const { pattern, provider } of aiPatterns) {
+    if (pattern.test(allText)) {
+      if (!aiProvider) aiProvider = provider;
+      evidence.push(`AI: ${provider} detected`);
+      break;
+    }
   }
-  if (/supabase\.(io|com|co)|supabase-js/i.test(html)) {
-    auth = "Supabase";
-    evidence.push("Supabase reference found");
+
+  const authPatterns = [
+    { pattern: /clerk\.com|clerk\.dev|@clerk|__clerk/i, provider: "Clerk" },
+    { pattern: /auth0\.com|auth0-js|@auth0/i, provider: "Auth0" },
+    { pattern: /supabase\.(io|com|co)|@supabase/i, provider: "Supabase" },
+    { pattern: /firebase\.google|firebaseapp|@firebase/i, provider: "Firebase" },
+    { pattern: /next-auth|nextauth|authjs\.dev/i, provider: "NextAuth" },
+    { pattern: /kinde\.com|@kinde/i, provider: "Kinde" },
+    { pattern: /lucia-auth|lucia\.auth/i, provider: "Lucia" },
+    { pattern: /workos\.com|@workos/i, provider: "WorkOS" },
+    { pattern: /stytch\.com|@stytch/i, provider: "Stytch" },
+    { pattern: /magic\.link|@magic-sdk/i, provider: "Magic" },
+    { pattern: /privy\.io|@privy/i, provider: "Privy" },
+  ];
+  
+  for (const { pattern, provider } of authPatterns) {
+    if (pattern.test(allText)) {
+      if (!auth) auth = provider;
+      evidence.push(`Auth: ${provider} detected`);
+      break;
+    }
   }
-  if (/firebase\.google|firebaseapp\.com/i.test(html)) {
-    auth = "Firebase";
-    evidence.push("Firebase reference found");
+
+  for (const src of scriptSrcs) {
+    if (/stripe/i.test(src) && !payments) {
+      payments = "Stripe";
+      evidence.push(`Script src: ${src}`);
+    }
+    if (/paddle/i.test(src) && !payments) {
+      payments = "Paddle";
+      evidence.push(`Script src: ${src}`);
+    }
+    if (/openai|anthropic|ai\.google|langchain/i.test(src) && !aiProvider) {
+      aiProvider = "AI SDK";
+      evidence.push(`AI script src: ${src}`);
+    }
   }
 
   return { payments, aiProvider, auth, evidence };
@@ -290,17 +346,19 @@ function detectIndirectSignals(html: string, scriptSrcs: string[]): {
 async function probePageForDynamicContent(
   page: Awaited<ReturnType<Awaited<ReturnType<Browser["newContext"]>>["newPage"]>>,
   pageType: string
-): Promise<{ newDomains: string[]; evidence: string[] }> {
+): Promise<{ newDomains: string[]; evidence: string[]; postClickHtml?: string }> {
   const evidence: string[] = [];
-  const newDomains: string[] = [];
-  
   const requestsAfterProbe: string[] = [];
+  let postClickHtml: string | undefined;
   
   const captureRequest = (req: { url: () => string }) => {
     try {
-      const hostname = new URL(req.url()).hostname;
-      if (!requestsAfterProbe.includes(hostname)) {
-        requestsAfterProbe.push(hostname);
+      const url = new URL(req.url());
+      if (!requestsAfterProbe.includes(url.hostname)) {
+        requestsAfterProbe.push(url.hostname);
+      }
+      if (/stripe|paddle|lemonsqueezy|openai|anthropic|clerk|auth0|supabase/i.test(url.hostname)) {
+        evidence.push(`Network after probe: ${url.hostname}`);
       }
     } catch {}
   };
@@ -310,25 +368,43 @@ async function probePageForDynamicContent(
   try {
     if (pageType === "pricing" || pageType === "homepage") {
       const paymentButtonSelectors = [
-        'button:has-text("Subscribe")',
-        'button:has-text("Buy")',
-        'button:has-text("Upgrade")',
-        'button:has-text("Get Started")',
-        'button:has-text("Start")',
-        'a:has-text("Pricing")',
         '[data-stripe]',
         '[data-paddle]',
-        '.pricing-button',
+        'button:has-text("Subscribe")',
+        'button:has-text("Buy now")',
+        'button:has-text("Get started")',
+        'button:has-text("Start free")',
+        'button:has-text("Try free")',
+        'button:has-text("Upgrade")',
+        'a:has-text("Subscribe")',
+        'a:has-text("Buy")',
+        'a:has-text("Upgrade")',
+        '.pricing-cta',
         '.buy-button',
+        '.checkout-button',
       ];
       
       for (const selector of paymentButtonSelectors) {
         try {
           const btn = page.locator(selector).first();
-          if (await btn.isVisible({ timeout: 500 })) {
-            await btn.hover({ timeout: 1000 });
-            evidence.push(`Hovered payment button: ${selector}`);
-            await page.waitForTimeout(500);
+          if (await btn.isVisible({ timeout: 300 })) {
+            const originalUrl = page.url();
+            
+            await btn.click({ timeout: 2000 }).catch(() => {});
+            evidence.push(`Clicked: ${selector}`);
+            
+            await page.waitForTimeout(1500);
+            
+            const newUrl = page.url();
+            if (newUrl !== originalUrl) {
+              if (/stripe|checkout|pay|billing/i.test(newUrl)) {
+                evidence.push(`Navigated to payment: ${newUrl}`);
+              }
+              await page.goBack().catch(() => {});
+              await page.waitForTimeout(500);
+            }
+            
+            postClickHtml = await page.content().catch(() => "");
             break;
           }
         } catch {}
@@ -336,24 +412,29 @@ async function probePageForDynamicContent(
     }
 
     if (pageType === "homepage" || pageType === "docs") {
-      const aiButtonSelectors = [
-        'button:has-text("Generate")',
-        'button:has-text("Ask")',
-        'button:has-text("Submit")',
-        'button:has-text("Try")',
-        'textarea[placeholder*="message"]',
-        'input[placeholder*="Ask"]',
+      const aiInteractionSelectors = [
+        'textarea[placeholder*="message" i]',
+        'textarea[placeholder*="ask" i]',
+        'textarea[placeholder*="chat" i]',
+        'textarea[placeholder*="type" i]',
+        'input[placeholder*="ask" i]',
+        'input[placeholder*="search" i]',
+        '[data-testid*="chat"]',
+        '[data-testid*="prompt"]',
         '.chat-input',
-        '[data-ai]',
+        '#prompt',
       ];
       
-      for (const selector of aiButtonSelectors) {
+      for (const selector of aiInteractionSelectors) {
         try {
           const el = page.locator(selector).first();
-          if (await el.isVisible({ timeout: 500 })) {
-            await el.hover({ timeout: 1000 });
-            evidence.push(`Found AI interaction element: ${selector}`);
-            await page.waitForTimeout(300);
+          if (await el.isVisible({ timeout: 300 })) {
+            await el.click({ timeout: 1000 }).catch(() => {});
+            await el.type("test", { delay: 50 }).catch(() => {});
+            evidence.push(`Typed in AI input: ${selector}`);
+            await page.waitForTimeout(1000);
+            
+            postClickHtml = await page.content().catch(() => "");
             break;
           }
         } catch {}
@@ -362,38 +443,40 @@ async function probePageForDynamicContent(
 
     if (pageType === "auth") {
       const authButtonSelectors = [
+        'button:has-text("Sign in with Google")',
+        'button:has-text("Continue with Google")',
+        'button:has-text("Sign in with GitHub")',
+        'button:has-text("Continue with GitHub")',
         'button:has-text("Sign in")',
         'button:has-text("Log in")',
-        'button:has-text("Continue with Google")',
-        'button:has-text("Continue with GitHub")',
         '[data-clerk]',
-        '.auth0-lock',
+        '.auth0-lock-submit',
+        '[data-provider="google"]',
+        '[data-provider="github"]',
       ];
       
       for (const selector of authButtonSelectors) {
         try {
           const btn = page.locator(selector).first();
-          if (await btn.isVisible({ timeout: 500 })) {
-            await btn.hover({ timeout: 1000 });
+          if (await btn.isVisible({ timeout: 300 })) {
+            await btn.hover({ timeout: 500 });
             evidence.push(`Found auth button: ${selector}`);
-            await page.waitForTimeout(300);
+            await page.waitForTimeout(500);
             break;
           }
         } catch {}
       }
     }
 
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
 
   } catch (error) {
-    evidence.push(`Probe error: ${error}`);
+    evidence.push(`Probe error: ${String(error).slice(0, 100)}`);
   }
   
   page.off("request", captureRequest);
   
-  newDomains.push(...requestsAfterProbe);
-  
-  return { newDomains, evidence };
+  return { newDomains: requestsAfterProbe, evidence, postClickHtml };
 }
 
 async function discoverValidPages(
@@ -535,20 +618,29 @@ async function scanMultiplePages(
       console.log(`[Probe] Running probe scan for ${pageInfo.url} (${pageInfo.type})...`);
       const probeResults = await probePageForDynamicContent(page, pageInfo.type);
       
+      let postClickSignals: ReturnType<typeof detectIndirectSignals> | undefined;
+      if (probeResults.postClickHtml && probeResults.postClickHtml !== html) {
+        postClickSignals = detectIndirectSignals(probeResults.postClickHtml, []);
+        if (postClickSignals.evidence.length > 0) {
+          console.log(`[Probe] Post-click detection found: ${postClickSignals.evidence.join(", ")}`);
+        }
+      }
+      
       const allDomains = [...domains, ...probeResults.newDomains];
       const allEvidence = [
         ...aiFromNetwork.evidence, 
         ...aiFromScripts.evidence,
         ...indirectSignals.evidence,
         ...probeResults.evidence,
+        ...(postClickSignals?.evidence || []),
       ];
       
       const result: PageScanResult = {
         url: pageInfo.url,
         type: pageInfo.type,
-        aiProvider: aiFromNetwork.provider || aiFromScripts.provider || indirectSignals.aiProvider,
-        payments: indirectSignals.payments,
-        auth: indirectSignals.auth,
+        aiProvider: aiFromNetwork.provider || aiFromScripts.provider || indirectSignals.aiProvider || postClickSignals?.aiProvider,
+        payments: indirectSignals.payments || postClickSignals?.payments,
+        auth: indirectSignals.auth || postClickSignals?.auth,
         evidence: allEvidence,
         networkDomains: allDomains,
       };
