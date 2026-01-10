@@ -206,22 +206,65 @@ type PageScanResult = {
   networkDomains: string[];
 };
 
+async function discoverValidPages(
+  baseUrl: string,
+  context: Awaited<ReturnType<Browser["newContext"]>>
+): Promise<Array<{ url: string; type: string }>> {
+  const origin = new URL(baseUrl).origin;
+  const pages: Array<{ url: string; type: string }> = [{ url: baseUrl, type: "homepage" }];
+  const checkedTypes = new Set<string>();
+  
+  const pathsByType: Record<string, string[]> = {
+    pricing: ["/pricing", "/plans", "/pro", "/upgrade"],
+    auth: ["/login", "/signin", "/signup", "/sign-up", "/register"],
+    docs: ["/docs", "/api", "/documentation", "/developers"],
+  };
+  
+  for (const [type, paths] of Object.entries(pathsByType)) {
+    if (checkedTypes.has(type)) continue;
+    
+    for (const path of paths) {
+      const testUrl = `${origin}${path}`;
+      try {
+        const page = await context.newPage();
+        const resp = await page.goto(testUrl, { timeout: 8000, waitUntil: "domcontentloaded" });
+        const status = resp?.status() || 0;
+        const finalUrl = page.url();
+        await page.close();
+        
+        if (status >= 200 && status < 400) {
+          const finalPath = new URL(finalUrl).pathname;
+          if (finalPath !== "/" && !pages.some(p => p.url === testUrl)) {
+            pages.push({ url: testUrl, type });
+            checkedTypes.add(type);
+            break;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    if (pages.length >= 4) break;
+  }
+  
+  return pages;
+}
+
 async function scanMultiplePages(
   baseUrl: string,
   browser: Browser
 ): Promise<PageScanResult[]> {
   const results: PageScanResult[] = [];
-  const origin = new URL(baseUrl).origin;
-  
-  const pagesToScan = [
-    { url: baseUrl, type: "homepage" },
-    ...HIGH_VALUE_PATHS.slice(0, 3).map(p => ({ url: `${origin}${p.path}`, type: p.type }))
-  ];
   
   const context = await browser.newContext({
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     viewport: { width: 1280, height: 800 },
   });
+  
+  console.log(`[MultiPage] Discovering pages for ${baseUrl}...`);
+  const pagesToScan = await discoverValidPages(baseUrl, context);
+  console.log(`[MultiPage] Found ${pagesToScan.length} pages to scan: ${pagesToScan.map(p => p.type).join(", ")}`);
   
   for (const pageInfo of pagesToScan) {
     try {
