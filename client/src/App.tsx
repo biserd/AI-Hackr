@@ -15,7 +15,7 @@ import Login from "@/pages/login";
 import AuthCallback from "@/pages/auth-callback";
 import Dashboard from "@/pages/dashboard";
 import BlogIndex from "@/pages/blog/index";
-import HNTechStack from "@/pages/blog/hn-tech-stack";
+import HNTechStack from "@/pages/blog/what-technologies-the-successful-projects-at-hacker-news-are-using";
 
 function Router() {
   return (
@@ -30,7 +30,7 @@ function Router() {
       <Route path="/auth/verify" component={AuthCallback}/>
       <Route path="/dashboard" component={Dashboard}/>
       <Route path="/blog" component={BlogIndex}/>
-      <Route path="/blog/hn-tech-stack" component={HNTechStack}/>
+      <Route path="/blog/what-technologies-the-successful-projects-at-hacker-news-are-using" component={HNTechStack}/>
       <Route component={NotFound} />
     </Switch>
   );

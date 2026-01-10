@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const blogPosts = [
   {
-    slug: "hn-tech-stack",
+    slug: "what-technologies-the-successful-projects-at-hacker-news-are-using",
     title: "What Technologies the Successful Projects at Hacker News Are Using",
     description: "Deep analysis of tech stacks from top Show HN launches - frameworks, hosting, payments, auth, and AI providers.",
     date: "January 2026",
