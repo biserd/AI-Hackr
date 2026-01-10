@@ -436,11 +436,23 @@ export function mergeWithBrowserSignals(
     d.includes("together") ||
     d.includes("perplexity") ||
     d.includes("fireworks") ||
+    d.includes("bedrock") ||
+    d.includes("openrouter") ||
+    d.includes("elevenlabs") ||
+    d.includes("deepgram") ||
+    d.includes("assemblyai") ||
+    d.includes("pinecone") ||
+    d.includes("portkey") ||
+    d.includes("helicone") ||
     d.includes("stripe") ||
     d.includes("auth0") ||
     d.includes("clerk") ||
     d.includes("supabase") ||
-    d.includes("firebase")
+    d.includes("firebase") ||
+    d.includes("kinde") ||
+    d.includes("magic.link") ||
+    d.includes("stytch") ||
+    d.includes("workos")
   );
 
   const relevantPaths = browserSignals.network.paths.filter(p => 

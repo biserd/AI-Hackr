@@ -440,19 +440,32 @@ export function detectAIFromNetwork(signals: BrowserSignals): {
     "openai.azure.com": "OpenAI (Azure)",
     "api.anthropic.com": "Anthropic",
     "generativelanguage.googleapis.com": "Google Gemini",
+    "aiplatform.googleapis.com": "Google Vertex AI",
     "api.groq.com": "Groq",
     "api.cohere.ai": "Cohere",
     "api.mistral.ai": "Mistral",
     "api.replicate.com": "Replicate",
     "api.together.ai": "Together AI",
+    "api.together.xyz": "Together AI",
     "api.perplexity.ai": "Perplexity",
     "api.fireworks.ai": "Fireworks AI",
+    "openrouter.ai": "OpenRouter",
+    "api.elevenlabs.io": "ElevenLabs",
+    "api.deepgram.com": "Deepgram",
+    "api.assemblyai.com": "AssemblyAI",
+  };
+
+  const aiDomainPartials: Record<string, string> = {
+    "bedrock": "AWS Bedrock",
+    "amazonaws.com": "AWS Bedrock",
   };
 
   const gatewayDomains: Record<string, string> = {
     "gateway.ai.cloudflare.com": "Cloudflare AI Gateway",
     "api.portkey.ai": "Portkey",
+    "portkey.ai": "Portkey",
     "gateway.helicone.ai": "Helicone",
+    "helicone.ai": "Helicone",
     "api.braintrust.dev": "Braintrust",
   };
 
@@ -472,12 +485,25 @@ export function detectAIFromNetwork(signals: BrowserSignals): {
         confidence = "Medium";
       }
     }
+    for (const [partial, name] of Object.entries(aiDomainPartials)) {
+      if (domain.includes(partial)) {
+        provider = name;
+        confidence = "High";
+        break;
+      }
+    }
   }
 
   for (const domain of domains) {
     if (gatewayDomains[domain]) {
       gateway = gatewayDomains[domain];
       break;
+    }
+    for (const [partial, name] of Object.entries(gatewayDomains)) {
+      if (domain.includes(partial)) {
+        gateway = name;
+        break;
+      }
     }
   }
 
