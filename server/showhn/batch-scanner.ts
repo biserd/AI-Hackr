@@ -1,19 +1,409 @@
 import { db } from "../storage";
-import { showHnProducts, scans, showHnReports, type Scan, type ShowHnProduct } from "@shared/schema";
+import { showHnProducts, scans, showHnReports, type Scan } from "@shared/schema";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { scanUrl } from "../scanner";
-import { browserScan, detectAIFromNetwork, detectFrameworkFromHints } from "../probeScanner";
+import { browserScan, detectAIFromNetwork, detectFrameworkFromHints, type BrowserSignals } from "../probeScanner";
 import { insertScanSchema } from "@shared/schema";
+import { chromium, type Browser } from "playwright";
 
 const CONCURRENCY_LIMIT = 5;
 const SCAN_DELAY_MS = 2000;
+
+const HIGH_VALUE_PATHS = [
+  { path: "/pricing", type: "pricing" },
+  { path: "/plans", type: "pricing" },
+  { path: "/login", type: "auth" },
+  { path: "/signin", type: "auth" },
+  { path: "/signup", type: "auth" },
+  { path: "/sign-up", type: "auth" },
+  { path: "/docs", type: "docs" },
+  { path: "/api", type: "docs" },
+];
+
+const EXTENDED_AI_DOMAINS: Record<string, string> = {
+  "api.openai.com": "OpenAI",
+  "openai.azure.com": "Azure OpenAI",
+  "api.anthropic.com": "Anthropic",
+  "generativelanguage.googleapis.com": "Google Gemini",
+  "api.groq.com": "Groq",
+  "api.cohere.ai": "Cohere",
+  "api.mistral.ai": "Mistral",
+  "api.replicate.com": "Replicate",
+  "api.together.xyz": "Together AI",
+  "api.together.ai": "Together AI",
+  "api.perplexity.ai": "Perplexity",
+  "api.fireworks.ai": "Fireworks AI",
+  "api-inference.huggingface.co": "Hugging Face",
+  "huggingface.co": "Hugging Face",
+  "api.deepseek.com": "DeepSeek",
+  "api.cerebras.ai": "Cerebras",
+  "api.sambanova.ai": "SambaNova",
+  "gateway.ai.cloudflare.com": "Cloudflare AI",
+  "workers.ai": "Cloudflare Workers AI",
+  "api.stability.ai": "Stability AI",
+  "api.elevenlabs.io": "ElevenLabs",
+  "api.assemblyai.com": "AssemblyAI",
+  "api.deepgram.com": "Deepgram",
+  "api.runpod.io": "RunPod",
+  "api.modal.com": "Modal",
+  "infer.banana.dev": "Banana.dev",
+  "api.baseten.co": "Baseten",
+  "api.anyscale.com": "Anyscale",
+  "api.lepton.ai": "Lepton AI",
+};
+
+const AI_SCRIPT_PATTERNS = [
+  { pattern: /openai/i, provider: "OpenAI" },
+  { pattern: /anthropic/i, provider: "Anthropic" },
+  { pattern: /langchain/i, provider: "LangChain" },
+  { pattern: /@google\/generative-ai/i, provider: "Google Gemini" },
+  { pattern: /ai\.vercel/i, provider: "Vercel AI SDK" },
+  { pattern: /llamaindex/i, provider: "LlamaIndex" },
+  { pattern: /huggingface/i, provider: "Hugging Face" },
+  { pattern: /cohere/i, provider: "Cohere" },
+  { pattern: /replicate/i, provider: "Replicate" },
+];
 
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function scanProduct(product: typeof showHnProducts.$inferSelect): Promise<string | null> {
-  console.log(`[Batch Scanner] Scanning ${product.domain}...`);
+function detectAIFromNetworkExtended(signals: BrowserSignals): {
+  provider?: string;
+  gateway?: string;
+  confidence: string;
+  evidence: string[];
+} {
+  const { domains, paths, responses, requests } = signals.network;
+  const evidence: string[] = [];
+  
+  let provider: string | undefined;
+  let gateway: string | undefined;
+  let confidence = "Low";
+
+  for (const domain of domains) {
+    if (EXTENDED_AI_DOMAINS[domain]) {
+      provider = EXTENDED_AI_DOMAINS[domain];
+      confidence = "High";
+      evidence.push(`Direct API call to ${domain}`);
+      break;
+    }
+    for (const [partial, name] of Object.entries(EXTENDED_AI_DOMAINS)) {
+      if (domain.includes(partial.replace("api.", ""))) {
+        if (!provider) {
+          provider = name;
+          confidence = "Medium";
+          evidence.push(`Domain match: ${domain}`);
+        }
+      }
+    }
+  }
+
+  for (const path of paths) {
+    if (path.includes("/v1/chat/completions") || path.includes("/v1/completions")) {
+      if (!provider) {
+        provider = "OpenAI-compatible";
+        confidence = "Medium";
+        evidence.push("OpenAI-compatible chat completions endpoint");
+      }
+    }
+    if (path.includes("/v1/messages")) {
+      if (!provider) {
+        provider = "Anthropic-compatible";
+        confidence = "Medium";
+        evidence.push("Anthropic-compatible messages endpoint");
+      }
+    }
+    if (path.includes("/chat") && (path.includes("/api") || path.includes("/v1"))) {
+      evidence.push(`Chat API endpoint: ${path}`);
+    }
+  }
+
+  for (const resp of responses) {
+    if (resp.headers["x-vercel-ai-provider"]) {
+      const aiProvider = resp.headers["x-vercel-ai-provider"];
+      if (aiProvider.includes("openai")) provider = "OpenAI";
+      else if (aiProvider.includes("anthropic")) provider = "Anthropic";
+      else if (aiProvider.includes("google")) provider = "Google Gemini";
+      confidence = "High";
+      evidence.push(`Vercel AI SDK header: ${aiProvider}`);
+    }
+    if (resp.headers["anthropic-version"]) {
+      provider = "Anthropic";
+      confidence = "High";
+      evidence.push("Anthropic version header present");
+    }
+    if (resp.headers["openai-organization"]) {
+      provider = "OpenAI";
+      confidence = "High";
+      evidence.push("OpenAI organization header present");
+    }
+  }
+
+  const gatewayDomains: Record<string, string> = {
+    "gateway.ai.cloudflare.com": "Cloudflare AI Gateway",
+    "api.portkey.ai": "Portkey",
+    "gateway.helicone.ai": "Helicone",
+  };
+  
+  for (const domain of domains) {
+    if (gatewayDomains[domain]) {
+      gateway = gatewayDomains[domain];
+      evidence.push(`AI Gateway: ${gateway}`);
+      break;
+    }
+  }
+
+  return { provider, gateway, confidence, evidence };
+}
+
+function detectAIFromScripts(scriptSrcs: string[], html: string): { provider?: string; evidence: string[] } {
+  const evidence: string[] = [];
+  let provider: string | undefined;
+  
+  for (const src of scriptSrcs) {
+    for (const pattern of AI_SCRIPT_PATTERNS) {
+      if (pattern.pattern.test(src)) {
+        provider = pattern.provider;
+        evidence.push(`Script: ${src.substring(0, 100)}`);
+        break;
+      }
+    }
+    if (provider) break;
+  }
+  
+  const htmlPatterns = [
+    { pattern: /openai/i, provider: "OpenAI" },
+    { pattern: /anthropic/i, provider: "Anthropic" },
+    { pattern: /gpt-4|gpt-3\.5/i, provider: "OpenAI" },
+    { pattern: /claude-3|claude-2/i, provider: "Anthropic" },
+    { pattern: /gemini-pro|gemini-1\.5/i, provider: "Google Gemini" },
+    { pattern: /langchain/i, provider: "LangChain" },
+    { pattern: /useChat|useCompletion/i, provider: "Vercel AI SDK" },
+  ];
+  
+  for (const p of htmlPatterns) {
+    if (p.pattern.test(html)) {
+      if (!provider) provider = p.provider;
+      evidence.push(`HTML pattern: ${p.pattern.source}`);
+      break;
+    }
+  }
+  
+  return { provider, evidence };
+}
+
+type PageScanResult = {
+  url: string;
+  type: string;
+  framework?: string;
+  aiProvider?: string;
+  payments?: string;
+  auth?: string;
+  analytics?: string;
+  hosting?: string;
+  evidence: string[];
+  networkDomains: string[];
+};
+
+async function scanMultiplePages(
+  baseUrl: string,
+  browser: Browser
+): Promise<PageScanResult[]> {
+  const results: PageScanResult[] = [];
+  const origin = new URL(baseUrl).origin;
+  
+  const pagesToScan = [
+    { url: baseUrl, type: "homepage" },
+    ...HIGH_VALUE_PATHS.slice(0, 3).map(p => ({ url: `${origin}${p.path}`, type: p.type }))
+  ];
+  
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    viewport: { width: 1280, height: 800 },
+  });
+  
+  for (const pageInfo of pagesToScan) {
+    try {
+      const page = await context.newPage();
+      
+      const requests: BrowserSignals["network"]["requests"] = [];
+      const responses: BrowserSignals["network"]["responses"] = [];
+      
+      page.on("request", (req) => {
+        if (requests.length >= 200) return;
+        requests.push({
+          url: req.url(),
+          method: req.method(),
+          resourceType: req.resourceType(),
+        });
+      });
+      
+      page.on("response", async (resp) => {
+        if (responses.length >= 200) return;
+        responses.push({
+          url: resp.url(),
+          status: resp.status(),
+          contentType: resp.headers()["content-type"] ?? null,
+          headers: resp.headers(),
+        });
+      });
+      
+      await page.route("**/*", (route) => {
+        const rt = route.request().resourceType();
+        if (rt === "image" || rt === "font" || rt === "media") return route.abort();
+        return route.continue();
+      });
+      
+      const mainResp = await page.goto(pageInfo.url, {
+        waitUntil: "domcontentloaded",
+        timeout: 15000,
+      });
+      
+      if (!mainResp || mainResp.status() >= 400) {
+        await page.close();
+        continue;
+      }
+      
+      await page.waitForTimeout(1500);
+      
+      const html = await page.content();
+      const scriptSrcs = await page.$$eval("script[src]", els => 
+        els.map(el => el.getAttribute("src") || "")
+      );
+      
+      const domains = Array.from(new Set([
+        ...requests.map(r => { try { return new URL(r.url).hostname; } catch { return ""; } }),
+        ...responses.map(r => { try { return new URL(r.url).hostname; } catch { return ""; } }),
+      ])).filter(Boolean);
+      
+      const paths = Array.from(new Set([
+        ...requests.map(r => { try { return new URL(r.url).pathname; } catch { return ""; } }),
+      ])).filter(Boolean);
+      
+      const browserSignals: BrowserSignals = {
+        finalUrl: page.url(),
+        mainResponse: {
+          status: mainResp.status(),
+          headers: mainResp.headers(),
+        },
+        html,
+        scriptSrcs,
+        meta: {},
+        cookies: [],
+        windowHints: {},
+        network: { requests, responses, websockets: [], domains, paths },
+      };
+      
+      const aiFromNetwork = detectAIFromNetworkExtended(browserSignals);
+      const aiFromScripts = detectAIFromScripts(scriptSrcs, html);
+      
+      const result: PageScanResult = {
+        url: pageInfo.url,
+        type: pageInfo.type,
+        aiProvider: aiFromNetwork.provider || aiFromScripts.provider,
+        evidence: [...aiFromNetwork.evidence, ...aiFromScripts.evidence],
+        networkDomains: domains,
+      };
+      
+      if (pageInfo.type === "pricing" || pageInfo.type === "homepage") {
+        if (domains.some(d => d.includes("stripe") || d.includes("js.stripe.com"))) {
+          result.payments = "Stripe";
+          result.evidence.push("Stripe JS loaded");
+        }
+        if (domains.some(d => d.includes("paddle"))) {
+          result.payments = "Paddle";
+          result.evidence.push("Paddle detected");
+        }
+        if (domains.some(d => d.includes("lemonsqueezy"))) {
+          result.payments = "Lemon Squeezy";
+          result.evidence.push("Lemon Squeezy detected");
+        }
+        if (domains.some(d => d.includes("gumroad"))) {
+          result.payments = "Gumroad";
+          result.evidence.push("Gumroad detected");
+        }
+      }
+      
+      if (pageInfo.type === "auth" || pageInfo.type === "homepage") {
+        if (domains.some(d => d.includes("clerk"))) {
+          result.auth = "Clerk";
+          result.evidence.push("Clerk auth detected");
+        }
+        if (domains.some(d => d.includes("auth0"))) {
+          result.auth = "Auth0";
+          result.evidence.push("Auth0 detected");
+        }
+        if (domains.some(d => d.includes("supabase"))) {
+          result.auth = "Supabase";
+          result.evidence.push("Supabase detected");
+        }
+        if (domains.some(d => d.includes("firebase"))) {
+          result.auth = "Firebase";
+          result.evidence.push("Firebase detected");
+        }
+        if (html.includes("next-auth") || html.includes("NextAuth")) {
+          result.auth = "NextAuth";
+          result.evidence.push("NextAuth detected");
+        }
+      }
+      
+      results.push(result);
+      await page.close();
+      
+    } catch (error) {
+      console.log(`[MultiPage] Failed to scan ${pageInfo.url}: ${error}`);
+    }
+  }
+  
+  await context.close();
+  return results;
+}
+
+function mergePageResults(pageResults: PageScanResult[]): Partial<Scan> {
+  const merged: Partial<Scan> = {};
+  const allEvidence: string[] = [];
+  const allDomains: string[] = [];
+  
+  for (const page of pageResults) {
+    if (page.aiProvider && !merged.aiProvider) {
+      merged.aiProvider = page.aiProvider;
+    }
+    if (page.payments && !merged.payments) {
+      merged.payments = page.payments;
+    }
+    if (page.auth && !merged.auth) {
+      merged.auth = page.auth;
+    }
+    if (page.analytics && !merged.analytics) {
+      merged.analytics = page.analytics;
+    }
+    if (page.hosting && !merged.hosting) {
+      merged.hosting = page.hosting;
+    }
+    
+    allEvidence.push(...page.evidence.map(e => `[${page.type}] ${e}`));
+    allDomains.push(...page.networkDomains);
+  }
+  
+  return {
+    ...merged,
+    evidence: {
+      pageSnapshots: pageResults.map(p => ({
+        url: p.url,
+        type: p.type,
+        detections: p.evidence,
+      })),
+      networkDomains: Array.from(new Set(allDomains)).slice(0, 100),
+      multiPageScan: true,
+    } as any,
+  };
+}
+
+async function scanProductMultiPage(product: typeof showHnProducts.$inferSelect): Promise<string | null> {
+  console.log(`[Batch Scanner] Multi-page scanning ${product.domain}...`);
+  
+  let browser: Browser | null = null;
   
   try {
     await db.update(showHnProducts)
@@ -29,51 +419,40 @@ async function scanProduct(product: typeof showHnProducts.$inferSelect): Promise
     };
     (scanResult as any).scanMode = "passive";
     
-    try {
-      console.log(`[Batch Scanner] Running render scan for ${product.domain}...`);
-      const browserSignals = await browserScan(product.productUrl, {
-        timeoutMs: 20000,
-        blockResources: true,
-      });
-      
-      const aiFromNetwork = detectAIFromNetwork(browserSignals);
-      const frameworkFromHints = detectFrameworkFromHints(browserSignals.windowHints);
-      
-      if (aiFromNetwork.provider && (!scanResult.aiProvider || aiFromNetwork.confidence === "High")) {
-        scanResult.aiProvider = aiFromNetwork.provider;
-        (scanResult as any).aiConfidence = aiFromNetwork.confidence;
-      }
-      if (aiFromNetwork.gateway) {
-        (scanResult as any).aiGateway = aiFromNetwork.gateway;
-      }
-      if (frameworkFromHints.framework && !scanResult.framework) {
-        scanResult.framework = frameworkFromHints.framework;
-        (scanResult as any).frameworkConfidence = frameworkFromHints.confidence;
-      }
-      
-      (scanResult as any).scanPhases = {
-        passive: "complete",
-        render: "complete",
-        probe: "locked",
-      };
-      (scanResult as any).scanMode = "render";
-      
-      const existingEvidence = (scanResult as any).evidence || {};
-      (scanResult as any).evidence = {
-        ...existingEvidence,
-        networkDomains: browserSignals.network.domains.slice(0, 50),
-        networkPaths: browserSignals.network.paths.slice(0, 30),
-        websockets: browserSignals.network.websockets,
-      };
-      
-    } catch (renderError) {
-      console.error(`[Batch Scanner] Render scan failed for ${product.domain}:`, renderError);
-      (scanResult as any).scanPhases = {
-        passive: "complete",
-        render: "failed",
-        probe: "locked",
-      };
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    
+    console.log(`[Batch Scanner] Running multi-page render scan for ${product.domain}...`);
+    const pageResults = await scanMultiplePages(product.productUrl, browser);
+    
+    await browser.close();
+    browser = null;
+    
+    const merged = mergePageResults(pageResults);
+    
+    if (merged.aiProvider) {
+      scanResult.aiProvider = merged.aiProvider;
+      (scanResult as any).aiConfidence = "High";
     }
+    if (merged.payments && !scanResult.payments) {
+      scanResult.payments = merged.payments;
+    }
+    if (merged.auth && !scanResult.auth) {
+      scanResult.auth = merged.auth;
+    }
+    if (merged.analytics && !scanResult.analytics) {
+      scanResult.analytics = merged.analytics;
+    }
+    
+    (scanResult as any).scanPhases = {
+      passive: "complete",
+      render: "complete",
+      probe: "locked",
+    };
+    (scanResult as any).scanMode = "multi-page";
+    (scanResult as any).evidence = merged.evidence;
     
     const validatedScan = insertScanSchema.parse(scanResult);
     const [savedScan] = await db.insert(scans).values(validatedScan).returning();
@@ -85,11 +464,16 @@ async function scanProduct(product: typeof showHnProducts.$inferSelect): Promise
       })
       .where(eq(showHnProducts.id, product.id));
     
-    console.log(`[Batch Scanner] Completed scan for ${product.domain}: ${savedScan.framework || "No framework"}, ${savedScan.aiProvider || "No AI"}`);
+    const pagesScanned = pageResults.length;
+    console.log(`[Batch Scanner] Completed ${product.domain}: ${pagesScanned} pages, ${savedScan.framework || "No framework"}, ${savedScan.aiProvider || "No AI"}`);
     
     return savedScan.id;
   } catch (error) {
     console.error(`[Batch Scanner] Failed to scan ${product.domain}:`, error);
+    
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
     
     await db.update(showHnProducts)
       .set({ scanStatus: "failed" })
@@ -104,7 +488,7 @@ export async function runBatchScan(): Promise<void> {
     .from(showHnProducts)
     .where(eq(showHnProducts.scanStatus, "pending"));
   
-  console.log(`[Batch Scanner] Found ${pendingProducts.length} products to scan`);
+  console.log(`[Batch Scanner] Found ${pendingProducts.length} products to scan (multi-page mode)`);
   
   const queue = [...pendingProducts];
   let activeScans = 0;
@@ -117,7 +501,7 @@ export async function runBatchScan(): Promise<void> {
       
       activeScans++;
       
-      scanProduct(product)
+      scanProductMultiPage(product)
         .then(() => {
           completedScans++;
           activeScans--;
@@ -222,7 +606,6 @@ export async function generateAggregateReport(): Promise<string> {
   }).returning();
   
   console.log(`[Report] Report generated with ID: ${report.id}`);
-  
   return report.id;
 }
 
@@ -232,25 +615,13 @@ export async function exportToCsv(): Promise<string> {
     scan: scans,
   })
     .from(showHnProducts)
-    .leftJoin(scans, eq(showHnProducts.scanId, scans.id))
+    .leftJoin(scans, sql`${showHnProducts.scanId} = ${scans.id}`)
     .orderBy(desc(sql`CAST(${showHnProducts.score} AS INTEGER)`));
   
   const headers = [
-    "HN ID",
-    "Title",
-    "Author",
-    "Score",
-    "Comments",
-    "Domain",
-    "Product URL",
-    "HN Link",
-    "Framework",
-    "Hosting",
-    "Payments",
-    "Auth",
-    "Analytics",
-    "AI Provider",
-    "Report Link",
+    "HN ID", "Title", "Author", "Score", "Comments", "Domain",
+    "Product URL", "HN Link", "Framework", "Hosting", "Payments",
+    "Auth", "Analytics", "AI Provider"
   ];
   
   const rows = products.map(({ product, scan }) => [
@@ -268,10 +639,7 @@ export async function exportToCsv(): Promise<string> {
     scan?.auth || "",
     scan?.analytics || "",
     scan?.aiProvider || "",
-    scan ? `/scan/${product.domain}` : "",
   ]);
   
-  const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-  
-  return csv;
+  return [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
 }
