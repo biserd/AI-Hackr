@@ -95,10 +95,10 @@ function Navbar() {
               Pricing
             </Button>
           </a>
-          <Link href="/showhn">
-            <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10" data-testid="link-showhn">
+          <Link href="/blog">
+            <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10" data-testid="link-blog">
               <TrendingUp className="w-3 h-3 mr-1" />
-              Show HN
+              Blog
             </Button>
           </Link>
           <ThemeToggle />

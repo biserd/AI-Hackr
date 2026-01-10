@@ -12,7 +12,8 @@ import {
   BarChart3,
   Sparkles,
   ArrowUpRight,
-  MessageSquare
+  MessageSquare,
+  ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +96,7 @@ function StatBar({ items, color }: { items: Array<{ name: string; count: number;
   );
 }
 
-function TechBadge({ tech, variant = "default" }: { tech: string | null; variant?: "default" | "ai" | "framework" }) {
+function TechBadge({ tech, variant = "default" }: { tech: string | null | undefined; variant?: "default" | "ai" | "framework" }) {
   if (!tech) return null;
   
   const colors = {
@@ -111,7 +112,7 @@ function TechBadge({ tech, variant = "default" }: { tech: string | null; variant
   );
 }
 
-export default function ShowHNReport() {
+export default function HNTechStack() {
   const { data: report, isLoading: reportLoading, error: reportError } = useQuery<Report>({
     queryKey: ["/api/showhn/report"],
   });
@@ -170,6 +171,12 @@ export default function ShowHNReport() {
             </div>
           </Link>
           <div className="flex items-center gap-4">
+            <Link href="/blog">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Blog
+              </Button>
+            </Link>
             <a href="/api/showhn/export.csv" download>
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
@@ -193,7 +200,7 @@ export default function ShowHNReport() {
               Show HN Analysis
             </Badge>
             <h1 className="font-display text-4xl font-bold mb-4">
-              What Top Show HN Launches Use
+              What Technologies the Successful Projects at Hacker News Are Using
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Tech stack analysis of {report.productCount} Show HN products from{" "}

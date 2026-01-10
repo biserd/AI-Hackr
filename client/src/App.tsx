@@ -14,7 +14,8 @@ import Privacy from "@/pages/privacy";
 import Login from "@/pages/login";
 import AuthCallback from "@/pages/auth-callback";
 import Dashboard from "@/pages/dashboard";
-import ShowHNReport from "@/pages/showhn";
+import BlogIndex from "@/pages/blog/index";
+import HNTechStack from "@/pages/blog/hn-tech-stack";
 
 function Router() {
   return (
@@ -28,7 +29,8 @@ function Router() {
       <Route path="/login" component={Login}/>
       <Route path="/auth/verify" component={AuthCallback}/>
       <Route path="/dashboard" component={Dashboard}/>
-      <Route path="/showhn" component={ShowHNReport}/>
+      <Route path="/blog" component={BlogIndex}/>
+      <Route path="/blog/hn-tech-stack" component={HNTechStack}/>
       <Route component={NotFound} />
     </Switch>
   );
