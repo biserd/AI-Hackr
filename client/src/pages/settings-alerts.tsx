@@ -105,7 +105,10 @@ export default function SettingsAlerts() {
       setWebhookInput("");
       toast.success("Settings saved");
     },
-    onError: (err: any) => toast.error(err?.error || "Failed to save"),
+    onError: (err: unknown) => {
+      const e = (err ?? {}) as { error?: string; message?: string };
+      toast.error(e.error || e.message || "Failed to save");
+    },
   });
 
   const slackTestMutation = useMutation({
@@ -119,7 +122,10 @@ export default function SettingsAlerts() {
       return body;
     },
     onSuccess: () => toast.success("Sent a test message — check your Slack channel"),
-    onError: (err: any) => toast.error(err?.error || "Slack delivery failed"),
+    onError: (err: unknown) => {
+      const e = (err ?? {}) as { error?: string; message?: string };
+      toast.error(e.error || e.message || "Slack delivery failed");
+    },
   });
 
   useEffect(() => {

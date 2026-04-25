@@ -196,13 +196,14 @@ export default function WatchlistPage() {
       setAddLabel("");
       toast.success("Added to watchlist");
     },
-    onError: (err: any) => {
-      if (err?.error === "free-plan-watchlist-cap") {
-        toast.error(err.message || "Free plan capped at 5 domains");
-      } else if (err?.error === "already-watching") {
+    onError: (err: unknown) => {
+      const e = (err ?? {}) as { error?: string; message?: string };
+      if (e.error === "free-plan-watchlist-cap") {
+        toast.error(e.message || "Free plan capped at 5 domains");
+      } else if (e.error === "already-watching") {
         toast.error("You're already watching this domain");
       } else {
-        toast.error(err?.message || "Failed to add");
+        toast.error(e.message || "Failed to add");
       }
     },
   });
@@ -249,10 +250,12 @@ export default function WatchlistPage() {
       queryClient.invalidateQueries({ queryKey: ["user", "subscriptions"] });
       toast.success("Scan triggered — refresh in ~30 sec");
     },
-    onError: (err: any) => {
-      if (err?.error === "limit-3-per-day") toast.error("You've hit the 3 manual scans/day Pro limit");
-      else if (err?.error === "limit-1-per-week-upgrade-for-more") toast.error("Free plan: 1 manual scan/week. Upgrade for more.");
-      else toast.error(err?.error || "Scan failed");
+    onError: (err: unknown) => {
+      const e = (err ?? {}) as { error?: string; message?: string };
+      if (e.error === "limit-3-per-day") toast.error("You've hit the 3 manual scans/day Pro limit");
+      else if (e.error === "limit-1-per-week-upgrade-for-more") toast.error("Free plan: 1 manual scan/week. Upgrade for more.");
+      else if (e.error === "pro-only") toast.error("Manual rescan is a Pro feature. Upgrade to scan on demand.");
+      else toast.error(e.error || e.message || "Scan failed");
     },
   });
 
@@ -495,6 +498,7 @@ export default function WatchlistPage() {
                   onToggle={() => setExpandedId(isExpanded ? null : sub.id)}
                   onScanNow={() => scanNowMutation.mutate(sub.id)}
                   scanning={scanNowMutation.isPending && scanNowMutation.variables === sub.id}
+                  isPro={isPro}
                   onEdit={() => setEditingSub(sub)}
                   onDelete={() => {
                     if (confirm(`Remove ${sub.domain} from watchlist?`)) deleteMutation.mutate(sub.id);
@@ -572,6 +576,7 @@ function WatchlistRow({
   isExpanded,
   onToggle,
   onScanNow,
+  isPro,
   scanning,
   onEdit,
   onDelete,
@@ -582,6 +587,7 @@ function WatchlistRow({
   isExpanded: boolean;
   onToggle: () => void;
   onScanNow: () => void;
+  isPro: boolean;
   scanning: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -655,16 +661,29 @@ function WatchlistRow({
           <ScanStatusPill sub={sub} />
         </div>
         <div className="col-span-1 flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onScanNow}
-            disabled={scanning}
-            title="Scan now"
-            data-testid={`button-scan-now-${sub.id}`}
-          >
-            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          </Button>
+          {isPro ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onScanNow}
+              disabled={scanning}
+              title="Scan now"
+              data-testid={`button-scan-now-${sub.id}`}
+            >
+              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onScanNow}
+              title="Manual rescan is a Pro feature — click for upgrade prompt"
+              className="opacity-50"
+              data-testid={`button-scan-now-${sub.id}`}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={onEdit} title="Edit" data-testid={`button-edit-${sub.id}`}>
             <Settings className="w-4 h-4" />
           </Button>

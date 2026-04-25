@@ -1058,15 +1058,16 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
       setOpen(false);
       setTimeout(() => navigate("/watchlist"), 700);
     },
-    onError: (err: any) => {
-      if (err?.error === "free-plan-watchlist-cap") {
-        toast.error(err.message || "Free plan capped at 5 domains. Upgrade to Pro.");
-      } else if (err?.error === "already-watching") {
+    onError: (err: unknown) => {
+      const e = (err ?? {}) as { error?: string; message?: string };
+      if (e.error === "free-plan-watchlist-cap") {
+        toast.error(e.message || "Free plan capped at 5 domains. Upgrade to Pro.");
+      } else if (e.error === "already-watching") {
         toast.message(`${submitDomain} is already on your watchlist`, {
           action: { label: "Open watchlist", onClick: () => navigate("/watchlist") },
         });
       } else {
-        toast.error(err?.message || "Failed to add to watchlist");
+        toast.error(e.message || "Failed to add to watchlist");
       }
     },
   });

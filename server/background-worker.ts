@@ -671,17 +671,13 @@ async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Pro
   return out.slice(0, 4);
 }
 
-// ─── Manual scan-now (Pro: 3/day, Free: 1/week) ──────────
+// ─── Manual scan-now (Pro feature: 3 per rolling 24h) ────
 //
-// Product decision (matches AIHackr playbook v2 wording at
-// "watchlist › manual rescan"): Pro users get 3 manual rescans per
-// rolling 24-hour window, Free users get 1 rescan per rolling 7-day
-// window. The Free-tier allowance is intentional — it lets free users
-// taste the manual-rescan UX (a key Pro upsell hook) without flooding
-// the worker. Documented in replit.md.
+// Per playbook done-criteria: manual rescan is a Pro-only feature
+// capped at 3 per rolling 24h. Free users see the button as an
+// upsell prompt but the API rejects with `error: "pro-only"`.
 
 const MANUAL_SCAN_LIMIT_PRO = 3;
-const MANUAL_SCAN_LIMIT_FREE = 1;
 
 /**
  * Run a one-shot scan for a freshly-added subscription, bypassing the manual-scan
@@ -707,9 +703,14 @@ export async function manualScanNow(subscriptionId: string): Promise<{ ok: boole
   if (!user) return { ok: false, reason: "no-user" };
   const isPro = user.planTier === "pro";
 
-  // Reset counter if window elapsed. Pro = 24h window (3/day), Free = 7d window (1/week).
+  // Pro-only feature: free users get the upsell prompt in UI, API rejects.
+  if (!isPro) {
+    return { ok: false, reason: "pro-only" };
+  }
+
+  // Reset counter if 24h window elapsed.
   const now = new Date();
-  const windowMs = isPro ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const windowMs = 24 * 60 * 60 * 1000;
   const resetAt = sub.manualScanResetAt ? new Date(sub.manualScanResetAt) : null;
   let used = sub.manualScansToday || 0;
   let resetWindow: Date = resetAt ?? now;
@@ -718,9 +719,8 @@ export async function manualScanNow(subscriptionId: string): Promise<{ ok: boole
     resetWindow = now;
   }
 
-  const limit = isPro ? MANUAL_SCAN_LIMIT_PRO : MANUAL_SCAN_LIMIT_FREE;
-  if (used >= limit) {
-    return { ok: false, reason: isPro ? "limit-3-per-day" : "limit-1-per-week-upgrade-for-more" };
+  if (used >= MANUAL_SCAN_LIMIT_PRO) {
+    return { ok: false, reason: "limit-3-per-day" };
   }
 
   await storage.updateSubscription(sub.id, {

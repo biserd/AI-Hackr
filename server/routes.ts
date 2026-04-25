@@ -318,7 +318,7 @@ export async function registerRoutes(
     }
   });
 
-  // Manual "Scan Now" — Pro 3×/day, Free 1×/week
+  // Manual "Scan Now" — Pro-only, capped at 3 per rolling 24h
   app.post("/api/me/subscriptions/:id/scan-now", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
@@ -328,7 +328,9 @@ export async function registerRoutes(
       }
       const result = await manualScanNow(id);
       if (!result.ok) {
-        const status = result.reason?.startsWith("limit-") ? 429 : 400;
+        let status = 400;
+        if (result.reason === "pro-only") status = 403;
+        else if (result.reason?.startsWith("limit-")) status = 429;
         return res.status(status).json({ error: result.reason || "scan-failed" });
       }
       return res.json({ ok: true, scan: result.scan });
