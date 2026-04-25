@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
-import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings, type InsertScan } from "@shared/schema";
+import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings, type InsertScan, type Subscription, type User } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
 import { sendSlackTestMessage } from "./slack";
@@ -52,10 +52,12 @@ async function processBackgroundScan(scanId: string, url: string, phase: "render
           windowHints: browserSignals.windowHints,
         };
 
-        // Update detections from browser signals
-        const updates: any = {
-          scanPhases: { ...currentScan.scanPhases, render: "complete" },
-          evidence: mergedEvidence,
+        // Update detections from browser signals.
+        // The drizzle .default() narrows scanPhases keys to optional, so we spread
+        // through `as` to satisfy InsertScan's strict {passive, render, probe} shape.
+        const updates: Partial<InsertScan> = {
+          scanPhases: { passive: "complete", probe: "locked", ...currentScan.scanPhases, render: "complete" } as InsertScan["scanPhases"],
+          evidence: mergedEvidence as unknown as InsertScan["evidence"],
           scanMode: "render",
         };
 
@@ -93,8 +95,8 @@ async function processBackgroundScan(scanId: string, url: string, phase: "render
         const currentScan = await storage.getScan(scanId);
         if (!currentScan) return;
 
-        const updates: any = {
-          scanPhases: { ...currentScan.scanPhases, probe: "complete" },
+        const updates: Partial<InsertScan> = {
+          scanPhases: { passive: "complete", render: "locked", ...currentScan.scanPhases, probe: "complete" } as InsertScan["scanPhases"],
           scanMode: "probe",
         };
 
@@ -300,8 +302,8 @@ export async function registerRoutes(
       }
 
       const { isActive, notifyOnChange, displayLabel, alertThreshold, slackEnabled, pausedUntil } = req.body;
-      const updates: any = {};
-      
+      const updates: Partial<Subscription> = {};
+
       if (typeof isActive === "boolean") updates.isActive = isActive;
       if (typeof notifyOnChange === "boolean") updates.notifyOnChange = notifyOnChange;
       if (typeof displayLabel === "string") updates.displayLabel = displayLabel;
@@ -401,8 +403,8 @@ export async function registerRoutes(
   app.patch("/api/me/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { displayName, notificationsEnabled } = req.body;
-      const updates: any = {};
-      
+      const updates: Partial<User> = {};
+
       if (typeof displayName === "string") updates.displayName = displayName;
       if (typeof notificationsEnabled === "boolean") updates.notificationsEnabled = notificationsEnabled;
 
