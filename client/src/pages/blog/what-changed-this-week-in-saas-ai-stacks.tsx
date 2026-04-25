@@ -15,6 +15,8 @@ import {
   Methodology,
   CompanyChip,
   ProviderChipRow,
+  LiveProviderShare,
+  LiveCompaniesByProvider,
 } from "@/components/blog-post";
 
 import { Link } from "wouter";
@@ -78,6 +80,27 @@ export default function Post() {
       </Callout>
 
       <H2>This week&apos;s headline movers</H2>
+
+      <Para>
+        Before the qualitative read, here is the live snapshot. The chart
+        below is what our index currently sees as the share of products
+        running each major provider — refreshed straight from{" "}
+        <Code>/api/leaderboard</Code>. Compare it against the same chart
+        in last week&apos;s digest to see the week-over-week drift.
+      </Para>
+
+      <LiveProviderShare
+        providers={[
+          "OpenAI",
+          "Anthropic",
+          "Azure OpenAI",
+          "AWS Bedrock",
+          "Google Gemini",
+          "Mistral",
+          "Meta Llama",
+          "Cohere",
+        ]}
+      />
 
       <Para>
         The current set lives on the leaderboard&apos;s{" "}

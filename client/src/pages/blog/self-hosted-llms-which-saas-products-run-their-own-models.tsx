@@ -15,6 +15,7 @@ import {
   Methodology,
   CompanyChip,
   ProviderChipRow,
+  LiveCompaniesByProvider,
 } from "@/components/blog-post";
 
 import { Link } from "wouter";
@@ -223,6 +224,28 @@ export default function Post() {
         </Link>
         .
       </Para>
+
+      <H3>Live: products attributed to self-hosted Llama / Mistral</H3>
+
+      <Para>
+        The lists below are pulled from <Code>/api/leaderboard</Code>{" "}
+        in real time. They show products in our index whose primary
+        attribution rolls up to the open-weight families most often
+        used for self-hosting. Caveat: when a self-hosted deployment
+        is fully behind a backend proxy, attribution falls back to
+        unknown rather than guess — so these lists are a lower bound,
+        not an exhaustive count.
+      </Para>
+
+      <LiveCompaniesByProvider
+        provider="Meta Llama"
+        emptyText="No products currently fingerprinted with Meta Llama as the primary attribution. Most self-hosted Llama traffic in our index sits behind backend proxies and falls into the 'unknown' bucket on the live leaderboard."
+      />
+
+      <LiveCompaniesByProvider
+        provider="Mistral"
+        emptyText="No products currently fingerprinted with Mistral as the primary attribution. As above, much of the self-hosted Mistral traffic in our index is proxied and shows as unknown."
+      />
 
       <H2>The hidden second-order costs nobody talks about</H2>
 

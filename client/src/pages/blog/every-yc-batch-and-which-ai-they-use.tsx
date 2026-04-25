@@ -15,6 +15,8 @@ import {
   Methodology,
   CompanyChip,
   ProviderChipRow,
+  LiveProviderShare,
+  LiveCompaniesByProvider,
 } from "@/components/blog-post";
 
 import { Link } from "wouter";
@@ -247,6 +249,22 @@ export default function Post() {
           Claude-first, S26 will be even more so.
         </LI>
       </BulletList>
+
+      <H2>Live: YC-cohort companies on each major provider</H2>
+
+      <Para>
+        The lists below are pulled from <Code>/api/leaderboard</Code>{" "}
+        and refresh on every scan cycle. They show which companies in
+        our YC-tracked subset are currently fingerprinted on each
+        major provider — the live equivalent of the cohort rollup
+        tables above.
+      </Para>
+
+      <H3>Currently fingerprinted on OpenAI</H3>
+      <LiveCompaniesByProvider provider="OpenAI" />
+
+      <H3>Currently fingerprinted on Anthropic</H3>
+      <LiveCompaniesByProvider provider="Anthropic" />
 
       <H2>Featured cohort companies in our index</H2>
 

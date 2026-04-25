@@ -882,6 +882,18 @@ export function BlogPostLayout(props: BlogPostLayoutProps) {
                 <span className="hidden sm:inline">·</span>
                 <span className="hidden sm:inline">By {author}</span>
               </div>
+              <div
+                className="text-xs text-muted-foreground/80 mb-3"
+                data-testid="text-post-last-updated"
+              >
+                Last updated{" "}
+                <time dateTime={modifiedTime ?? publishedTime}>
+                  {new Date(modifiedTime ?? publishedTime).toLocaleDateString(
+                    "en-US",
+                    { year: "numeric", month: "long", day: "numeric" },
+                  )}
+                </time>
+              </div>
               <h1
                 className="font-display text-3xl md:text-4xl font-bold mb-4 leading-tight"
                 data-testid="text-post-title"
