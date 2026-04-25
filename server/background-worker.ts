@@ -524,7 +524,10 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
     change.provider || "",
     change.changeType,
     ALERT_DEDUP_MS,
-    { includePendingBundle }
+    // Exclude the just-persisted current event so it cannot match itself in
+    // the include-pending lookup (the event is created upstream by computeDiff
+    // before deliverAlert runs and lives within the dedup window).
+    { includePendingBundle, excludeChangeEventId: change.id }
   );
   if (recent) {
     console.log(`[Alerts] Suppressed (dedup) for ${sub.domain} ${change.changeType} ${change.provider}`);
