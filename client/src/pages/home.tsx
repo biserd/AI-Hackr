@@ -84,13 +84,23 @@ function Navbar() {
           </div>
           <span className="font-display font-semibold text-lg tracking-tight">AIHackr</span>
         </div>
-        <div className="flex items-center gap-2">
-          <a href="#features">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Link href="/leaderboard">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hidden md:inline-flex" data-testid="link-nav-leaderboard">
+              Leaderboard
+            </Button>
+          </Link>
+          <Link href="/stack">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hidden md:inline-flex" data-testid="link-nav-stack">
+              Stack Index
+            </Button>
+          </Link>
+          <a href="#features" className="hidden lg:inline-block">
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-features">
               Features
             </Button>
           </a>
-          <a href="#pricing">
+          <a href="#pricing" className="hidden lg:inline-block">
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" data-testid="link-pricing">
               Pricing
             </Button>
