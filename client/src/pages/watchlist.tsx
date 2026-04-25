@@ -474,11 +474,12 @@ export default function WatchlistPage() {
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <div className="col-span-3">Domain</div>
+              <div className="col-span-2">Domain</div>
               <div className="col-span-2">Providers detected</div>
               <div className="col-span-1">Confidence</div>
-              <div className="col-span-2">Last scanned</div>
+              <div className="col-span-1">Last scanned</div>
               <div className="col-span-2">Last changed</div>
+              <div className="col-span-2">Change summary</div>
               <div className="col-span-1">Status</div>
               <div className="col-span-1 text-right">Actions</div>
             </div>
@@ -598,7 +599,8 @@ function WatchlistRow({
     if (!sub.lastChangedAt) return "No changes yet";
     const lastChange = new Date(sub.lastChangedAt).getTime();
     const within7d = Date.now() - lastChange < 7 * 24 * 60 * 60 * 1000;
-    return within7d ? "Changed this week" : "Stable";
+    if (within7d) return `Changed ${formatRelative(sub.lastChangedAt)}`;
+    return `Stable since ${formatRelative(sub.lastChangedAt)}`;
   })();
 
   return (
@@ -640,19 +642,14 @@ function WatchlistRow({
             <span className="text-xs text-muted-foreground">—</span>
           )}
         </div>
-        <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-last-scanned-${sub.id}`}>
+        <div className="col-span-1 text-sm text-muted-foreground" data-testid={`cell-last-scanned-${sub.id}`}>
           {formatRelative(sub.lastScannedAt)}
         </div>
-        <div className="col-span-2" data-testid={`cell-last-changed-${sub.id}`}>
-          <div className="text-sm text-foreground">
-            {sub.lastChangedAt ? formatRelative(sub.lastChangedAt) : "—"}
-          </div>
-          <div
-            className="text-xs text-muted-foreground"
-            data-testid={`text-change-summary-${sub.id}`}
-          >
-            {changeSummary}
-          </div>
+        <div className="col-span-2 text-sm text-foreground" data-testid={`cell-last-changed-${sub.id}`}>
+          {sub.lastChangedAt ? formatRelative(sub.lastChangedAt) : "—"}
+        </div>
+        <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-change-summary-${sub.id}`}>
+          {changeSummary}
         </div>
         <div className="col-span-1">
           <ScanStatusPill sub={sub} />

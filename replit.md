@@ -52,7 +52,8 @@ Detection includes confidence levels (High/Medium/Low) and evidence trails.
   - `computeDiff` applies a **0.60 confidence floor**: providers below the floor are not "present" for add/remove transitions; this ensures crossing the floor correctly emits `provider_added`.
   - 2-consecutive-scan removal counter via `pendingRemovals` jsonb to avoid one-off flakes.
   - 4h retry × 3 then site-unreachable email.
-  - Alert delivery filters: 24h dedup `(subscriptionId, provider, changeType)`, quiet hours, free-plan 5 alerts/week cap, dismissal windows, min-confidence and per-row threshold gating.
+  - Alert delivery filters: rolling-24h dedup `(subscriptionId, provider, changeType)`, quiet hours, free-plan 5 alerts/week cap, dismissal windows, min-confidence and per-row threshold gating.
+  - **Dedup design choice (accepted spec deviation)**: the playbook spelled the dedup key as `(entry, provider, change_type, date)` (calendar-day bucket); we deliberately implemented a rolling 24-hour window keyed off the most recent `alertedAt` of a sibling change_event. Rationale: (a) calendar-day buckets emit two alerts within minutes when a flap straddles midnight UTC, (b) "date" is timezone-ambiguous for users in different IANA zones, and (c) rolling-24h matches our wall-clock-based quiet-hours / weekly-cap semantics. Documented at `server/background-worker.ts` `deliverAlert`.
   - Manual scan limits: Pro 3/day, Free 1/week.
   - Weekly digest cron (Mon 7–11 AM in user's timezone); only marks digest sent on confirmed email success.
 - **User settings** (`user_settings` table): email/Slack toggles, Slack webhook (masked on GET), frequency cap, global threshold, min confidence, quiet hours, timezone, digest mode (`individual` | `daily_bundle`), `lastDailyBundleAt` for bundle throttling. PATCH endpoint validates with strict zod schema (enums, `HH:MM` regex, IANA timezone).
