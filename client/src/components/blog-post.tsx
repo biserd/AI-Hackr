@@ -34,12 +34,38 @@ function getElementChildren(el: ElementWithChildren): ReactNode {
   return el.props?.children;
 }
 
+/**
+ * Props on our content primitives that carry user-visible text but are
+ * passed in as React props rather than children (e.g. DataTable.headers,
+ * DataTable.rows, DataTable.caption, Callout.title, StatGrid.items,
+ * BlogPostLayout sub-components.label). extractText walks these so the
+ * computed wordCount / readingMinutes match what the reader actually sees.
+ */
+const TEXT_PROP_KEYS = [
+  "headers",
+  "rows",
+  "caption",
+  "title",
+  "label",
+  "items",
+  "sub",
+  "value",
+  "emptyText",
+] as const;
+
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(extractText).join(" ");
   if (isValidElement(node)) {
-    return extractText(getElementChildren(node as ElementWithChildren));
+    const props = (node.props ?? {}) as Record<string, unknown>;
+    const parts: string[] = [extractText(getElementChildren(node as ElementWithChildren))];
+    for (const key of TEXT_PROP_KEYS) {
+      const v = props[key];
+      if (v == null) continue;
+      parts.push(extractText(v as ReactNode));
+    }
+    return parts.join(" ");
   }
   return "";
 }
