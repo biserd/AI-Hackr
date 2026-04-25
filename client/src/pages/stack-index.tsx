@@ -42,6 +42,7 @@ import type { TrackedCompany, Scan, ProviderRollup } from "@shared/schema";
 interface StackResponse {
   companies: TrackedCompany[];
   categories: string[];
+  ycBatches?: string[];
   total?: number;
   page?: number;
   pageSize?: number;
@@ -67,6 +68,7 @@ export default function StackIndex() {
   const [category, setCategory] = useState<string>("all");
   const [provider, setProvider] = useState<string>("all");
   const [scanStatus, setScanStatus] = useState<"all" | "scanned" | "pending">("all");
+  const [ycBatch, setYcBatch] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [requestOpen, setRequestOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -81,7 +83,7 @@ export default function StackIndex() {
   }
 
   const { data, isLoading } = useQuery<StackResponse>({
-    queryKey: ["/api/stack", category, search, scanStatus, page],
+    queryKey: ["/api/stack", category, search, scanStatus, provider, ycBatch, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", String(page));
@@ -89,6 +91,8 @@ export default function StackIndex() {
       if (category && category !== "all") params.set("category", category);
       if (search) params.set("search", search);
       if (scanStatus !== "all") params.set("scanStatus", scanStatus);
+      if (provider !== "all") params.set("provider", provider);
+      if (ycBatch !== "all") params.set("ycBatch", ycBatch);
       const res = await fetch(`/api/stack?${params.toString()}`);
       return res.json();
     },
@@ -112,13 +116,10 @@ export default function StackIndex() {
     ]),
   );
 
-  const filteredCompanies = (data?.companies ?? []).filter((c) => {
-    if (provider === "all") return true;
-    const target = provider.toLowerCase();
-    const detected = (scanBySlug.get(c.slug)?.provider ?? "").toLowerCase();
-    if (provider === "unknown") return !detected || detected === "none";
-    return detected.includes(target);
-  });
+  // Provider, ycBatch, scanStatus, category, and search are all applied
+  // server-side via /api/stack so totals + pagination stay correct against
+  // the FULL dataset (not just the current page slice).
+  const filteredCompanies = data?.companies ?? [];
 
   const requestMutation = useMutation({
     mutationFn: async (input: { name: string; domain: string; category: string }) => {
@@ -243,6 +244,22 @@ export default function StackIndex() {
                     <SelectItem value="pending">In queue</SelectItem>
                   </SelectContent>
                 </Select>
+                {(data?.ycBatches?.length ?? 0) > 0 && (
+                  <Select value={ycBatch} onValueChange={resetToFirstPage(setYcBatch)}>
+                    <SelectTrigger className="md:w-[150px]" data-testid="select-stack-yc-batch">
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="All YC batches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All YC batches</SelectItem>
+                      {(data?.ycBatches ?? []).map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
                   <DialogTrigger asChild>
                     <Button data-testid="button-request-company">

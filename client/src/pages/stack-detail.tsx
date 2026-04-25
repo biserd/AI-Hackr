@@ -24,7 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { toast } from "sonner";
-import type { TrackedCompany, Scan } from "@shared/schema";
+import type { TrackedCompany, Scan, ProviderRollup } from "@shared/schema";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface DetailResponse {
   company: TrackedCompany;
@@ -43,9 +44,40 @@ function confidenceColor(c: string | null | undefined): string {
 export default function StackDetail() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery<DetailResponse>({
     queryKey: [`/api/stack/${slug}`],
     enabled: Boolean(slug),
+  });
+
+  // Provider rollups — used on stub pages so the long-tail page still has
+  // useful, contextual internal links into /provider/:slug. Only fetched
+  // when needed (the stub render branch reads it).
+  // /api/providers returns {providers: ProviderRollup[]} — unwrap to the array.
+  const { data: rollupsResponse } = useQuery<{ providers: ProviderRollup[] }>({
+    queryKey: ["/api/providers"],
+    enabled: Boolean(slug),
+  });
+  const rollups = rollupsResponse?.providers;
+
+  // Visitor-facing "bump my scan to the front of the queue" — POST to
+  // /api/stack/:slug/bump-scan, then invalidate so the page refreshes
+  // when the worker lands the scan.
+  const bumpScan = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/stack/${slug}/bump-scan`, { method: "POST" });
+      if (!res.ok) throw new Error("Bump failed");
+      return res.json();
+    },
+    onSuccess: (r) => {
+      if (r.alreadyScanned) {
+        toast.success("This company has already been scanned — refresh to see it.");
+      } else {
+        toast.success("Bumped! The next worker tick (within 5 min) will scan this site.");
+      }
+      queryClient.invalidateQueries({ queryKey: [`/api/stack/${slug}`] });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (isLoading || !data) {
@@ -214,7 +246,7 @@ export default function StackDetail() {
               <CardContent className="pt-6">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <h2 className="font-display text-lg font-bold mb-1" data-testid="text-stub-heading">
                       Scan in queue for {company.name}
                     </h2>
@@ -225,6 +257,15 @@ export default function StackDetail() {
                       gateway, framework, hosting, payments, auth and analytics will appear here automatically.
                     </p>
                     <div className="flex flex-wrap gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => bumpScan.mutate()}
+                        disabled={bumpScan.isPending}
+                        data-testid="button-stub-bump-scan"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        {bumpScan.isPending ? "Bumping…" : "Request a priority scan"}
+                      </Button>
                       <Link href="/leaderboard">
                         <Button variant="outline" size="sm" data-testid="button-stub-leaderboard">
                           See the live leaderboard
@@ -236,6 +277,34 @@ export default function StackDetail() {
                         </Button>
                       </Link>
                     </div>
+
+                    {/* Provider rollup chips — internal links to /provider/:slug
+                        so the long-tail stub page still has useful semantic links
+                        for crawlers and visitors curious which provider this site
+                        is most likely on. */}
+                    {(rollups?.length ?? 0) > 0 && (
+                      <div className="mt-4 pt-4 border-t border-yellow-500/20">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                          Likely AI providers we'll check for
+                        </div>
+                        <div className="flex flex-wrap gap-1.5" data-testid="stub-provider-rollups">
+                          {(rollups ?? []).slice(0, 10).map((p) => (
+                            <Link
+                              key={p.slug}
+                              href={`/provider/${p.slug}`}
+                              data-testid={`link-provider-${p.slug}`}
+                            >
+                              <Badge
+                                variant="outline"
+                                className="hover-elevate active-elevate-2 cursor-pointer text-xs"
+                              >
+                                {p.name}
+                              </Badge>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

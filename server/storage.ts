@@ -135,6 +135,7 @@ export interface IStorage {
   /** Live companies whose nextScanAt has passed (or who have never been scanned). */
   getCompaniesNeedingScan(now: Date, limit?: number): Promise<TrackedCompany[]>;
   claimTrackedCompanyForScan(id: string): Promise<boolean>;
+  bumpTrackedCompanyScan(slug: string): Promise<"bumped" | "alreadyScanned" | "notFound">;
   /** Update a tracked company row after a scan completes. */
   updateTrackedCompany(id: string, updates: Partial<TrackedCompany>): Promise<TrackedCompany | undefined>;
   /**
@@ -172,8 +173,10 @@ export interface IStorage {
     category?: string;
     scanStatus?: "scanned" | "pending" | "failed" | "all";
     ycBatch?: string;
+    provider?: string;
     search?: string;
   }): Promise<{ companies: TrackedCompany[]; total: number }>;
+  getTrackedCompanyYcBatches(): Promise<string[]>;
   /** Total scanned vs pending counts — drives the index page header. */
   getTrackedCompanyCounts(): Promise<{ total: number; scanned: number; pending: number; failed: number }>;
   /** Total tracked-company count (for sitemap pagination). */
@@ -747,6 +750,40 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  // Atomic bump-scan: only updates the row if it is still a true stub
+  // (lastScanId IS NULL) AND not currently mid-scan. If a worker has just
+  // landed a scan in between the route's read and this update, the WHERE
+  // clause filters us out — preventing a TOCTOU race that would otherwise
+  // overwrite scanStatus="ok" with "pending" or reset nextScanAt on a
+  // freshly-scanned row.
+  async bumpTrackedCompanyScan(slug: string): Promise<"bumped" | "alreadyScanned" | "notFound"> {
+    const existing = await db
+      .select({ id: trackedCompanies.id, lastScanId: trackedCompanies.lastScanId })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.slug, slug));
+    if (existing.length === 0) return "notFound";
+    if (existing[0].lastScanId) return "alreadyScanned";
+
+    const result = await db
+      .update(trackedCompanies)
+      .set({
+        nextScanAt: new Date(),
+        scanStatus: sql`CASE WHEN ${trackedCompanies.scanStatus} = 'failed' THEN 'pending' ELSE ${trackedCompanies.scanStatus} END`,
+      })
+      .where(
+        and(
+          eq(trackedCompanies.slug, slug),
+          isNull(trackedCompanies.lastScanId),
+          or(
+            isNull(trackedCompanies.scanStatus),
+            sql`${trackedCompanies.scanStatus} <> 'scanning'`,
+          ),
+        ),
+      )
+      .returning({ id: trackedCompanies.id });
+    return result.length > 0 ? "bumped" : "alreadyScanned";
+  }
+
   async getLeaderboardRows(opts: {
     provider?: string;
     category?: string;
@@ -817,6 +854,23 @@ export class DatabaseStorage implements IStorage {
       .where(eq(trackedCompanies.status, "live"))
       .orderBy(trackedCompanies.category);
     return rows.map((r) => r.category);
+  }
+
+  // Distinct YC batches across the live index, used to populate the YC batch
+  // filter Select on /stack. Skips rows with NULL ycBatch — many of the
+  // bulk-imported long-tail companies aren't YC-funded.
+  async getTrackedCompanyYcBatches(): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ ycBatch: trackedCompanies.ycBatch })
+      .from(trackedCompanies)
+      .where(
+        and(
+          eq(trackedCompanies.status, "live"),
+          sql`${trackedCompanies.ycBatch} IS NOT NULL`,
+        ),
+      )
+      .orderBy(trackedCompanies.ycBatch);
+    return rows.map((r) => r.ycBatch).filter((b): b is string => Boolean(b));
   }
 
   // ───── Bulk ingestion + paginated reads (programmatic SEO) ─────
@@ -903,7 +957,10 @@ export class DatabaseStorage implements IStorage {
           ),
         ),
       )
-      .orderBy(sql`${trackedCompanies.importedAt} ASC NULLS LAST, ${trackedCompanies.createdAt} ASC`)
+      // Newest imports first — when an editor drops a fresh CSV in, those
+      // rows should land on the index quickly so the new pages get scanned
+      // before older stubs that have been queued for a while.
+      .orderBy(sql`${trackedCompanies.importedAt} DESC NULLS LAST, ${trackedCompanies.createdAt} DESC`)
       .limit(limit * 5);
 
     const perHost = new Map<string, number>();
@@ -925,6 +982,7 @@ export class DatabaseStorage implements IStorage {
     category?: string;
     scanStatus?: "scanned" | "pending" | "failed" | "all";
     ycBatch?: string;
+    provider?: string;
     search?: string;
   }): Promise<{ companies: TrackedCompany[]; total: number }> {
     const conds = [eq(trackedCompanies.status, "live")];
@@ -946,6 +1004,13 @@ export class DatabaseStorage implements IStorage {
       conds.push(sql`${trackedCompanies.lastScanId} IS NULL`);
     } else if (opts.scanStatus === "failed") {
       conds.push(eq(trackedCompanies.scanStatus, "failed"));
+    }
+    // Provider filter — needs to join the latest scan via lastScanId so the
+    // filter applies to the FULL dataset (not just one page slice).
+    if (opts.provider) {
+      conds.push(
+        sql`EXISTS (SELECT 1 FROM ${scans} WHERE ${scans.id} = ${trackedCompanies.lastScanId} AND LOWER(${scans.aiProvider}) = LOWER(${opts.provider}))`,
+      );
     }
 
     const where = and(...conds);

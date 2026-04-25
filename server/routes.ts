@@ -776,7 +776,7 @@ export async function registerRoutes(
   // GET /api/stack — list of all live tracked companies, optionally filtered
   app.get("/api/stack", async (req, res) => {
     try {
-      const { category, search, page, pageSize, scanStatus } = req.query;
+      const { category, search, page, pageSize, scanStatus, provider, ycBatch } = req.query;
 
       // Backward-compat: when no `page` is supplied we return the legacy
       // unpaginated payload so older clients keep working. When `page` is
@@ -794,10 +794,13 @@ export async function registerRoutes(
           category: typeof category === "string" && category ? category : undefined,
           search: typeof search === "string" && search ? search : undefined,
           scanStatus: parsedStatus,
+          provider: typeof provider === "string" && provider ? provider : undefined,
+          ycBatch: typeof ycBatch === "string" && ycBatch ? ycBatch : undefined,
         });
-        const [categories, counts] = await Promise.all([
+        const [categories, counts, ycBatches] = await Promise.all([
           storage.getTrackedCompanyCategories(),
           storage.getTrackedCompanyCounts(),
+          storage.getTrackedCompanyYcBatches(),
         ]);
         return res.json({
           companies,
@@ -805,6 +808,7 @@ export async function registerRoutes(
           page: Number(page) || 1,
           pageSize: Number(pageSize) || 60,
           categories,
+          ycBatches,
           counts,
         });
       }
@@ -849,6 +853,26 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[API] /api/stack/:slug error:", error);
       return res.status(500).json({ error: "Failed to load company" });
+    }
+  });
+
+  // POST /api/stack/:slug/bump-scan — visitor-facing CTA on stub pages.
+  // Sets nextScanAt = now and clears any failed-state, so the very next
+  // worker tick will pick this row up. Idempotent and safe — the worker
+  // still respects per-host concurrency caps so a brigade of bumps from
+  // one site can't overwhelm us.
+  app.post("/api/stack/:slug/bump-scan", async (req, res) => {
+    try {
+      // Atomic — bumpTrackedCompanyScan does a single conditional UPDATE
+      // gated by `last_scan_id IS NULL` so a worker landing a scan
+      // between request and write cannot be clobbered.
+      const outcome = await storage.bumpTrackedCompanyScan(req.params.slug);
+      if (outcome === "notFound") return res.status(404).json({ error: "Not found" });
+      if (outcome === "alreadyScanned") return res.json({ bumped: false, alreadyScanned: true });
+      return res.json({ bumped: true });
+    } catch (error) {
+      console.error("[API] /api/stack/:slug/bump-scan error:", error);
+      return res.status(500).json({ error: "Failed to bump scan" });
     }
   });
 
