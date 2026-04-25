@@ -606,7 +606,7 @@ function WatchlistRow({
   return (
     <div className="border-b border-border last:border-0" data-testid={`row-watchlist-${sub.id}`}>
       <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
-        <div className="col-span-3 flex items-center gap-2">
+        <div className="col-span-2 flex items-center gap-2">
           <button
             onClick={onToggle}
             className="text-muted-foreground hover:text-foreground p-0.5"
