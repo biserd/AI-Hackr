@@ -113,7 +113,7 @@ export default function BlogIndex() {
       <footer className="border-t border-border mt-20 py-8">
         <div className="max-w-7xl mx-auto px-6 text-center text-sm text-muted-foreground">
           <p>
-            <Link href="/" className="text-primary hover:underline">AIHackr</Link> — Reverse-engineer any SaaS stack
+            <Link href="/" className="text-primary hover:underline">AIHackr</Link> — AI provider intelligence for SaaS
           </p>
         </div>
       </footer>

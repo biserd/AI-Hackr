@@ -27,13 +27,14 @@ export default function About() {
               What We Do
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              AIHackr is a technology detection tool that reverse-engineers websites to reveal their tech stack. 
-              We analyze publicly accessible information to identify frameworks, hosting providers, payment systems, 
-              authentication services, analytics tools, and AI providers.
+              AIHackr is the AI provider intelligence tool for SaaS. We tell you exactly which AI a product is running — 
+              OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, AWS Bedrock, or self-hosted — and how they're 
+              calling it (direct API, gateway, or proxy).
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              Think of us as "BuiltWith for AI SaaS" with transparent detection methodology and confidence levels 
-              for every claim we make.
+              Every detection ships with a confidence score and the evidence trail behind it: the network calls, response 
+              headers, and SDK signatures we observed. No black box. We also surface the surrounding stack — framework, 
+              hosting, payments, auth, analytics — so you get the full picture in one report.
             </p>
           </section>
 

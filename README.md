@@ -1,19 +1,21 @@
 # AIHackr
 
-**The "BuiltWith" for AI SaaS** — Reverse-engineer any website's tech stack and AI provider signals in seconds.
+**AI provider intelligence for SaaS** — the only tool that tells you which AI/LLM provider any SaaS is actually running, with confidence levels and the evidence trail.
 
 ## What is AIHackr?
 
-AIHackr is a SaaS reverse-engineering tool that analyzes any website URL and generates a shareable "Stack Card" showing the detected technology stack. Think of it as X-ray vision for SaaS products.
+AIHackr fingerprints the AI stack behind any SaaS in seconds. Paste a URL and get back an **AI Intelligence Report**: the AI provider, the inferred model family, the gateway, and how they're calling it (direct API, gateway, or proxy) — plus the surrounding tech stack.
+
+We're positioned distinctly from BuiltWith and Wappalyzer. They map general tech stacks. We're the wedge tool for AI provider intelligence.
 
 ### What We Detect
 
+- **AI Providers**: OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, AWS Bedrock, Groq, and more — with direct-API vs gateway distinction
 - **Frameworks**: Next.js, React, Vue, Angular, Svelte, and more
 - **Hosting**: Vercel, Netlify, AWS, Cloudflare, Replit, Railway, Heroku
 - **Payments**: Stripe, Paddle, and other payment processors
 - **Authentication**: Auth0, Clerk, Firebase Auth, Supabase Auth
 - **Analytics**: Google Analytics, Mixpanel, Segment, Amplitude
-- **AI Providers**: OpenAI, Anthropic, Google AI, Groq, Mistral, and more
 - **Support**: Intercom, Crisp, Zendesk, and other chat widgets
 
 ### How It Works
@@ -26,12 +28,14 @@ AIHackr is a SaaS reverse-engineering tool that analyzes any website URL and gen
 Each detection includes:
 - **Confidence levels** (High, Medium, Low)
 - **Evidence trails** showing exactly what we found
-- **Shareable Stack Cards** for social media
+- **Shareable AI Intelligence Reports** for social media
 
 ## Features
 
+- **AI Provider Fingerprinting**: Identify which LLM provider a SaaS is using and how
+- **Confidence Scores With Evidence Trails**: Every detection ships with the signals that triggered it — no black box
+- **Migration Monitoring** *(Pro)*: Watch any SaaS and get alerted when their AI stack changes
 - **Progressive Scanning**: Get instant results while deeper analysis runs in the background
-- **AI Stack Detection**: See which LLM providers a site is using (when publicly visible)
 - **Origin Host Inference**: Detect the actual hosting provider behind CDNs
 - **Third-Party Service Grouping**: Organized view of all external services
 - **Shareable Reports**: Clean URLs like `/scan/stripe.com` for easy sharing
@@ -49,7 +53,7 @@ AIHackr is built with:
 
 ### Is this legal?
 
-Yes! AIHackr only analyzes publicly accessible information — the same data your browser sees when visiting a website. We don't access private data, bypass authentication, or exploit vulnerabilities.
+Yes. AIHackr only analyzes publicly accessible information — the same data your browser sees when visiting a website. We don't access private data, bypass authentication, or exploit vulnerabilities.
 
 ### How accurate is the detection?
 
@@ -93,4 +97,4 @@ MIT License — feel free to use, modify, and distribute.
 
 ---
 
-Built with curiosity about what powers the web.
+Built with curiosity about what powers the AI behind the web.

@@ -36,7 +36,7 @@ export default function Privacy() {
             
             <h3 className="font-display text-lg font-medium mb-2 mt-4">URLs You Submit</h3>
             <p className="text-muted-foreground leading-relaxed">
-              When you scan a URL, we store the URL and our analysis results to enable shareable Stack Cards. 
+              When you scan a URL, we store the URL and our analysis results to enable shareable AI Intelligence Reports. 
               We do not store content from the scanned websites themselves.
             </p>
 
@@ -58,7 +58,7 @@ export default function Privacy() {
             <h2 className="font-display text-xl font-semibold mb-4">How We Use Information</h2>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
               <li>To provide and improve the technology detection service</li>
-              <li>To generate shareable Stack Card reports</li>
+              <li>To generate shareable AI Intelligence Reports</li>
               <li>To analyze usage patterns and improve user experience</li>
               <li>To maintain and secure the Service</li>
             </ul>

@@ -233,7 +233,7 @@ function Hero() {
         <motion.div variants={fadeInUp} className="mb-6">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-medium font-mono">
             <Sparkles className="w-4 h-4" />
-            The "BuiltWith" for AI SaaS
+            AI provider intelligence for SaaS
           </span>
         </motion.div>
         
@@ -241,15 +241,15 @@ function Hero() {
           variants={fadeInUp}
           className="font-display text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.1]"
         >
-          What's this SaaS built with?
-          <span className="text-gradient glow-text block mt-2">Especially the AI stack.</span>
+          Which AI is this SaaS
+          <span className="text-gradient glow-text block mt-2">actually running?</span>
         </motion.h1>
         
         <motion.p 
           variants={fadeInUp}
           className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Paste a URL to get a shareable Stack Card: framework, hosting, payments, auth, analytics, and AI provider signals when publicly detectable (with confidence levels and evidence).
+          Get the AI provider, model family, and gateway behind any SaaS — with confidence levels and the receipts. OpenAI, Anthropic, Google, Mistral, Cohere, Azure, Bedrock, and more.
         </motion.p>
         
         <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-4">
@@ -283,7 +283,7 @@ function Hero() {
                   </>
                 ) : (
                   <>
-                    Scan
+                    Scan a Competitor
                     <ArrowRight className="ml-2 w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -293,13 +293,13 @@ function Hero() {
         </motion.div>
 
         <motion.div variants={fadeInUp} className="text-xs text-muted-foreground max-w-lg mx-auto">
-          <p>Progressive scan: instant results from headers & HTML, then deeper browser analysis runs automatically in the background.</p>
+          <p>Detects direct API calls, gateways, and SDKs. Every claim ships with the evidence trail.</p>
         </motion.div>
         
         <motion.div variants={fadeInUp} className="mt-6">
           <Link href="/scan/stripe.com">
             <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-sample-report">
-              See a sample report
+              See a sample AI Intelligence Report
               <ExternalLink className="ml-2 w-4 h-4" />
             </Button>
           </Link>
@@ -314,7 +314,7 @@ function TechMarquee() {
     <section className="py-16 overflow-hidden border-y border-border/50 bg-card/30">
       <div className="max-w-6xl mx-auto px-6 mb-8">
         <p className="text-center text-muted-foreground text-sm font-medium uppercase tracking-wider">
-          Detect frameworks, hosting, payments, auth, analytics & AI providers
+          AI providers we fingerprint — and the stack around them
         </p>
       </div>
       <div className="relative">
@@ -349,7 +349,7 @@ function Stats() {
   const stats = [
     { value: "47,000+", label: "SaaS Products Scanned", icon: Globe },
     { value: "156", label: "Tech Signatures Detected", icon: Activity },
-    { value: "12,000+", label: "Stack Cards Generated", icon: Users },
+    { value: "12,000+", label: "AI Intelligence Reports", icon: Users },
     { value: "94%", label: "Detection Accuracy", icon: TrendingUp },
   ];
 
@@ -392,7 +392,7 @@ function LiveDemo() {
     "Analyzing script signatures...",
     "Checking DNS records...",
     "Detecting AI provider signals...",
-    "Generating Stack Card..."
+    "Generating AI Intelligence Report..."
   ];
 
   const startScan = () => {
@@ -434,7 +434,7 @@ function LiveDemo() {
         <motion.div variants={fadeInUp} className="text-center mb-16">
           <span className="text-primary font-mono text-sm tracking-wider uppercase">Live Demo</span>
           <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3">See it in action</h2>
-          <p className="text-muted-foreground mt-4 text-lg">Watch how we reverse-engineer a SaaS in seconds.</p>
+          <p className="text-muted-foreground mt-4 text-lg">Watch how we fingerprint a SaaS's AI stack in seconds.</p>
         </motion.div>
 
         <motion.div variants={fadeInUp} className="max-w-2xl mx-auto">
@@ -545,7 +545,7 @@ function LiveDemo() {
                     </Button>
                     <Button variant="outline" className="flex-1" data-testid="button-demo-share">
                       <Share2 className="mr-2 w-4 h-4" />
-                      Share Card
+                      Share Report
                     </Button>
                   </div>
                 </motion.div>
@@ -569,9 +569,9 @@ function StackCardPreview() {
         className="max-w-5xl mx-auto px-6"
       >
         <motion.div variants={fadeInUp} className="text-center mb-16">
-          <span className="text-primary font-mono text-sm tracking-wider uppercase">Stack Card</span>
+          <span className="text-primary font-mono text-sm tracking-wider uppercase">AI Intelligence Report</span>
           <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3">Your shareable report</h2>
-          <p className="text-muted-foreground mt-4 text-lg">Every scan generates a beautiful, embeddable Stack Card.</p>
+          <p className="text-muted-foreground mt-4 text-lg">Every scan generates a beautiful, embeddable AI Intelligence Report.</p>
         </motion.div>
 
         <motion.div variants={fadeInUp} className="max-w-lg mx-auto">
@@ -659,10 +659,22 @@ function StackCardPreview() {
 }
 
 function ProblemSection() {
-  const bullets = [
-    { icon: Eye, text: "See the stack in seconds (Next/Vercel/Stripe/Clerk/etc.)" },
-    { icon: Cpu, text: "Detect AI provider signals when they leak (OpenAI / Gemini / Anthropic / Azure)" },
-    { icon: Shield, text: "Every claim comes with evidence + confidence (High / Medium / Low)" }
+  const features = [
+    {
+      icon: Cpu,
+      title: "AI Provider Fingerprinting",
+      text: "We don't just detect 'AI'. We tell you whether they're calling OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, or AWS Bedrock — and how (direct API, gateway, or self-hosted)."
+    },
+    {
+      icon: Shield,
+      title: "Confidence Scores With Evidence Trails",
+      text: "Every detection comes with High / Medium / Low confidence and the actual signals — network calls, response headers, JS SDKs — that triggered it. No black box, no guesswork."
+    },
+    {
+      icon: History,
+      title: "Migration Monitoring — Know When They Switch",
+      text: "Watch any SaaS and get alerted the moment their AI stack changes. The first to know when a competitor swaps GPT-4 for Claude wins the narrative."
+    }
   ];
 
   return (
@@ -679,17 +691,17 @@ function ProblemSection() {
           variants={fadeInUp}
           className="font-display text-3xl sm:text-4xl font-bold text-center mb-4"
         >
-          Stop guessing what competitors are running.
+          Stop guessing which AI a competitor uses.
         </motion.h2>
         <motion.p 
           variants={fadeInUp}
           className="text-muted-foreground text-center text-lg mb-16 max-w-2xl mx-auto"
         >
-          Get hard evidence on any SaaS tech stack in seconds.
+          Hard evidence on the AI provider, model family, and gateway behind any SaaS — in seconds.
         </motion.p>
         
         <div className="grid gap-6">
-          {bullets.map((item, i) => (
+          {features.map((item, i) => (
             <motion.div
               key={i}
               variants={fadeInUp}
@@ -698,7 +710,10 @@ function ProblemSection() {
               <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <item.icon className="w-6 h-6 text-primary" />
               </div>
-              <p className="text-lg pt-2 text-foreground/90">{item.text}</p>
+              <div className="pt-1">
+                <h3 className="font-display text-xl font-semibold mb-2">{item.title}</h3>
+                <p className="text-foreground/80 leading-relaxed">{item.text}</p>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -721,8 +736,8 @@ function HowItWorks() {
     },
     {
       num: "03",
-      title: "Get your AI Stack Card",
-      desc: "Receipts, confidence levels, and a shareable badge."
+      title: "Get your AI Intelligence Report",
+      desc: "Provider, model family, gateway, plus the receipts and a shareable badge."
     }
   ];
 
@@ -764,7 +779,7 @@ function HowItWorks() {
         
         <motion.div variants={fadeInUp} className="text-center mt-16">
           <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-run-scan">
-            Run a scan
+            Scan a Competitor
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </motion.div>
@@ -775,15 +790,15 @@ function HowItWorks() {
 
 function ComparisonTable() {
   const features = [
-    { name: "Passive stack detection", aihackr: true, builtwith: true, manual: false },
-    { name: "AI provider detection", aihackr: true, builtwith: false, manual: "partial" },
-    { name: "Confidence levels", aihackr: true, builtwith: false, manual: false },
-    { name: "Evidence & receipts", aihackr: true, builtwith: false, manual: "partial" },
-    { name: "Probe scan (deep detection)", aihackr: true, builtwith: false, manual: true },
-    { name: "Shareable cards", aihackr: true, builtwith: true, manual: false },
-    { name: "Change monitoring", aihackr: "pro", builtwith: true, manual: false },
-    { name: "API access", aihackr: "pro", builtwith: true, manual: false },
-    { name: "Time to results", aihackr: "~10s", builtwith: "~30s", manual: "hours" },
+    { name: "Identifies the AI provider (OpenAI, Anthropic, Google, Mistral...)", aihackr: true, builtwith: false, wappalyzer: false },
+    { name: "Distinguishes direct API vs gateway routing", aihackr: true, builtwith: false, wappalyzer: false },
+    { name: "Inferred model family when publicly detectable", aihackr: true, builtwith: false, wappalyzer: false },
+    { name: "Confidence level on every detection", aihackr: true, builtwith: false, wappalyzer: false },
+    { name: "Evidence trail (network calls, headers, SDKs)", aihackr: true, builtwith: false, wappalyzer: "partial" },
+    { name: "Deep probe scan (interacts to surface hidden APIs)", aihackr: true, builtwith: false, wappalyzer: false },
+    { name: "Migration alerts when AI stack changes", aihackr: "pro", builtwith: false, wappalyzer: false },
+    { name: "Shareable AI Intelligence Report", aihackr: true, builtwith: "partial", wappalyzer: false },
+    { name: "General tech stack (framework, hosting, payments)", aihackr: true, builtwith: true, wappalyzer: true },
   ];
 
   const renderCell = (value: boolean | string) => {
@@ -806,7 +821,8 @@ function ComparisonTable() {
       >
         <motion.div variants={fadeInUp} className="text-center mb-16">
           <span className="text-primary font-mono text-sm tracking-wider uppercase">Comparison</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3">How we stack up</h2>
+          <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3">The intelligence BuiltWith and Wappalyzer don't have</h2>
+          <p className="text-muted-foreground mt-4 text-lg max-w-2xl mx-auto">They map general tech stacks. We tell you exactly which AI a SaaS is running — and how.</p>
         </motion.div>
 
         <motion.div variants={fadeInUp} className="overflow-x-auto">
@@ -821,7 +837,7 @@ function ComparisonTable() {
                   </div>
                 </th>
                 <th className="text-center py-4 px-4 font-medium text-muted-foreground">BuiltWith</th>
-                <th className="text-center py-4 px-4 font-medium text-muted-foreground">Manual</th>
+                <th className="text-center py-4 px-4 font-medium text-muted-foreground">Wappalyzer</th>
               </tr>
             </thead>
             <tbody>
@@ -830,7 +846,7 @@ function ComparisonTable() {
                   <td className="py-4 px-4 text-sm">{feature.name}</td>
                   <td className="py-4 px-4 text-center">{renderCell(feature.aihackr)}</td>
                   <td className="py-4 px-4 text-center">{renderCell(feature.builtwith)}</td>
-                  <td className="py-4 px-4 text-center">{renderCell(feature.manual)}</td>
+                  <td className="py-4 px-4 text-center">{renderCell(feature.wappalyzer)}</td>
                 </tr>
               ))}
             </tbody>
@@ -908,7 +924,7 @@ function Deliverables() {
     { icon: Code2, label: "Stack Summary", desc: "Framework, hosting/CDN, payments, auth, analytics, support" },
     { icon: Cpu, label: "AI Layer", desc: "Provider / gateway signals + transport (streaming/ws)" },
     { icon: Eye, label: "Evidence", desc: "Observed domains, script signatures, request patterns" },
-    { icon: Share2, label: "Share Card", desc: "Public URL + embed badge for your site" },
+    { icon: Share2, label: "Shareable Report", desc: "Public URL + embed badge for your site" },
     { icon: History, label: "Change History", desc: "What changed since last scan (Pro)" }
   ];
 
@@ -946,7 +962,7 @@ function Deliverables() {
         
         <motion.div variants={fadeInUp} className="text-center mt-12">
           <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-generate-card">
-            Generate my Stack Card
+            Generate my AI Intelligence Report
             <Sparkles className="ml-2 w-5 h-5" />
           </Button>
         </motion.div>
@@ -969,14 +985,14 @@ function Sharing() {
           <span className="text-primary font-mono text-sm tracking-wider uppercase">Virality</span>
           <h2 className="font-display text-3xl sm:text-4xl font-bold mt-3 mb-4">Make it shareable</h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-10">
-            Post your AI Stack Card on X/LinkedIn—or drop the badge in your footer.
+            Post your AI Intelligence Report on X/LinkedIn—or drop the badge in your footer.
           </p>
         </motion.div>
         
         <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/scan/stripe.com">
             <Button variant="outline" size="lg" className="border-border hover:border-primary/50 hover:bg-primary/5" data-testid="button-view-sample">
-              View sample card
+              See a sample AI Intelligence Report
               <ExternalLink className="ml-2 w-4 h-4" />
             </Button>
           </Link>
@@ -1121,7 +1137,7 @@ function Pricing() {
               <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-4 mb-2">Includes</div>
               <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
-                Shareable Stack Card
+                Shareable AI Intelligence Report
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Check className="w-4 h-4 text-secondary flex-shrink-0" />
@@ -1270,7 +1286,7 @@ function Footer() {
         className="relative max-w-4xl mx-auto px-6 text-center"
       >
         <motion.h2 variants={fadeInUp} className="font-display text-3xl sm:text-4xl font-bold mb-8">
-          Ready to reverse-engineer a SaaS?
+          Ready to fingerprint a competitor's AI stack?
         </motion.h2>
         
         <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-8">
@@ -1314,7 +1330,7 @@ function Footer() {
         <motion.div variants={fadeInUp}>
           <Link href="/scan/stripe.com">
             <Button variant="link" className="text-muted-foreground hover:text-primary" data-testid="link-footer-sample">
-              View sample report
+              See a sample AI Intelligence Report
               <ExternalLink className="ml-2 w-4 h-4" />
             </Button>
           </Link>

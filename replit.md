@@ -2,7 +2,9 @@
 
 ## Overview
 
-AIHackr is a SaaS reverse-engineering tool that analyzes any website URL and generates a shareable "AI Stack Card" showing the detected technology stack. It identifies frameworks, hosting providers, payment systems, authentication, analytics, and AI providers with confidence levels and evidence. Think "BuiltWith for AI SaaS" with transparent detection methodology.
+AIHackr is the AI provider intelligence tool for SaaS — the only tool that tells you which AI/LLM provider any SaaS is actually running, with confidence levels and an evidence trail. Paste any URL and get back an "AI Intelligence Report" that fingerprints the AI provider (OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, AWS Bedrock, or self-hosted), the inferred model family, and how they're calling it (direct API, gateway, or proxy). The report also surfaces the surrounding stack — framework, hosting, payments, auth, analytics — and supports change/migration monitoring so users get alerted when a competitor switches AI providers.
+
+The product is positioned distinctly from BuiltWith and Wappalyzer: those map general tech stacks; AIHackr is the wedge tool for AI provider intelligence specifically.
 
 ## User Preferences
 

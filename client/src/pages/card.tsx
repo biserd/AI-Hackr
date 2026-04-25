@@ -384,7 +384,7 @@ export default function CardPage() {
           </Button>
         </motion.div>
 
-        {/* Shareable Stack Card */}
+        {/* Shareable AI Intelligence Report */}
         <motion.div
           {...fadeIn}
           transition={{ delay: 0.05 }}
@@ -396,7 +396,7 @@ export default function CardPage() {
                 {initials}
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">AIHackr Stack Card</div>
+                <div className="text-xs text-muted-foreground">AIHackr · AI Intelligence Report</div>
                 <div className="font-semibold">{hostname}</div>
               </div>
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
