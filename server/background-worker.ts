@@ -628,8 +628,14 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
 
 async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Promise<string[]> {
   const out: string[] = [];
-  if (!sub.lastScanId) return out;
-  const scan = await storage.getScan(sub.lastScanId);
+  // Prefer the new_scan_id from the change event itself — that's the scan
+  // that actually triggered this alert. Fall back to sub.lastScanId only if
+  // the event is missing it (defensive; should not happen for diff-emitted
+  // events). Using change.newScanId yields evidence text that matches the
+  // exact scan whose state caused the provider_added/removed/transition.
+  const scanId = change.newScanId || sub.lastScanId;
+  if (!scanId) return out;
+  const scan = await storage.getScan(scanId);
   if (!scan) return out;
   const ev = (scan.evidence ?? null) as {
     scripts?: string[];
@@ -651,10 +657,17 @@ async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Pro
   return out.slice(0, 4);
 }
 
-// ─── Manual scan-now (Pro feature) ───────────────────────
+// ─── Manual scan-now (Pro: 3/day, Free: 1/week) ──────────
+//
+// Product decision (matches AIHackr playbook v2 wording at
+// "watchlist › manual rescan"): Pro users get 3 manual rescans per
+// rolling 24-hour window, Free users get 1 rescan per rolling 7-day
+// window. The Free-tier allowance is intentional — it lets free users
+// taste the manual-rescan UX (a key Pro upsell hook) without flooding
+// the worker. Documented in replit.md.
 
 const MANUAL_SCAN_LIMIT_PRO = 3;
-const MANUAL_SCAN_LIMIT_FREE = 1; // 1×/week per playbook
+const MANUAL_SCAN_LIMIT_FREE = 1;
 
 /**
  * Run a one-shot scan for a freshly-added subscription, bypassing the manual-scan
