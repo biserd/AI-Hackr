@@ -191,6 +191,39 @@ export default function Post() {
         </LI>
       </OrderedList>
 
+      <H2>The cohort-to-revenue lag we keep seeing</H2>
+
+      <Para>
+        One of the more surprising patterns in the YC data is how
+        differently the cohort defaults look when you sort by &quot;what
+        the company shipped on Demo Day&quot; versus &quot;what the
+        company is running once it crosses $1M ARR.&quot; The Demo Day
+        stack is almost always OpenAI direct, because that is the
+        fastest path to a working demo and the model the team probably
+        prototyped against during the batch.
+      </Para>
+
+      <Para>
+        The post-traction stack is messier, and the messiness is itself
+        the signal. Around $500k–$1M ARR, three things tend to happen
+        within a quarter of each other: the company hires its first
+        infra-leaning engineer, an enterprise prospect asks an awkward
+        question about data residency, and the AI bill becomes a real
+        line item on the P&amp;L. Each of those forces a re-evaluation,
+        and the re-evaluation almost always ends with either a gateway,
+        a second provider, or both.
+      </Para>
+
+      <Para>
+        We have watched this play out in our index for at least a dozen
+        YC companies in the past two batches. The migration is not
+        announced — there is no blog post about &quot;why we switched to
+        Anthropic&quot; — but it shows up cleanly in the wire-level
+        scan. The lesson for founders watching this from the outside:
+        the public narrative around &quot;which AI a YC company
+        uses&quot; lags the actual stack by roughly six months.
+      </Para>
+
       <H2>What founders should take from this</H2>
 
       <BulletList>

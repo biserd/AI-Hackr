@@ -224,6 +224,47 @@ export default function Post() {
         .
       </Para>
 
+      <H2>The hidden second-order costs nobody talks about</H2>
+
+      <Para>
+        The math people do before self-hosting is usually GPU rental cost
+        per hour times utilization, compared against per-token API
+        pricing. That math is correct, and it usually says self-hosting
+        wins above some threshold. But it leaves out three line items
+        that we have watched eat the savings of more than one team in
+        our index.
+      </Para>
+
+      <Para>
+        First: the eval pipeline. Hosted providers ship model upgrades
+        that quietly improve quality on the same prompt. When you
+        self-host, that improvement is your job. Standing up a regression
+        eval suite that runs against every weight update — and gating
+        deploys on it — is a multi-engineer-quarter project, and you
+        cannot skip it without shipping silent regressions to users.
+      </Para>
+
+      <Para>
+        Second: GPU procurement. Spot pricing is great until your
+        availability zone runs out of H100s on a Tuesday afternoon. The
+        teams we see actually saving money have either reserved capacity
+        contracts or have built failover to an inference partner like
+        Together, Anyscale, or Fireworks for the moments when their
+        primary cluster cannot scale. That fallback path is operationally
+        non-trivial and rarely shows up in the original cost model.
+      </Para>
+
+      <Para>
+        Third: the &quot;we should fine-tune&quot; black hole. Once you
+        own the weights, every product manager has an opinion about how
+        the model should behave on their feature. Without strict
+        prioritization, you end up running ten fine-tunes for ten
+        product surfaces, each requiring its own eval, each adding a
+        forward-deployable variant to manage. The teams that beat the
+        unit economics keep the fine-tune count small (one or two) and
+        push the rest into prompt engineering against the base model.
+      </Para>
+
       <H2>Should you self-host?</H2>
 
       <H3>You probably should if</H3>

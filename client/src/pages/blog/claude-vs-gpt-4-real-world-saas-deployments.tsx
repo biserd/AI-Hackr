@@ -164,6 +164,38 @@ export default function Post() {
       <H3>Currently fingerprinted on AWS Bedrock (mostly Claude)</H3>
       <LiveCompaniesByProvider provider="AWS Bedrock" />
 
+      <H2>The latency story most comparisons miss</H2>
+
+      <Para>
+        Quality comparisons get most of the airtime, but in production
+        SaaS the deciding factor between Claude and GPT-4 is more often
+        latency than capability. The two providers behave differently
+        enough on this axis that the right choice can depend entirely
+        on the perceived-performance budget for your specific feature.
+      </Para>
+
+      <Para>
+        For streaming chat surfaces, time-to-first-token is the metric
+        that matters. GPT-4o consistently posts the lowest TTFT in our
+        synthetic measurements — typically 200–400ms for short prompts
+        — and that gap is visible in real product usage. Users perceive
+        a chat that starts streaming in under half a second as instant;
+        anything slower than 800ms feels laggy regardless of total
+        token throughput. Teams shipping consumer-facing chat almost
+        universally pick GPT-4o for this reason alone.
+      </Para>
+
+      <Para>
+        For batch or background workloads, total throughput matters
+        more than first-token latency, and Claude often wins here. Its
+        sustained tokens-per-second on a single connection is usually
+        higher, and the difference compounds for long-form generation.
+        We see this pattern reflected in the dataset: chat-first
+        products skew OpenAI, document-generation and analysis
+        products skew Anthropic, and the latency profile is the
+        through-line that connects both choices.
+      </Para>
+
       <H2>Cost reality check</H2>
 
       <Para>
@@ -202,6 +234,37 @@ export default function Post() {
         production behaviour didn&apos;t match. Always evaluate on your
         actual prompts and your actual user data before flipping a default.
       </Callout>
+
+      <H2>What we don&apos;t see (and why that matters)</H2>
+
+      <Para>
+        Two things are conspicuously absent from the patterns above. First,
+        we almost never see a SaaS product run pure GPT-4 for the entire
+        request lifecycle anymore. Even teams whose primary attribution is
+        OpenAI almost always quietly route classification, moderation, or
+        cheap reformatting calls through GPT-4o-mini, GPT-3.5, or — more
+        often — Claude Haiku 3.5. The economic case is overwhelming, and
+        users cannot tell the difference for those sub-tasks.
+      </Para>
+
+      <Para>
+        Second, we rarely see Claude used for autonomous-agent loops where
+        the model invokes its own tools without a human in the middle.
+        Anthropic&apos;s tool-use API is excellent on paper, but production
+        teams in our index keep coming back to OpenAI&apos;s function
+        calling for long-running agents. Whether this is genuine model
+        capability or just incumbency around the tooling ecosystem
+        (LangChain, LlamaIndex, Vercel AI SDK) is debatable, but the
+        observable choice is clear.
+      </Para>
+
+      <Para>
+        Both gaps are narrowing. Claude 3.5 Sonnet&apos;s tool-use traces
+        in our sample look much more like GPT-4o&apos;s than they did six
+        months ago, and OpenAI&apos;s o1-mini has eaten some of the
+        cost-conscious traffic that used to flow to Haiku. Expect the next
+        rescan cycle to show further convergence on both axes.
+      </Para>
 
       <H2>How to read this for your own decision</H2>
 

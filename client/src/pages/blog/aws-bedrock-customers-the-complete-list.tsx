@@ -96,6 +96,30 @@ export default function Post() {
         caption="Bedrock-served model families ranked by frequency of detection in the AIHackr SaaS index."
       />
 
+      <Para>
+        The model mix on Bedrock has shifted noticeably in the past
+        12 months. Two years ago, Titan was the centerpiece of every
+        AWS-led demo and Anthropic was an awkward third party. Today
+        almost every Bedrock workload we see in production runs
+        Claude as the primary, with Titan reduced to embeddings and
+        Llama serving as the cost-conscious fallback. This is a
+        reversal of AWS&apos;s original positioning, and it is the
+        single biggest reason the Bedrock customer list looks
+        substantially different from the AWS marketing case studies.
+      </Para>
+
+      <Para>
+        The split inside Claude itself is also worth noting. Claude
+        3.5 Sonnet does the visible product work — chat, agents,
+        document analysis. Claude Haiku 3.5 (and increasingly Haiku
+        4) does the cost-sensitive supporting work — classification,
+        summarisation, structured-output calls. Teams that started
+        on Bedrock with only Sonnet almost always add Haiku within
+        a quarter of going to production, because the cost of
+        running Sonnet on every classification call becomes
+        impossible to defend at the next architectural review.
+      </Para>
+
       <H2>Bedrock&apos;s detection fingerprint</H2>
 
       <H3>Tier 1 — hostnames</H3>
@@ -227,6 +251,38 @@ X-Amzn-Bedrock-Trace: ENABLED
           ],
         ]}
       />
+
+      <H2>The Bedrock pricing wrinkle</H2>
+
+      <Para>
+        On paper, per-token pricing for Claude on Bedrock is identical to
+        Claude on Anthropic direct. In practice, two things move the
+        effective bill in opposite directions, and most teams only notice
+        after their first month of real production traffic.
+      </Para>
+
+      <Para>
+        On the cheaper side: Bedrock invoices roll into your existing AWS
+        commitment. If you have an Enterprise Discount Program with AWS,
+        Bedrock spend counts toward it the same way EC2 and RDS do. For
+        teams that have already negotiated a multi-year EDP, this can
+        knock 10–20% off the headline rate without renegotiating the
+        Anthropic relationship at all. We see this pattern repeatedly in
+        the FinTech and HealthTech rollups — the AI bill is no longer a
+        separate procurement event, it is a line item under an
+        already-approved contract.
+      </Para>
+
+      <Para>
+        On the more expensive side: provisioned throughput. Bedrock&apos;s
+        on-demand tier has stricter rate limits than Anthropic direct, and
+        the workaround is to commit to provisioned units that are billed
+        whether you use them or not. For a product with bursty traffic,
+        this can mean paying for capacity you only use 30% of the day.
+        Teams with steady traffic come out ahead; teams with traffic
+        concentrated in business hours often do not. The right call
+        depends on the shape of your demand curve, not the model price.
+      </Para>
 
       <H2>How to evaluate Bedrock for your own product</H2>
 

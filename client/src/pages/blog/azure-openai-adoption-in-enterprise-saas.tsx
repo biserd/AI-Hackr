@@ -221,6 +221,40 @@ Content-Type: application/json
 
       <LiveCompaniesByProvider provider="Azure OpenAI" />
 
+      <H2>The two-tenant pattern enterprises ask for</H2>
+
+      <Para>
+        The most common enterprise procurement ask we see in the
+        Azure-OpenAI rollup is not &quot;move our entire workload to
+        Azure.&quot; It is &quot;run our tenant&apos;s traffic through
+        Azure, leave everyone else on OpenAI direct.&quot; This is the
+        two-tenant pattern, and it is now common enough in our index
+        that several products have it as a SKU-level toggle rather than
+        a per-customer engineering project.
+      </Para>
+
+      <Para>
+        Implementations vary. The cleanest version we have observed
+        routes by tenant ID at the gateway layer: an enterprise tenant
+        is tagged once at provisioning time, and every downstream LLM
+        call for that tenant goes to a dedicated Azure deployment in
+        the customer&apos;s preferred region. The dirtier version
+        forks the codepath at the application layer, which works but
+        leaves you maintaining two slightly different prompt evaluations
+        and two different rate-limit budgets. Teams that picked the
+        gateway approach early are visibly happier when their second
+        and third enterprise deals close.
+      </Para>
+
+      <Para>
+        Watch for the giveaway: when a SaaS product&apos;s public docs
+        mention &quot;dedicated AI capacity,&quot; &quot;EU AI
+        residency,&quot; or &quot;your tenant, your model,&quot; the
+        scanner almost always picks up Azure OpenAI hostnames in
+        traffic from logged-in enterprise sessions, even when the
+        marketing site itself only ever talks to OpenAI direct.
+      </Para>
+
       <H2>Procurement implications you should know</H2>
 
       <H3>If you are a SaaS vendor</H3>

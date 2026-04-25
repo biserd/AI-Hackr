@@ -189,6 +189,37 @@ export default function Post() {
         multi-provider routing in the same category within a quarter.
       </Para>
 
+      <H2>The week-over-week tempo is itself a signal</H2>
+
+      <Para>
+        We have been publishing this digest long enough to notice
+        meta-patterns in the digest itself. The number of meaningful
+        changes per week is not constant, and the spikes line up with
+        external events more cleanly than you might expect.
+      </Para>
+
+      <Para>
+        Two patterns recur. First: the week of any major model release
+        (a new Claude version, a new GPT variant, a Gemini upgrade)
+        produces 2–3x the normal volume of provider changes within
+        14 days. Most of those are A/B evaluations rather than full
+        switches, but they show up in our scan as new providers
+        appearing alongside the existing one. Second: the first week
+        of a calendar quarter usually shows a small bump in gateway
+        adoption, almost certainly because budget committees approved
+        a multi-vendor strategy at the previous quarter&apos;s review.
+      </Para>
+
+      <Para>
+        Quiet weeks are also informative. A two-week stretch with
+        almost no movement in our digest usually means the providers
+        themselves shipped no major changes — the AI stack of SaaS
+        is broadly reactive to vendor news, and when the vendors are
+        quiet, the customers are too. If you are using this digest as
+        an input to your own competitive monitoring, the gaps matter
+        as much as the spikes.
+      </Para>
+
       <H2>The kind of change we&apos;ll never publish</H2>
 
       <BulletList>

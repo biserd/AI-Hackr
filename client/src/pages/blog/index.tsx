@@ -25,7 +25,7 @@ const blogPosts: BlogPost[] = [
       "Annual report on which AI providers, model families, and gateways power the modern SaaS stack — based on continuous wire-level fingerprinting of 50+ products.",
     date: "April 2026",
     category: "Annual Report",
-    readingMinutes: 7,
+    readingMinutes: 9,
     featured: true,
   },
   {
@@ -35,7 +35,7 @@ const blogPosts: BlogPost[] = [
       "A weekly pulse on which SaaS products switched AI providers, added model families, or quietly migrated to gateways — surfaced from continuous scans, not anecdote.",
     date: "April 2026",
     category: "Weekly Pulse",
-    readingMinutes: 6,
+    readingMinutes: 7,
     featured: true,
   },
   {
@@ -45,7 +45,7 @@ const blogPosts: BlogPost[] = [
       "Side-by-side breakdown of which SaaS run GPT vs Claude — with live fingerprinting, the patterns of switching, and the migration math.",
     date: "April 2026",
     category: "Market Analysis",
-    readingMinutes: 7,
+    readingMinutes: 8,
   },
   {
     slug: "claude-vs-gpt-4-real-world-saas-deployments",
@@ -54,7 +54,7 @@ const blogPosts: BlogPost[] = [
       "Comparing Claude 3.5/4 and GPT-4/4o adoption across actual SaaS in production — by use case, with the live list of who runs each.",
     date: "April 2026",
     category: "Comparison",
-    readingMinutes: 6,
+    readingMinutes: 8,
   },
   {
     slug: "azure-openai-adoption-in-enterprise-saas",
@@ -63,7 +63,7 @@ const blogPosts: BlogPost[] = [
       "Why regulated SaaS overwhelmingly choose Azure OpenAI over OpenAI direct — the detection fingerprint, procurement math, and live customer list.",
     date: "April 2026",
     category: "Enterprise",
-    readingMinutes: 6,
+    readingMinutes: 7,
   },
   {
     slug: "aws-bedrock-customers-the-complete-list",
@@ -72,7 +72,7 @@ const blogPosts: BlogPost[] = [
       "Every SaaS we&apos;ve detected running Anthropic, Llama, or Titan models through AWS Bedrock — refreshed weekly, with the detection playbook.",
     date: "April 2026",
     category: "Provider Spotlight",
-    readingMinutes: 5,
+    readingMinutes: 7,
   },
   {
     slug: "ai-gateways-explained-cloudflare-portkey-helicone",
@@ -81,7 +81,7 @@ const blogPosts: BlogPost[] = [
       "What an AI gateway actually does, why ~1 in 5 SaaS now use one, and how AIHackr fingerprints traffic that has been routed through them.",
     date: "April 2026",
     category: "Infrastructure",
-    readingMinutes: 7,
+    readingMinutes: 8,
   },
   {
     slug: "self-hosted-llms-which-saas-products-run-their-own-models",
@@ -90,7 +90,7 @@ const blogPosts: BlogPost[] = [
       "SaaS products quietly running open-weight Llama, Mistral, and fine-tuned derivatives in production — with detection signals, economics, and the production stack.",
     date: "April 2026",
     category: "Infrastructure",
-    readingMinutes: 6,
+    readingMinutes: 7,
   },
   {
     slug: "every-yc-batch-and-which-ai-they-use",
@@ -99,7 +99,7 @@ const blogPosts: BlogPost[] = [
       "Cohort-by-cohort breakdown of AI provider choices across recent Y Combinator batches — what changes batch over batch.",
     date: "April 2026",
     category: "YC Watch",
-    readingMinutes: 6,
+    readingMinutes: 7,
   },
   {
     slug: "how-to-tell-which-llm-a-website-is-using",
@@ -108,7 +108,7 @@ const blogPosts: BlogPost[] = [
       "A practical, evidence-based guide to fingerprinting any website&apos;s AI provider — devtools, request shapes, gateway tricks.",
     date: "April 2026",
     category: "How-to",
-    readingMinutes: 7,
+    readingMinutes: 8,
   },
   {
     slug: "the-complete-guide-to-fingerprinting-ai-providers",
@@ -117,7 +117,7 @@ const blogPosts: BlogPost[] = [
       "Everything we&apos;ve learned building AIHackr — the signals, scoring rules, false-positive patterns, and ethical guardrails behind reliable AI provider attribution.",
     date: "April 2026",
     category: "Methodology",
-    readingMinutes: 7,
+    readingMinutes: 8,
   },
   {
     slug: "what-technologies-the-successful-projects-at-hacker-news-are-using",

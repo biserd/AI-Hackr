@@ -19,6 +19,7 @@ import { SEO } from "@/components/seo";
 import {
   Children,
   isValidElement,
+  type ReactElement,
   type ReactNode,
   useEffect,
   useMemo,
@@ -27,14 +28,18 @@ import {
 
 /* ---------------- Reading time + word count ---------------- */
 
+type ElementWithChildren = ReactElement<{ children?: ReactNode }>;
+
+function getElementChildren(el: ElementWithChildren): ReactNode {
+  return el.props?.children;
+}
+
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(extractText).join(" ");
   if (isValidElement(node)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const children = (node.props as any)?.children;
-    return extractText(children);
+    return extractText(getElementChildren(node as ElementWithChildren));
   }
   return "";
 }
@@ -441,6 +446,124 @@ export function useLeaderboard() {
   return { data, error };
 }
 
+type ProviderRow = {
+  slug: string;
+  name: string;
+  description?: string | null;
+  aliases?: string[] | null;
+  sortOrder?: number | null;
+};
+
+export function useProviders() {
+  const [data, setData] = useState<ProviderRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/providers")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((j) => {
+        if (cancelled) return;
+        const rows: ProviderRow[] = Array.isArray(j?.providers)
+          ? j.providers
+          : Array.isArray(j)
+          ? j
+          : [];
+        setData(rows);
+      })
+      .catch((e) => !cancelled && setError(String(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return { data, error };
+}
+
+/**
+ * Inline directory of canonical AI provider rollups. Pulls from /api/providers
+ * so the post stays accurate as we add or rename providers in the catalog.
+ */
+export function LiveProviderDirectory({
+  emptyText = "Provider catalog will appear here once /api/providers responds.",
+}: {
+  emptyText?: string;
+}) {
+  const { data, error } = useProviders();
+  const { data: leaderboard } = useLeaderboard();
+  const counts = useMemo(() => {
+    if (!leaderboard) return new Map<string, number>();
+    const m = new Map<string, number>();
+    for (const r of leaderboard) {
+      const key = (r.aiProvider ?? "").toLowerCase();
+      if (!key) continue;
+      m.set(key, (m.get(key) ?? 0) + 1);
+    }
+    return m;
+  }, [leaderboard]);
+
+  if (error) {
+    return (
+      <Callout tone="info" title="Provider catalog temporarily unavailable">
+        {emptyText}
+      </Callout>
+    );
+  }
+  if (!data) {
+    return (
+      <div
+        className="my-6 grid grid-cols-1 sm:grid-cols-2 gap-3"
+        data-testid="provider-directory-loading"
+      >
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-20 rounded-lg border border-border bg-muted/20 animate-pulse"
+          />
+        ))}
+      </div>
+    );
+  }
+  const sorted = [...data].sort(
+    (a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999),
+  );
+  return (
+    <figure className="my-6" data-testid="provider-directory">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {sorted.map((p) => {
+          const count = counts.get(p.slug.toLowerCase()) ?? 0;
+          return (
+            <Link
+              key={p.slug}
+              href={`/provider/${p.slug}`}
+              className="block rounded-lg border border-border bg-muted/10 p-3 hover:border-primary/50 transition-colors no-underline"
+              data-testid={`provider-card-${p.slug}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-display font-semibold text-foreground">
+                  {p.name}
+                </div>
+                {count > 0 && (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {count} live
+                  </span>
+                )}
+              </div>
+              {p.description && (
+                <div className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                  {p.description}
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+      <figcaption className="mt-2 text-xs text-muted-foreground text-center">
+        Source: AIHackr provider catalog (/api/providers) joined to live
+        leaderboard counts.
+      </figcaption>
+    </figure>
+  );
+}
+
 export function LiveProviderShare({
   providers,
   emptyText = "Live provider share will appear here once the leaderboard finishes its current cycle.",
@@ -659,13 +782,12 @@ export function BlogPostLayout(props: BlogPostLayoutProps) {
     const walk = (node: ReactNode) => {
       Children.forEach(node, (child) => {
         if (!isValidElement(child)) return;
-        if (child.type === H2) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const text = extractText((child.props as any).children);
+        const el = child as ElementWithChildren;
+        if (el.type === H2) {
+          const text = extractText(getElementChildren(el));
           out.push({ id: slugifyHeading(text), label: text });
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const inner = (child.props as any)?.children;
+        const inner = getElementChildren(el);
         if (inner) walk(inner);
       });
     };

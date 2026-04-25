@@ -20,6 +20,7 @@ import {
   ProviderChipRow,
   CompanyChipRow,
   LiveProviderShare,
+  LiveProviderDirectory,
 } from "@/components/blog-post";
 
 import { Link } from "wouter";
@@ -289,6 +290,15 @@ export default function Post() {
       </Para>
 
       <H2>The provider-by-provider rundown</H2>
+
+      <Para>
+        Below is the live AIHackr provider catalog joined to the current
+        leaderboard counts. Each card links to the rollup page where you
+        can see every detected customer plus the evidence trail behind the
+        attribution. Counts update as our scanners cycle.
+      </Para>
+
+      <LiveProviderDirectory />
 
       <ProviderChipRow
         label="Jump to a rollup"

@@ -321,6 +321,41 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
         </LI>
       </BulletList>
 
+      <H2>Edge cases that trip up most analysts</H2>
+
+      <Para>
+        Even with the seven-step playbook, a handful of products
+        consistently produce the wrong answer on the first pass. The
+        common thread is that the visible network traffic does not
+        actually originate from the LLM you think it does — there is
+        always a layer of indirection that has to be peeled back
+        before the real attribution holds up.
+      </Para>
+
+      <Para>
+        The first edge case is the <Em>silent dual-provider</Em>
+        product. The user sees one chat window, but the request is
+        forked at the backend: one provider gets the prompt for the
+        primary response, another gets the same prompt for a
+        moderation check or a parallel quality-of-response signal.
+        From the network tab you only ever see one outbound call,
+        because both backend calls happen server-side. The
+        give-away is usually a request that takes 1.5–2x longer
+        than expected for the visible token count.
+      </Para>
+
+      <Para>
+        The second is the <Em>cached-response masquerade</Em>. A
+        product that hits OpenAI for cold prompts but serves cached
+        responses for warm ones will look provider-less for a
+        meaningful percentage of requests. Vary your input enough to
+        bust the cache before drawing a conclusion. The third is
+        <Em> tier-gated routing</Em>: the free tier and the paid
+        tier of the same product genuinely use different providers,
+        and looking at only one tier produces a misleading answer
+        for the product as a whole. When in doubt, log in and out.
+      </Para>
+
       <H2>Worked examples</H2>
 
       <H3>A SaaS chat surface</H3>

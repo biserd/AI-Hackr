@@ -253,6 +253,32 @@ export default function Post() {
         up doing it within 12 months of meaningful AI feature usage.
       </Callout>
 
+      <H2>The myth of the lock-in moat</H2>
+
+      <Para>
+        A common piece of received wisdom is that whichever LLM
+        provider you start with becomes a structural lock-in: the
+        prompts you wrote are tuned for that model, the eval suite
+        was built against its quirks, the team learned its tool-use
+        format. We have looked at this carefully across our index,
+        and the lock-in is real but much smaller than the discourse
+        suggests.
+      </Para>
+
+      <Para>
+        The genuine sticky surfaces are exactly two: long-running
+        Assistants/threads on OpenAI (which have no Anthropic
+        equivalent), and prompt-caching contracts on Anthropic
+        (which require a different prompt structure than GPT). For
+        teams that built around either, swapping providers is
+        legitimately a multi-week project. For everyone else — and
+        that is the majority — the prompts re-tune in a few days,
+        the eval suite is provider-agnostic if it was written well,
+        and the tool-use format can be normalized at the gateway
+        layer. The companies in our index that switched providers
+        between scans rarely needed an engineering quarter to do it.
+      </Para>
+
       <H2>How to verify this for your own product</H2>
 
       <Para>

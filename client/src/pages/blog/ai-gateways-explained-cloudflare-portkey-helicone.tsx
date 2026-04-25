@@ -243,6 +243,31 @@ Authorization: Bearer sk-...
         unknown rather than guess in these cases.
       </Callout>
 
+      <H2>The build-vs-buy question, honestly</H2>
+
+      <Para>
+        Every team eventually asks whether to use a hosted gateway or
+        build a thin internal one. The honest answer depends on a
+        single question: how much of the gateway feature surface do
+        you actually need on day one? If the answer is &quot;just
+        retries and a circuit breaker,&quot; building it yourself in
+        a couple of days is genuinely fine and avoids one more
+        vendor in your auth chain. The internal gateway is usually
+        50–150 lines of code wrapping the OpenAI and Anthropic SDKs.
+      </Para>
+
+      <Para>
+        The buy case becomes obvious once you need three or more of:
+        per-tenant rate limits, semantic caching with eviction
+        policies, prompt-version tracking, multi-region failover,
+        cost attribution by feature flag, or a UI for non-engineers
+        to inspect prompts. Building any one of those is a quarter
+        of work; building all of them is a small team. We watch this
+        decision play out in our index every quarter, and the
+        teams that built early almost always end up buying within
+        18 months. The teams that bought early rarely regret it.
+      </Para>
+
       <H2>If you&apos;re evaluating a gateway for your own product</H2>
 
       <H3>Pick a gateway when at least one of these is true</H3>
