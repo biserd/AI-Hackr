@@ -39,10 +39,19 @@ interface LeaderboardResponse {
   rows: Array<TrackedCompany & { lastScan: Scan | null }>;
   categories: string[];
   providers: ProviderRollup[];
+  ycBatches: string[];
 }
 
 interface ChangesResponse {
   rows: Array<TrackedCompany & { lastScan: Scan | null }>;
+  stats: {
+    totalChanges: number;
+    providerSwitches: number;
+    newProviderEntrants: number;
+    confidenceChanges: number;
+    topProvider: { name: string; count: number } | null;
+  };
+  confidenceChanges: Array<TrackedCompany & { lastScan: Scan | null }>;
 }
 
 function confidenceColor(c: string | null | undefined): string {
@@ -56,15 +65,17 @@ export default function Leaderboard() {
   const [provider, setProvider] = useState("all");
   const [category, setCategory] = useState("all");
   const [confidence, setConfidence] = useState("all");
+  const [ycBatch, setYcBatch] = useState("all");
   const [changedOnly, setChangedOnly] = useState(false);
 
   const { data, isLoading } = useQuery<LeaderboardResponse>({
-    queryKey: ["/api/leaderboard", provider, category, confidence, changedOnly],
+    queryKey: ["/api/leaderboard", provider, category, confidence, ycBatch, changedOnly],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (provider !== "all") params.set("provider", provider);
       if (category !== "all") params.set("category", category);
       if (confidence !== "all") params.set("confidence", confidence);
+      if (ycBatch !== "all") params.set("ycBatch", ycBatch);
       if (changedOnly) params.set("changedThisWeek", "true");
       const res = await fetch(`/api/leaderboard?${params.toString()}`);
       return res.json();
@@ -140,6 +151,17 @@ export default function Leaderboard() {
                     <SelectItem value="Low">Low</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={ycBatch} onValueChange={setYcBatch}>
+                  <SelectTrigger className="w-[160px]" data-testid="select-filter-yc-batch">
+                    <SelectValue placeholder="YC Batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All YC batches</SelectItem>
+                    {(data?.ycBatches ?? []).map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   variant={changedOnly ? "default" : "outline"}
                   size="sm"
@@ -153,29 +175,80 @@ export default function Leaderboard() {
             </CardContent>
           </Card>
 
-          {/* Changes-this-week panel */}
-          {changes?.rows && changes.rows.length > 0 && (
+          {/* Changes-this-week panel — top-line stats + breakdown */}
+          {changes && (changes.stats.totalChanges > 0 || changes.confidenceChanges.length > 0) && (
             <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/5 to-secondary/5">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-primary" />
-                  This Week's Provider Changes
+                  What changed this week
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {changes.rows.map((r) => (
-                    <Link key={r.slug} href={`/stack/${r.slug}`}>
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-primary/10 transition-colors"
-                        data-testid={`badge-change-${r.slug}`}
-                      >
-                        {r.name} → {r.lastScan?.aiProvider || "Unknown"}
-                      </Badge>
-                    </Link>
-                  ))}
+                {/* Top-line stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className="rounded-md bg-background/50 px-3 py-2" data-testid="stat-total-changes">
+                    <div className="text-2xl font-bold text-primary">{changes.stats.totalChanges}</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Provider changes</div>
+                  </div>
+                  <div className="rounded-md bg-background/50 px-3 py-2" data-testid="stat-new-entrants">
+                    <div className="text-2xl font-bold text-secondary">{changes.stats.newProviderEntrants}</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">First-time providers</div>
+                  </div>
+                  <div className="rounded-md bg-background/50 px-3 py-2" data-testid="stat-provider-switches">
+                    <div className="text-2xl font-bold text-yellow-500">{changes.stats.providerSwitches}</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Switched providers</div>
+                  </div>
+                  <div className="rounded-md bg-background/50 px-3 py-2" data-testid="stat-confidence-changes">
+                    <div className="text-2xl font-bold text-orange-500">{changes.stats.confidenceChanges}</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Confidence shifts</div>
+                  </div>
                 </div>
+
+                {changes.stats.topProvider && (
+                  <div className="text-sm text-muted-foreground mb-3" data-testid="text-top-provider-week">
+                    <span className="font-semibold text-foreground">Leader of the week:</span>{" "}
+                    {changes.stats.topProvider.name} ({changes.stats.topProvider.count} new {changes.stats.topProvider.count === 1 ? "win" : "wins"})
+                  </div>
+                )}
+
+                {changes.rows.length > 0 && (
+                  <>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mt-3 mb-1.5">Provider changes</div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {changes.rows.map((r) => (
+                        <Link key={r.slug} href={`/stack/${r.slug}`}>
+                          <Badge
+                            variant="outline"
+                            className="cursor-pointer hover:bg-primary/10 transition-colors"
+                            data-testid={`badge-change-${r.slug}`}
+                          >
+                            {r.name} {r.priorAiProvider ? `${r.priorAiProvider} → ` : "+ "}{r.lastScan?.aiProvider || "Unknown"}
+                          </Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {changes.confidenceChanges.length > 0 && (
+                  <>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Confidence shifts</div>
+                    <div className="flex flex-wrap gap-2">
+                      {changes.confidenceChanges.slice(0, 12).map((r) => (
+                        <Link key={r.slug} href={`/stack/${r.slug}`}>
+                          <Badge
+                            variant="outline"
+                            className="cursor-pointer hover:bg-secondary/10 transition-colors"
+                            data-testid={`badge-confchange-${r.slug}`}
+                          >
+                            {r.name}: {r.priorAiConfidence} → {r.lastScan?.aiConfidence}
+                          </Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}

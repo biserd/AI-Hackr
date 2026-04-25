@@ -1343,7 +1343,10 @@ function Footer() {
             </div>
             <span className="font-display font-medium text-sm">AIHackr</span>
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap justify-center">
+            <Link href="/stack" className="hover:text-primary transition-colors" data-testid="link-footer-stack">Stack Index</Link>
+            <Link href="/leaderboard" className="hover:text-primary transition-colors" data-testid="link-footer-leaderboard">Leaderboard</Link>
+            <Link href="/blog" className="hover:text-primary transition-colors" data-testid="link-footer-blog">Blog</Link>
             <Link href="/about" className="hover:text-primary transition-colors" data-testid="link-footer-about">About</Link>
             <Link href="/terms" className="hover:text-primary transition-colors" data-testid="link-footer-terms">Terms</Link>
             <Link href="/privacy" className="hover:text-primary transition-colors" data-testid="link-footer-privacy">Privacy</Link>
@@ -1351,6 +1354,27 @@ function Footer() {
           <p className="text-sm text-muted-foreground">
             © 2025 AIHackr. Built for builders.
           </p>
+        </motion.div>
+
+        <motion.div variants={fadeInUp} className="mt-10 pt-6 border-t border-border/50 text-xs text-muted-foreground text-center max-w-3xl mx-auto">
+          <p className="mb-2 uppercase tracking-wide font-semibold text-foreground/70">Browse the live data</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+            <Link href="/provider/openai" className="hover:text-primary transition-colors" data-testid="link-footer-openai">SaaS using OpenAI</Link>
+            <span>·</span>
+            <Link href="/provider/anthropic" className="hover:text-primary transition-colors" data-testid="link-footer-anthropic">Anthropic</Link>
+            <span>·</span>
+            <Link href="/provider/azure-openai" className="hover:text-primary transition-colors" data-testid="link-footer-azure">Azure OpenAI</Link>
+            <span>·</span>
+            <Link href="/provider/aws-bedrock" className="hover:text-primary transition-colors" data-testid="link-footer-bedrock">AWS Bedrock</Link>
+            <span>·</span>
+            <Link href="/provider/google-gemini" className="hover:text-primary transition-colors" data-testid="link-footer-gemini">Google Gemini</Link>
+            <span>·</span>
+            <Link href="/stack/notion" className="hover:text-primary transition-colors" data-testid="link-footer-notion">Notion's stack</Link>
+            <span>·</span>
+            <Link href="/stack/stripe" className="hover:text-primary transition-colors" data-testid="link-footer-stripe">Stripe's stack</Link>
+            <span>·</span>
+            <Link href="/stack/linear" className="hover:text-primary transition-colors" data-testid="link-footer-linear">Linear's stack</Link>
+          </div>
         </motion.div>
       </motion.div>
     </footer>

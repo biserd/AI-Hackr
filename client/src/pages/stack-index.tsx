@@ -36,16 +36,29 @@ import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { toast } from "sonner";
-import type { TrackedCompany } from "@shared/schema";
+import type { TrackedCompany, Scan, ProviderRollup } from "@shared/schema";
 
 interface StackResponse {
   companies: TrackedCompany[];
   categories: string[];
 }
 
+interface LeaderboardForFilter {
+  rows: Array<TrackedCompany & { lastScan: Scan | null }>;
+  providers: ProviderRollup[];
+}
+
+function confidenceBadgeClass(c?: string | null): string {
+  if (c === "High") return "text-secondary bg-secondary/20 border-secondary/30";
+  if (c === "Medium") return "text-yellow-500 bg-yellow-500/20 border-yellow-500/30";
+  if (c === "Low") return "text-orange-500 bg-orange-500/20 border-orange-500/30";
+  return "text-muted-foreground bg-muted border-border";
+}
+
 export default function StackIndex() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
+  const [provider, setProvider] = useState<string>("all");
   const [requestOpen, setRequestOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -58,6 +71,32 @@ export default function StackIndex() {
       const res = await fetch(`/api/stack?${params.toString()}`);
       return res.json();
     },
+  });
+
+  // Pull leaderboard rows so each card can show the detected provider +
+  // confidence + last-scanned date inline (the /api/stack endpoint returns
+  // the company row only — the joined scan lives on the leaderboard payload).
+  const { data: lb } = useQuery<LeaderboardForFilter>({
+    queryKey: ["/api/leaderboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/leaderboard");
+      return res.json();
+    },
+  });
+
+  const scanBySlug = new Map(
+    (lb?.rows ?? []).map((r) => [
+      r.slug,
+      { provider: r.lastScan?.aiProvider ?? null, confidence: r.lastScan?.aiConfidence ?? null, lastScannedAt: r.lastScannedAt },
+    ]),
+  );
+
+  const filteredCompanies = (data?.companies ?? []).filter((c) => {
+    if (provider === "all") return true;
+    const target = provider.toLowerCase();
+    const detected = (scanBySlug.get(c.slug)?.provider ?? "").toLowerCase();
+    if (provider === "unknown") return !detected || detected === "none";
+    return detected.includes(target);
   });
 
   const requestMutation = useMutation({
@@ -127,7 +166,7 @@ export default function StackIndex() {
                   />
                 </div>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="md:w-[220px]" data-testid="select-stack-category">
+                  <SelectTrigger className="md:w-[200px]" data-testid="select-stack-category">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
@@ -136,6 +175,20 @@ export default function StackIndex() {
                     {data?.categories.map((c) => (
                       <SelectItem key={c} value={c}>
                         {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={provider} onValueChange={setProvider}>
+                  <SelectTrigger className="md:w-[200px]" data-testid="select-stack-provider">
+                    <Bot className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="All providers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All providers</SelectItem>
+                    {(lb?.providers ?? []).map((p) => (
+                      <SelectItem key={p.slug} value={p.name}>
+                        {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -164,47 +217,88 @@ export default function StackIndex() {
           {isLoading ? (
             <div className="text-center text-muted-foreground py-20">Loading the index…</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {data?.companies.map((c) => (
-                <Link key={c.slug} href={`/stack/${c.slug}`}>
-                  <Card
-                    className="cursor-pointer hover:border-primary/50 transition-colors group h-full"
-                    data-testid={`card-company-${c.slug}`}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-lg group-hover:text-primary transition-colors flex items-center gap-2">
-                            {c.name}
-                            <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </CardTitle>
-                          <p className="text-sm text-muted-foreground mt-0.5">{c.domain}</p>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {c.category}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{c.description}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {c.lastScannedAt ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-secondary" />
-                            <span>Scanned · view full report</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3.5 h-3.5 text-primary" />
-                            <span>Awaiting first scan</span>
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            <>
+              <div className="text-sm text-muted-foreground mb-3" data-testid="text-stack-count">
+                Showing {filteredCompanies.length} {filteredCompanies.length === 1 ? "company" : "companies"}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCompanies.map((c) => {
+                  const det = scanBySlug.get(c.slug);
+                  const initials = c.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+                  return (
+                    <Link key={c.slug} href={`/stack/${c.slug}`}>
+                      <Card
+                        className="cursor-pointer hover:border-primary/50 transition-colors group h-full"
+                        data-testid={`card-company-${c.slug}`}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start gap-3">
+                            {c.logoUrl ? (
+                              <img
+                                src={c.logoUrl}
+                                alt=""
+                                className="w-10 h-10 rounded-lg object-cover bg-muted flex-shrink-0"
+                                data-testid={`img-logo-${c.slug}`}
+                              />
+                            ) : (
+                              <div
+                                className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center text-xs font-display font-bold text-primary flex-shrink-0"
+                                data-testid={`img-logo-${c.slug}`}
+                              >
+                                {initials}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <CardTitle className="text-base group-hover:text-primary transition-colors flex items-center gap-1.5 truncate" data-testid={`text-name-${c.slug}`}>
+                                {c.name}
+                                <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">{c.domain}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                              {c.category}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2.5em]">{c.description}</p>
+                          <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/50">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Bot className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                              <span className="text-xs font-medium truncate" data-testid={`text-provider-${c.slug}`}>
+                                {det?.provider || "Pending"}
+                              </span>
+                            </div>
+                            {det?.confidence && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] flex-shrink-0 ${confidenceBadgeClass(det.confidence)}`}
+                                data-testid={`badge-confidence-${c.slug}`}
+                              >
+                                {det.confidence}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-2">
+                            {det?.lastScannedAt ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3 text-secondary flex-shrink-0" />
+                                <span>Scanned {new Date(det.lastScannedAt).toLocaleDateString()}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3 text-primary flex-shrink-0" />
+                                <span>Awaiting first scan</span>
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           <div className="mt-16 text-center">

@@ -12,6 +12,7 @@ import {
   userSettings,
   trackedCompanies,
   providerRollups,
+  leaderboardSnapshots,
   type User,
   type InsertUser,
   type Session,
@@ -26,6 +27,8 @@ import {
   type TrackedCompany,
   type InsertTrackedCompany,
   type ProviderRollup,
+  type LeaderboardSnapshot,
+  type InsertLeaderboardSnapshot,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -720,9 +723,15 @@ export class DatabaseStorage implements IStorage {
       merged = merged.filter((r) => r.providerChangedAt && r.providerChangedAt >= cutoff);
     }
 
-    // Stable rank: by aiConfidence (High > Medium > Low > none), then name.
+    // Default rank per playbook: most-recently-scanned first (so the
+    // leaderboard reads as a "live" feed). Companies awaiting their first
+    // scan sink to the bottom; ties are broken by High>Medium>Low confidence
+    // and then by name for deterministic ordering.
     const confRank = (c?: string | null) => (c === "High" ? 0 : c === "Medium" ? 1 : c === "Low" ? 2 : 3);
     merged.sort((a, b) => {
+      const ta = a.lastScannedAt ? new Date(a.lastScannedAt).getTime() : 0;
+      const tb = b.lastScannedAt ? new Date(b.lastScannedAt).getTime() : 0;
+      if (ta !== tb) return tb - ta;
       const ca = confRank(a.lastScan?.aiConfidence);
       const cb = confRank(b.lastScan?.aiConfidence);
       if (ca !== cb) return ca - cb;
@@ -730,6 +739,17 @@ export class DatabaseStorage implements IStorage {
     });
 
     return merged;
+  }
+
+  async getYcBatches(): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ ycBatch: trackedCompanies.ycBatch })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.status, "live"));
+    return rows
+      .map((r) => r.ycBatch)
+      .filter((b): b is string => !!b)
+      .sort();
   }
 
   async getCompaniesChangedThisWeek(): Promise<Array<TrackedCompany & { lastScan: Scan | null }>> {
@@ -763,6 +783,71 @@ export class DatabaseStorage implements IStorage {
       if (rollup.slug === "unknown") return !p || p === "none" || aliases.some((a) => p.includes(a));
       return aliases.some((a) => p === a || p.includes(a));
     });
+  }
+
+  /**
+   * Provider-aware "similar companies" for /stack/:slug.
+   * 1. Companies on the same primary AI provider (excluding self) come first
+   * 2. Then same category as a fallback so the section is never empty
+   * 3. Always limited to `limit` rows
+   */
+  async getSimilarCompanies(
+    company: TrackedCompany,
+    primaryProvider: string | null,
+    limit = 6,
+  ): Promise<Array<TrackedCompany & { lastScan: Scan | null }>> {
+    const all = await this.getLeaderboardRows();
+    const target = (primaryProvider || "").toLowerCase().trim();
+
+    const sameProvider = target
+      ? all.filter(
+          (c) =>
+            c.slug !== company.slug &&
+            (c.lastScan?.aiProvider ?? "").toLowerCase().trim() === target,
+        )
+      : [];
+
+    const seen = new Set(sameProvider.map((c) => c.slug));
+    const sameCategory = all.filter(
+      (c) => c.slug !== company.slug && c.category === company.category && !seen.has(c.slug),
+    );
+
+    return [...sameProvider, ...sameCategory].slice(0, limit);
+  }
+
+  // ───── Leaderboard snapshots (weekly archive) ─────
+  async getLeaderboardSnapshot(isoWeek: string): Promise<LeaderboardSnapshot | undefined> {
+    const result = await db
+      .select()
+      .from(leaderboardSnapshots)
+      .where(eq(leaderboardSnapshots.isoWeek, isoWeek));
+    return result[0];
+  }
+
+  async upsertLeaderboardSnapshot(snap: InsertLeaderboardSnapshot): Promise<LeaderboardSnapshot> {
+    const [row] = await db
+      .insert(leaderboardSnapshots)
+      .values(snap)
+      .onConflictDoUpdate({
+        target: leaderboardSnapshots.isoWeek,
+        set: {
+          totalCompanies: snap.totalCompanies,
+          topProvider: snap.topProvider,
+          changesCount: snap.changesCount,
+          payload: snap.payload,
+          takenAt: new Date(),
+        },
+      })
+      .returning();
+    return row;
+  }
+
+  async listLeaderboardSnapshots(limit = 20): Promise<LeaderboardSnapshot[]> {
+    return await db
+      .select()
+      .from(leaderboardSnapshots)
+      .orderBy(desc(leaderboardSnapshots.takenAt))
+      .limit(limit);
   }
 }
 

@@ -20,6 +20,7 @@ import StackIndex from "@/pages/stack-index";
 import StackDetail from "@/pages/stack-detail";
 import Leaderboard from "@/pages/leaderboard";
 import LeaderboardEmbed from "@/pages/leaderboard-embed";
+import LeaderboardWeek from "@/pages/leaderboard-week";
 import ProviderRollupPage from "@/pages/provider-rollup";
 import BlogIndex from "@/pages/blog/index";
 import HNTechStack from "@/pages/blog/what-technologies-the-successful-projects-at-hacker-news-are-using";
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/stack" component={StackIndex}/>
       <Route path="/stack/:slug" component={StackDetail}/>
       <Route path="/leaderboard" component={Leaderboard}/>
+      <Route path="/leaderboard/:week" component={LeaderboardWeek}/>
       <Route path="/embed/leaderboard" component={LeaderboardEmbed}/>
       <Route path="/provider/:slug" component={ProviderRollupPage}/>
       <Route path="/blog" component={BlogIndex}/>

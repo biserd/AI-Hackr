@@ -1061,6 +1061,76 @@ async function runTrackedCompanyScans(): Promise<void> {
   }
 }
 
+// ─── Weekly leaderboard snapshot ─────────────────────────
+// Runs hourly; only writes a fresh snapshot if the current ISO week
+// (e.g. "2026-W17") doesn't already have one. We capture a frozen,
+// rank-ordered payload + headline stats so /leaderboard/:week and the
+// weekly OG-image route can serve historical data without re-joining live.
+
+function getIsoWeek(d: Date = new Date()): string {
+  // Standard ISO 8601 week-numbering: Thursday determines the week.
+  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+async function runWeeklySnapshotCycle(): Promise<void> {
+  try {
+    const week = getIsoWeek();
+    const existing = await storage.getLeaderboardSnapshot(week);
+    if (existing) return; // already captured this week
+
+    const rows = await storage.getLeaderboardRows();
+    if (rows.length === 0) return;
+
+    const providerCounts = new Map<string, number>();
+    for (const r of rows) {
+      const p = r.lastScan?.aiProvider || "Unknown";
+      providerCounts.set(p, (providerCounts.get(p) || 0) + 1);
+    }
+    const ranked = Array.from(providerCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const topProvider = ranked[0]?.[0] ?? null;
+
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const changesCount = rows.filter(
+      (r) => r.providerChangedAt && new Date(r.providerChangedAt) >= cutoff,
+    ).length;
+
+    const compactRows = rows.map((r, idx) => ({
+      rank: idx + 1,
+      slug: r.slug,
+      name: r.name,
+      domain: r.domain,
+      category: r.category,
+      ycBatch: r.ycBatch,
+      provider: r.lastScan?.aiProvider ?? null,
+      confidence: r.lastScan?.aiConfidence ?? null,
+      gateway: r.lastScan?.aiGateway ?? null,
+      framework: r.lastScan?.framework ?? null,
+      hosting: r.lastScan?.hosting ?? null,
+      lastScannedAt: r.lastScannedAt,
+    }));
+
+    await storage.upsertLeaderboardSnapshot({
+      isoWeek: week,
+      totalCompanies: rows.length,
+      topProvider,
+      changesCount,
+      payload: {
+        capturedAt: new Date().toISOString(),
+        providerDistribution: Object.fromEntries(ranked),
+        rows: compactRows,
+      },
+    });
+    console.log(`[Worker] Wrote leaderboard snapshot for ${week} (${rows.length} rows, top=${topProvider})`);
+  } catch (err) {
+    console.error("[Worker] runWeeklySnapshotCycle error:", err);
+  }
+}
+
 // ─── Public entry point ──────────────────────────────────
 
 export function startBackgroundWorker(): void {
@@ -1071,6 +1141,7 @@ export function startBackgroundWorker(): void {
     await runDigestCycle();
     await runDailyBundleCycle();
     await runTrackedCompanyScans();
+    await runWeeklySnapshotCycle();
   }, 60 * 1000);
 
   // Scan loop
@@ -1081,6 +1152,8 @@ export function startBackgroundWorker(): void {
   setInterval(runDailyBundleCycle, 60 * 60 * 1000);
   // Tracked-company scan loop — runs every 10 min, batches 5 due companies per tick
   setInterval(runTrackedCompanyScans, WORKER_TICK_MS);
+  // Weekly snapshot loop — runs hourly; idempotent (no-op if this week's snapshot already exists)
+  setInterval(runWeeklySnapshotCycle, 60 * 60 * 1000);
 
   console.log("[Worker] Background worker scheduled");
 }

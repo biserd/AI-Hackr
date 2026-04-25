@@ -406,3 +406,28 @@ export const insertProviderRollupSchema = createInsertSchema(providerRollups).om
 
 export type ProviderRollup = typeof providerRollups.$inferSelect;
 export type InsertProviderRollup = z.infer<typeof insertProviderRollupSchema>;
+
+/**
+ * Weekly archived leaderboard snapshots.
+ * One row per ISO week (e.g. "2026-W17"). The `payload` column holds the
+ * full ranked-rows array, top-line stats, and provider distribution at the
+ * moment the snapshot was taken so /leaderboard/:week and the weekly OG
+ * image can be served without re-joining live data.
+ */
+export const leaderboardSnapshots = pgTable("leaderboard_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  isoWeek: text("iso_week").notNull().unique(),
+  takenAt: timestamp("taken_at").defaultNow().notNull(),
+  totalCompanies: integer("total_companies").notNull(),
+  topProvider: text("top_provider"),
+  changesCount: integer("changes_count").default(0).notNull(),
+  payload: jsonb("payload").notNull(),
+});
+
+export const insertLeaderboardSnapshotSchema = createInsertSchema(leaderboardSnapshots).omit({
+  id: true,
+  takenAt: true,
+});
+
+export type LeaderboardSnapshot = typeof leaderboardSnapshots.$inferSelect;
+export type InsertLeaderboardSnapshot = z.infer<typeof insertLeaderboardSnapshotSchema>;

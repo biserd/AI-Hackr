@@ -801,9 +801,14 @@ export async function registerRoutes(
 
       const history = await storage.getScansByDomain(company.domain, 10);
 
-      // "Similar companies" — same category, max 6, exclude self.
-      const sameCat = await storage.listTrackedCompanies({ category: company.category });
-      const similar = sameCat.filter((c) => c.slug !== company.slug).slice(0, 6);
+      // Provider-aware "Similar companies": same primary AI provider first,
+      // category as a fallback so the section is never empty (see
+      // storage.getSimilarCompanies for the full algorithm).
+      const similar = await storage.getSimilarCompanies(
+        company,
+        latestScan?.aiProvider ?? null,
+        6,
+      );
 
       return res.json({ company, latestScan: latestScan ?? null, history, similar });
     } catch (error) {
@@ -849,7 +854,7 @@ export async function registerRoutes(
   // GET /api/leaderboard — full leaderboard rows with filters
   app.get("/api/leaderboard", async (req, res) => {
     try {
-      const { provider, category, confidence, ycBatch, changedThisWeek } = req.query;
+      const { provider, category, confidence, ycBatch, changedThisWeek, limit } = req.query;
       const rows = await storage.getLeaderboardRows({
         provider: typeof provider === "string" ? provider : undefined,
         category: typeof category === "string" ? category : undefined,
@@ -857,23 +862,157 @@ export async function registerRoutes(
         ycBatch: typeof ycBatch === "string" ? ycBatch : undefined,
         changedThisWeek: changedThisWeek === "true",
       });
-      const categories = await storage.getTrackedCompanyCategories();
-      const providers = await storage.listProviderRollups();
-      return res.json({ rows, categories, providers });
+      const cap = typeof limit === "string" ? Math.max(1, Math.min(500, parseInt(limit, 10) || 0)) : 0;
+      const trimmed = cap > 0 ? rows.slice(0, cap) : rows;
+      const [categories, providers, ycBatches] = await Promise.all([
+        storage.getTrackedCompanyCategories(),
+        storage.listProviderRollups(),
+        storage.getYcBatches(),
+      ]);
+      return res.json({ rows: trimmed, categories, providers, ycBatches });
     } catch (error) {
       console.error("[API] /api/leaderboard error:", error);
       return res.status(500).json({ error: "Failed to load leaderboard" });
     }
   });
 
-  // GET /api/leaderboard/changes-this-week — companies whose primary AI provider flipped
+  // GET /api/leaderboard/changes-this-week
+  // Returns the rows that flipped + a top-line stats payload broken into
+  // "newProviderEntrants" (no prior provider, has one now), "providerSwitches"
+  // (prior provider != current provider) and "confidenceChanges" (same provider,
+  // confidence band moved). The leaderboard "What changed" panel renders these
+  // three buckets distinctly per the playbook.
   app.get("/api/leaderboard/changes-this-week", async (_req, res) => {
     try {
       const rows = await storage.getCompaniesChangedThisWeek();
-      return res.json({ rows });
+
+      const norm = (s?: string | null) => (s || "").toLowerCase().trim();
+      const providerSwitches = rows.filter(
+        (r) => r.priorAiProvider && norm(r.priorAiProvider) !== norm(r.lastScan?.aiProvider),
+      );
+      const newProviderEntrants = rows.filter(
+        (r) => !r.priorAiProvider && r.lastScan?.aiProvider,
+      );
+      // Confidence changes: prior confidence existed and now differs but
+      // provider is unchanged. (We surface these even though they don't
+      // bump providerChangedAt — they show via a separate query path.)
+      const allLive = await storage.getLeaderboardRows();
+      const confidenceChanges = allLive.filter(
+        (r) =>
+          r.priorAiConfidence &&
+          r.lastScan?.aiConfidence &&
+          r.priorAiConfidence !== r.lastScan.aiConfidence &&
+          norm(r.priorAiProvider) === norm(r.lastScan?.aiProvider),
+      );
+
+      // Top providers among the change rows for the headline stat.
+      const providerCounts = new Map<string, number>();
+      for (const r of rows) {
+        const p = r.lastScan?.aiProvider || "Unknown";
+        providerCounts.set(p, (providerCounts.get(p) || 0) + 1);
+      }
+      const topProvider = Array.from(providerCounts.entries()).sort((a, b) => b[1] - a[1])[0];
+
+      return res.json({
+        rows,
+        stats: {
+          totalChanges: rows.length,
+          providerSwitches: providerSwitches.length,
+          newProviderEntrants: newProviderEntrants.length,
+          confidenceChanges: confidenceChanges.length,
+          topProvider: topProvider ? { name: topProvider[0], count: topProvider[1] } : null,
+        },
+        confidenceChanges,
+      });
     } catch (error) {
       console.error("[API] /api/leaderboard/changes-this-week error:", error);
       return res.status(500).json({ error: "Failed to load weekly changes" });
+    }
+  });
+
+  // GET /api/leaderboard/:week — archived snapshot for a specific ISO week.
+  // Format: YYYY-Www (e.g. 2026-W17). Returns 404 if the week hasn't been
+  // captured yet (snapshots run on a Monday cron).
+  app.get("/api/leaderboard/:week", async (req, res) => {
+    try {
+      const week = req.params.week;
+      if (!/^\d{4}-W\d{1,2}$/.test(week)) {
+        return res.status(400).json({ error: "Invalid week format; expected YYYY-Www" });
+      }
+      const snap = await storage.getLeaderboardSnapshot(week);
+      if (!snap) return res.status(404).json({ error: "No snapshot for that week yet" });
+      return res.json({ snapshot: snap });
+    } catch (error) {
+      console.error("[API] /api/leaderboard/:week error:", error);
+      return res.status(500).json({ error: "Failed to load weekly snapshot" });
+    }
+  });
+
+  // GET /leaderboard/:week/og.png — generated OG image for a specific week.
+  // We render a 1200x630 SVG (served as image/svg+xml at the .png URL — most
+  // OG-card scrapers accept SVG content; documented limitation for strict
+  // crawlers like Facebook). Content shows the week, top provider and stat
+  // breakdown so the social card is informative when shared.
+  app.get("/leaderboard/:week/og.png", async (req, res) => {
+    try {
+      // Strict ISO-week regex (YYYY-Www) — same shape as /api/leaderboard/:week.
+      // We reject anything else so the `week` value can never carry SVG markup
+      // or quote-breaking content into the response below.
+      const week = req.params.week;
+      if (!/^\d{4}-W\d{2}$/.test(week)) {
+        return res.status(400).send("Invalid week format");
+      }
+
+      // Escape every interpolated string before embedding in the SVG to defuse
+      // reflected XSS via the snapshot's user-influenced fields (provider name,
+      // counts may be safe but we escape uniformly for defense in depth).
+      const esc = (v: unknown) =>
+        String(v ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const snap = await storage.getLeaderboardSnapshot(week);
+      const total = snap?.totalCompanies ?? 50;
+      const topProvider = snap?.topProvider ?? "OpenAI";
+      const changes = snap?.changesCount ?? 0;
+      const subtitle = snap
+        ? `${total} SaaS · ${changes} changes`
+        : `Live leaderboard · ${total} SaaS tracked`;
+
+      const weekSafe = esc(week);
+      const subtitleSafe = esc(subtitle);
+      const topProviderSafe = esc(topProvider);
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1020"/>
+      <stop offset="100%" stop-color="#1a103d"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="80" y="80" width="60" height="60" rx="12" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="2"/>
+  <text x="110" y="120" font-family="Verdana,sans-serif" font-size="32" font-weight="bold" fill="#10b981" text-anchor="middle">⌬</text>
+  <text x="160" y="118" font-family="Verdana,sans-serif" font-size="28" font-weight="600" fill="#fff">AIHackr</text>
+  <text x="80" y="240" font-family="Verdana,sans-serif" font-size="36" fill="#94a3b8">AI Leaderboard · ${weekSafe}</text>
+  <text x="80" y="340" font-family="Verdana,sans-serif" font-size="80" font-weight="bold" fill="url(#accent)">Who runs which AI?</text>
+  <text x="80" y="430" font-family="Verdana,sans-serif" font-size="34" fill="#cbd5e1">${subtitleSafe}</text>
+  <text x="80" y="490" font-family="Verdana,sans-serif" font-size="28" fill="#10b981">Top this week: ${topProviderSafe}</text>
+  <text x="80" y="580" font-family="Verdana,sans-serif" font-size="22" fill="#64748b">aihackr.com/leaderboard/${weekSafe}</text>
+</svg>`;
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
+      return res.send(svg);
+    } catch (error) {
+      console.error("[API] /leaderboard/:week/og.png error:", error);
+      return res.status(500).send("Error");
     }
   });
 
@@ -949,6 +1088,7 @@ export async function registerRoutes(
       const base = process.env.APP_URL || "https://aihackr.com";
       const companies = await storage.listTrackedCompanies();
       const providers = await storage.listProviderRollups();
+      const snapshots = await storage.listLeaderboardSnapshots(52);
       const blogSlugs = [
         "what-technologies-the-successful-projects-at-hacker-news-are-using",
         "openai-vs-anthropic-which-saas-companies-use-which",
@@ -980,6 +1120,9 @@ export async function registerRoutes(
       }
       for (const p of providers) {
         urls.push({ loc: `${base}/provider/${p.slug}`, changefreq: "weekly", priority: "0.85" });
+      }
+      for (const s of snapshots) {
+        urls.push({ loc: `${base}/leaderboard/${s.isoWeek}`, changefreq: "monthly", priority: "0.6" });
       }
       for (const slug of blogSlugs) {
         urls.push({ loc: `${base}/blog/${slug}`, changefreq: "weekly", priority: "0.7" });
