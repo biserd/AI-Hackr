@@ -89,7 +89,10 @@ export async function requestMagicLink(email: string, baseUrl: string): Promise<
     await storage.createMagicLink(normalizedEmail, tokenHash, expiresAt);
 
     const magicLink = `${baseUrl}/auth/verify?token=${token}`;
-    if (process.env.NODE_ENV !== "production") {
+    // Only print the raw link (which contains the unhashed token) when an
+    // operator explicitly opts in via DEBUG_MAGIC_LINKS=1. Otherwise even
+    // dev logs would leak credentials to anyone with shell access.
+    if (process.env.NODE_ENV !== "production" && process.env.DEBUG_MAGIC_LINKS === "1") {
       console.log(`[Auth][dev] Magic link for ${normalizedEmail}: ${magicLink}`);
     }
     const emailSent = await sendMagicLinkEmail(normalizedEmail, magicLink);
