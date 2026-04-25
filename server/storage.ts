@@ -106,6 +106,10 @@ export interface IStorage {
   // User settings
   getUserSettings(userId: string): Promise<UserSettings | undefined>;
   upsertUserSettings(userId: string, updates: Partial<InsertUserSettings>): Promise<UserSettings>;
+  /** Create default user_settings rows for any user who has subscriptions but no settings.
+   *  Idempotent — used by the digest cron to ensure every watcher receives a Monday digest
+   *  (incl. the "no changes this week" fallback) even if they never visited /settings/alerts. */
+  backfillUserSettingsForWatchers(): Promise<number>;
   /** Users whose digest is due (active + digestEnabled + last sent > 6 days ago or never) */
   getUsersDueForDigest(now: Date): Promise<User[]>;
   markDigestSent(userId: string): Promise<void>;
@@ -491,6 +495,30 @@ export class DatabaseStorage implements IStorage {
       userId,
     }).returning();
     return result[0];
+  }
+
+  async backfillUserSettingsForWatchers(): Promise<number> {
+    // Find userIds that have at least one subscription but no user_settings row, then
+    // insert default rows. We rely on the (unique) PK on user_settings.user_id +
+    // ON CONFLICT DO NOTHING for idempotency under concurrent runs.
+    const orphanRows = await db.execute(sql`
+      SELECT DISTINCT s.user_id
+      FROM ${subscriptions} s
+      LEFT JOIN ${userSettings} us ON us.user_id = s.user_id
+      WHERE us.user_id IS NULL
+    `);
+    const rows = (orphanRows as unknown as { rows: Array<{ user_id: string }> }).rows ?? [];
+    if (rows.length === 0) return 0;
+    let inserted = 0;
+    for (const r of rows) {
+      try {
+        await db.insert(userSettings).values({ userId: r.user_id }).onConflictDoNothing();
+        inserted++;
+      } catch (err) {
+        console.error(`[storage] backfillUserSettings failed for ${r.user_id}:`, err);
+      }
+    }
+    return inserted;
   }
 
   async getUsersDueForDigest(now: Date): Promise<User[]> {

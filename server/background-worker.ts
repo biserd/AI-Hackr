@@ -744,6 +744,20 @@ async function runScanCycle(): Promise<void> {
 async function runDigestCycle(): Promise<void> {
   try {
     const now = new Date();
+    // Defensive backfill: ensure every user with at least one watchlist
+    // subscription has a user_settings row with default digestEnabled=true.
+    // Without this, users who add watchlist entries but never visit
+    // /settings/alerts would never appear in getUsersDueForDigest (which
+    // inner-joins user_settings) — including the Monday "no changes" digest.
+    try {
+      const inserted = await storage.backfillUserSettingsForWatchers();
+      if (inserted > 0) {
+        console.log(`[Worker] Digest backfill: created ${inserted} default user_settings rows`);
+      }
+    } catch (err) {
+      console.error("[Worker] Digest backfill failed (continuing):", err);
+    }
+
     // Only send digests during a Monday 7-12 AM window per user TZ
     const dueUsers = await storage.getUsersDueForDigest(now);
     if (dueUsers.length === 0) return;

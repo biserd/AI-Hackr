@@ -269,6 +269,14 @@ export async function registerRoutes(
         alertThreshold: alertThreshold || "any_change",
       });
 
+      // Ensure user_settings exists for this watcher so weekly digest + alert
+      // gating run with sane defaults even if they never visit /settings/alerts.
+      // upsertUserSettings is idempotent — no-ops if a row already exists.
+      const existingSettings = await storage.getUserSettings(req.user!.id);
+      if (!existingSettings) {
+        await storage.upsertUserSettings(req.user!.id, {});
+      }
+
       // Schedule the first scan immediately + fire-and-forget the actual scan so the
       // baseline result is captured without waiting for the next worker tick.
       await storage.updateSubscription(subscription.id, { nextScanAt: new Date() });
