@@ -776,13 +776,48 @@ export async function registerRoutes(
   // GET /api/stack — list of all live tracked companies, optionally filtered
   app.get("/api/stack", async (req, res) => {
     try {
-      const { category, search } = req.query;
+      const { category, search, page, pageSize, scanStatus } = req.query;
+
+      // Backward-compat: when no `page` is supplied we return the legacy
+      // unpaginated payload so older clients keep working. When `page` is
+      // present we go through the paginated helper and include `total`.
+      if (page) {
+        const parsedStatus = (
+          scanStatus === "scanned" || scanStatus === "pending" || scanStatus === "failed"
+            ? scanStatus
+            : "all"
+        ) as "scanned" | "pending" | "failed" | "all";
+
+        const { companies, total } = await storage.getTrackedCompaniesPaginated({
+          page: Number(page) || 1,
+          pageSize: Number(pageSize) || 60,
+          category: typeof category === "string" && category ? category : undefined,
+          search: typeof search === "string" && search ? search : undefined,
+          scanStatus: parsedStatus,
+        });
+        const [categories, counts] = await Promise.all([
+          storage.getTrackedCompanyCategories(),
+          storage.getTrackedCompanyCounts(),
+        ]);
+        return res.json({
+          companies,
+          total,
+          page: Number(page) || 1,
+          pageSize: Number(pageSize) || 60,
+          categories,
+          counts,
+        });
+      }
+
       const companies = await storage.listTrackedCompanies({
         category: typeof category === "string" ? category : undefined,
         search: typeof search === "string" ? search : undefined,
       });
-      const categories = await storage.getTrackedCompanyCategories();
-      return res.json({ companies, categories });
+      const [categories, counts] = await Promise.all([
+        storage.getTrackedCompanyCategories(),
+        storage.getTrackedCompanyCounts(),
+      ]);
+      return res.json({ companies, categories, counts });
     } catch (error) {
       console.error("[API] /api/stack error:", error);
       return res.status(500).json({ error: "Failed to load stack list" });
@@ -1082,70 +1117,144 @@ export async function registerRoutes(
     }
   });
 
-  // GET /sitemap.xml — dynamic sitemap including every /stack/:slug, /provider/:slug, etc.
+  // ─── Sitemap index + chunked sub-sitemaps ────────────────────────
+  // Programmatic SEO: tracked_companies can grow past 50,000 rows. Google
+  // caps each sub-sitemap at 50k URLs and 50MB, so we expose a sitemap-index
+  // pointing at /sitemap-stack-N.xml chunks instead of one monster file.
+  // The other sections (core, providers, blog, archives) live in their own
+  // small sub-sitemaps so each one can be cached independently.
+  const STACK_CHUNK = 5000; // well under the 50k limit, friendlier crawl rate
+  const BLOG_SLUGS = [
+    "what-technologies-the-successful-projects-at-hacker-news-are-using",
+    "openai-vs-anthropic-which-saas-companies-use-which",
+    "the-state-of-ai-in-saas-2026",
+    "azure-openai-adoption-in-enterprise-saas",
+    "ai-gateways-explained-cloudflare-portkey-helicone",
+    "claude-vs-gpt-4-real-world-saas-deployments",
+    "self-hosted-llms-which-saas-products-run-their-own-models",
+    "aws-bedrock-customers-the-complete-list",
+    "every-yc-batch-and-which-ai-they-use",
+    "how-to-tell-which-llm-a-website-is-using",
+    "what-changed-this-week-in-saas-ai-stacks",
+    "the-complete-guide-to-fingerprinting-ai-providers",
+  ];
+
+  const xmlEnvelope = (
+    body: string,
+    root: "sitemapindex" | "urlset" = "urlset",
+  ): string => {
+    const ns = "http://www.sitemaps.org/schemas/sitemap/0.9";
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<${root} xmlns="${ns}">\n${body}\n</${root}>`;
+  };
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const base = process.env.APP_URL || "https://aihackr.com";
-      const companies = await storage.listTrackedCompanies();
-      const providers = await storage.listProviderRollups();
-      const snapshots = await storage.listLeaderboardSnapshots(52);
-      const blogSlugs = [
-        "what-technologies-the-successful-projects-at-hacker-news-are-using",
-        "openai-vs-anthropic-which-saas-companies-use-which",
-        "the-state-of-ai-in-saas-2026",
-        "azure-openai-adoption-in-enterprise-saas",
-        "ai-gateways-explained-cloudflare-portkey-helicone",
-        "claude-vs-gpt-4-real-world-saas-deployments",
-        "self-hosted-llms-which-saas-products-run-their-own-models",
-        "aws-bedrock-customers-the-complete-list",
-        "every-yc-batch-and-which-ai-they-use",
-        "how-to-tell-which-llm-a-website-is-using",
-        "what-changed-this-week-in-saas-ai-stacks",
-        "the-complete-guide-to-fingerprinting-ai-providers",
+      const total = await storage.countAllTrackedCompanies();
+      const chunks = Math.max(1, Math.ceil(total / STACK_CHUNK));
+      const now = new Date().toISOString();
+      const items: string[] = [
+        `  <sitemap><loc>${base}/sitemap-core.xml</loc><lastmod>${now}</lastmod></sitemap>`,
+        `  <sitemap><loc>${base}/sitemap-providers.xml</loc><lastmod>${now}</lastmod></sitemap>`,
+        `  <sitemap><loc>${base}/sitemap-blog.xml</loc><lastmod>${now}</lastmod></sitemap>`,
+        `  <sitemap><loc>${base}/sitemap-leaderboard.xml</loc><lastmod>${now}</lastmod></sitemap>`,
       ];
-
-      const urls: Array<{ loc: string; changefreq: string; priority: string }> = [
-        { loc: `${base}/`, changefreq: "daily", priority: "1.0" },
-        { loc: `${base}/about`, changefreq: "monthly", priority: "0.5" },
-        { loc: `${base}/stack`, changefreq: "daily", priority: "0.95" },
-        { loc: `${base}/leaderboard`, changefreq: "daily", priority: "0.95" },
-        { loc: `${base}/blog`, changefreq: "weekly", priority: "0.8" },
-        { loc: `${base}/login`, changefreq: "monthly", priority: "0.3" },
-        { loc: `${base}/terms`, changefreq: "yearly", priority: "0.2" },
-        { loc: `${base}/privacy`, changefreq: "yearly", priority: "0.2" },
-      ];
-
-      for (const c of companies) {
-        urls.push({ loc: `${base}/stack/${c.slug}`, changefreq: "weekly", priority: "0.9" });
+      for (let i = 1; i <= chunks; i++) {
+        items.push(`  <sitemap><loc>${base}/sitemap-stack-${i}.xml</loc><lastmod>${now}</lastmod></sitemap>`);
       }
-      for (const p of providers) {
-        urls.push({ loc: `${base}/provider/${p.slug}`, changefreq: "weekly", priority: "0.85" });
-      }
-      for (const s of snapshots) {
-        urls.push({ loc: `${base}/leaderboard/${s.isoWeek}`, changefreq: "monthly", priority: "0.6" });
-      }
-      for (const slug of blogSlugs) {
-        urls.push({ loc: `${base}/blog/${slug}`, changefreq: "weekly", priority: "0.7" });
-      }
-
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls
-  .map(
-    (u) => `  <url>
-    <loc>${u.loc}</loc>
-    <changefreq>${u.changefreq}</changefreq>
-    <priority>${u.priority}</priority>
-  </url>`,
-  )
-  .join("\n")}
-</urlset>`;
-
       res.setHeader("Content-Type", "application/xml");
       res.setHeader("Cache-Control", "public, max-age=900");
-      return res.send(xml);
+      return res.send(xmlEnvelope(items.join("\n"), "sitemapindex"));
     } catch (error) {
       console.error("[API] /sitemap.xml error:", error);
+      return res.status(500).send("Error");
+    }
+  });
+
+  // Core static pages — small, cheap, swappable.
+  app.get("/sitemap-core.xml", async (_req, res) => {
+    const base = process.env.APP_URL || "https://aihackr.com";
+    const urls = [
+      { loc: `${base}/`, changefreq: "daily", priority: "1.0" },
+      { loc: `${base}/about`, changefreq: "monthly", priority: "0.5" },
+      { loc: `${base}/stack`, changefreq: "daily", priority: "0.95" },
+      { loc: `${base}/leaderboard`, changefreq: "daily", priority: "0.95" },
+      { loc: `${base}/blog`, changefreq: "weekly", priority: "0.8" },
+      { loc: `${base}/login`, changefreq: "monthly", priority: "0.3" },
+      { loc: `${base}/terms`, changefreq: "yearly", priority: "0.2" },
+      { loc: `${base}/privacy`, changefreq: "yearly", priority: "0.2" },
+    ];
+    const body = urls
+      .map((u) => `  <url><loc>${u.loc}</loc><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`)
+      .join("\n");
+    res.setHeader("Content-Type", "application/xml");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.send(xmlEnvelope(body));
+  });
+
+  app.get("/sitemap-providers.xml", async (_req, res) => {
+    try {
+      const base = process.env.APP_URL || "https://aihackr.com";
+      const providers = await storage.listProviderRollups();
+      const body = providers
+        .map((p) => `  <url><loc>${base}/provider/${p.slug}</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>`)
+        .join("\n");
+      res.setHeader("Content-Type", "application/xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(xmlEnvelope(body));
+    } catch (error) {
+      console.error("[API] /sitemap-providers.xml error:", error);
+      return res.status(500).send("Error");
+    }
+  });
+
+  app.get("/sitemap-blog.xml", async (_req, res) => {
+    const base = process.env.APP_URL || "https://aihackr.com";
+    const body = BLOG_SLUGS
+      .map((s) => `  <url><loc>${base}/blog/${s}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`)
+      .join("\n");
+    res.setHeader("Content-Type", "application/xml");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.send(xmlEnvelope(body));
+  });
+
+  app.get("/sitemap-leaderboard.xml", async (_req, res) => {
+    try {
+      const base = process.env.APP_URL || "https://aihackr.com";
+      const snapshots = await storage.listLeaderboardSnapshots(52);
+      const body = snapshots
+        .map((s) => `  <url><loc>${base}/leaderboard/${s.isoWeek}</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>`)
+        .join("\n");
+      res.setHeader("Content-Type", "application/xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(xmlEnvelope(body));
+    } catch (error) {
+      console.error("[API] /sitemap-leaderboard.xml error:", error);
+      return res.status(500).send("Error");
+    }
+  });
+
+  // Per-page chunk of /stack/:slug URLs. N is 1-indexed; N=1 → first
+  // STACK_CHUNK rows, N=2 → next STACK_CHUNK, etc. Out-of-range chunks
+  // return an empty sitemap (200) so Google's sitemap-index parsing doesn't
+  // break if it crawls a stale chunk number.
+  app.get("/sitemap-stack-:n.xml", async (req, res) => {
+    try {
+      const base = process.env.APP_URL || "https://aihackr.com";
+      const n = Math.max(1, Number(req.params.n) || 1);
+      const offset = (n - 1) * STACK_CHUNK;
+      const rows = await storage.listTrackedCompanySlugsPaginated(offset, STACK_CHUNK);
+      const body = rows
+        .map((r) => {
+          const lastmod = r.lastScannedAt ? `<lastmod>${new Date(r.lastScannedAt).toISOString()}</lastmod>` : "";
+          return `  <url><loc>${base}/stack/${r.slug}</loc>${lastmod}<changefreq>weekly</changefreq><priority>0.9</priority></url>`;
+        })
+        .join("\n");
+      res.setHeader("Content-Type", "application/xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(xmlEnvelope(body));
+    } catch (error) {
+      console.error("[API] /sitemap-stack-N.xml error:", error);
       return res.status(500).send("Error");
     }
   });

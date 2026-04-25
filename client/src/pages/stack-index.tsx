@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -41,7 +42,13 @@ import type { TrackedCompany, Scan, ProviderRollup } from "@shared/schema";
 interface StackResponse {
   companies: TrackedCompany[];
   categories: string[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  counts?: { total: number; scanned: number; pending: number; failed: number };
 }
+
+const PAGE_SIZE = 60;
 
 interface LeaderboardForFilter {
   rows: Array<TrackedCompany & { lastScan: Scan | null }>;
@@ -59,15 +66,29 @@ export default function StackIndex() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [provider, setProvider] = useState<string>("all");
+  const [scanStatus, setScanStatus] = useState<"all" | "scanned" | "pending">("all");
+  const [page, setPage] = useState(1);
   const [requestOpen, setRequestOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Reset to page 1 whenever a filter changes — otherwise you can land on
+  // page 14 of a 2-page filtered result and see nothing.
+  function resetToFirstPage<T>(setter: (v: T) => void) {
+    return (v: T) => {
+      setPage(1);
+      setter(v);
+    };
+  }
+
   const { data, isLoading } = useQuery<StackResponse>({
-    queryKey: ["/api/stack", category, search],
+    queryKey: ["/api/stack", category, search, scanStatus, page],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
       if (category && category !== "all") params.set("category", category);
       if (search) params.set("search", search);
+      if (scanStatus !== "all") params.set("scanStatus", scanStatus);
       const res = await fetch(`/api/stack?${params.toString()}`);
       return res.json();
     },
@@ -147,9 +168,24 @@ export default function StackIndex() {
               Which AI does every SaaS run?
             </h1>
             <p className="text-muted-foreground text-lg max-w-3xl">
-              We continuously fingerprint the AI provider, model family and gateway behind {data?.companies.length ?? "50+"} of the best-known SaaS products.
-              Search the index, then jump to a full intelligence report for any company.
+              We continuously fingerprint the AI provider, model family and gateway behind{" "}
+              <span data-testid="text-tracked-total" className="font-semibold text-foreground">
+                {data?.counts?.total ?? "1,000+"}
+              </span>{" "}
+              SaaS products. Search the index, then jump to a full intelligence report for any company.
             </p>
+            {data?.counts && (
+              <p className="text-xs text-muted-foreground mt-2" data-testid="text-scan-progress">
+                <CheckCircle2 className="w-3 h-3 inline mr-1 text-secondary" />
+                <span className="font-mono">{data.counts.scanned.toLocaleString()}</span> of{" "}
+                <span className="font-mono">{data.counts.total.toLocaleString()}</span> scanned
+                {data.counts.pending > 0 && (
+                  <>
+                    {" "}· <span className="font-mono">{data.counts.pending.toLocaleString()}</span> in queue
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           <Card className="mb-8 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
@@ -160,13 +196,16 @@ export default function StackIndex() {
                   <Input
                     placeholder="Search Notion, Stripe, Linear..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                      setPage(1);
+                      setSearch(e.target.value);
+                    }}
                     className="pl-9"
                     data-testid="input-stack-search"
                   />
                 </div>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="md:w-[200px]" data-testid="select-stack-category">
+                <Select value={category} onValueChange={resetToFirstPage(setCategory)}>
+                  <SelectTrigger className="md:w-[180px]" data-testid="select-stack-category">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
@@ -179,8 +218,8 @@ export default function StackIndex() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={provider} onValueChange={setProvider}>
-                  <SelectTrigger className="md:w-[200px]" data-testid="select-stack-provider">
+                <Select value={provider} onValueChange={resetToFirstPage(setProvider)}>
+                  <SelectTrigger className="md:w-[180px]" data-testid="select-stack-provider">
                     <Bot className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="All providers" />
                   </SelectTrigger>
@@ -191,6 +230,17 @@ export default function StackIndex() {
                         {p.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+                <Select value={scanStatus} onValueChange={resetToFirstPage((v: string) => setScanStatus(v as "all" | "scanned" | "pending"))}>
+                  <SelectTrigger className="md:w-[160px]" data-testid="select-stack-status">
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="scanned">Scanned</SelectItem>
+                    <SelectItem value="pending">In queue</SelectItem>
                   </SelectContent>
                 </Select>
                 <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
@@ -219,7 +269,18 @@ export default function StackIndex() {
           ) : (
             <>
               <div className="text-sm text-muted-foreground mb-3" data-testid="text-stack-count">
-                Showing {filteredCompanies.length} {filteredCompanies.length === 1 ? "company" : "companies"}
+                {data?.total !== undefined ? (
+                  data.total === 0 ? (
+                    <>No companies match these filters</>
+                  ) : (
+                    <>
+                      Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} of {data.total.toLocaleString()}{" "}
+                      {data.total === 1 ? "company" : "companies"}
+                    </>
+                  )
+                ) : (
+                  <>Showing {filteredCompanies.length} {filteredCompanies.length === 1 ? "company" : "companies"}</>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCompanies.map((c) => {
@@ -298,6 +359,35 @@ export default function StackIndex() {
                   );
                 })}
               </div>
+
+              {/* Pagination — only when paginated payload is in use AND there's more than one page */}
+              {data?.total !== undefined && data.total > PAGE_SIZE && (
+                <div className="mt-8 flex items-center justify-center gap-2" data-testid="pagination">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    data-testid="button-page-prev"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2" data-testid="text-page-indicator">
+                    Page {page} of {Math.max(1, Math.ceil(data.total / PAGE_SIZE))}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= Math.ceil(data.total / PAGE_SIZE)}
+                    onClick={() => setPage((p) => p + 1)}
+                    data-testid="button-page-next"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              )}
             </>
           )}
 

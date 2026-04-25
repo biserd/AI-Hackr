@@ -1006,12 +1006,10 @@ async function runTrackedCompanyScans(): Promise<void> {
     console.log(`[Worker] Tracked-company scan: ${due.length} due`);
 
     for (const company of due) {
-      // Optimistic lock — flip scan_status to "scanning" so a second
-      // tick won't pick the same row up. The next-scan stamp gets set
-      // on the success path below.
-      const claimed = await storage.updateTrackedCompany(company.id, {
-        scanStatus: "scanning",
-      });
+      // Atomic optimistic claim — only succeeds if no other tick has the row
+      // marked "scanning". Prevents double-scans when two ticks pick the
+      // same row up before either flips its status.
+      const claimed = await storage.claimTrackedCompanyForScan(company.id);
       if (!claimed) continue;
 
       try {
@@ -1131,6 +1129,60 @@ async function runWeeklySnapshotCycle(): Promise<void> {
   }
 }
 
+// ─── Stub-page drain — bulk-imported rows that were never scanned ────────
+// Programmatic SEO concern: a CSV import can dump 1,000+ rows into
+// `tracked_companies` at once. We don't want to fan out 1,000 simultaneous
+// fetches, so we drain at most STUB_DRAIN_PER_TICK per tick (default 5)
+// with at most STUB_DRAIN_PER_HOST_MAX in-flight per host (default 1).
+// Once a row gets its first scan, the regular `runTrackedCompanyScans`
+// 7-day cadence loop owns it.
+const STUB_DRAIN_PER_TICK = Math.max(1, Number(process.env.STUB_DRAIN_PER_TICK ?? 5));
+const STUB_DRAIN_PER_HOST_MAX = Math.max(1, Number(process.env.STUB_DRAIN_PER_HOST_MAX ?? 1));
+const STUB_DRAIN_TICK_MS = 5 * 60 * 1000; // every 5 minutes — independent of the 7-day rescan loop
+
+async function runStubDrainCycle(): Promise<void> {
+  try {
+    const due = await storage.getCompaniesNeedingFirstScan(STUB_DRAIN_PER_TICK, STUB_DRAIN_PER_HOST_MAX);
+    if (due.length === 0) return;
+    console.log(`[Worker] Stub drain: ${due.length} unscanned (per-host cap=${STUB_DRAIN_PER_HOST_MAX})`);
+
+    for (const company of due) {
+      // Same atomic claim as the rescan loop.
+      const claimed = await storage.claimTrackedCompanyForScan(company.id);
+      if (!claimed) continue;
+
+      try {
+        const result = await scanUrl(company.url);
+        const enriched = {
+          ...result,
+          scanPhases: { passive: "complete", render: "skipped", probe: "locked" },
+          scanMode: "passive",
+        } as unknown as InsertScan;
+
+        const savedScan = await storage.createScan(enriched);
+        const next = new Date(Date.now() + FREE_CADENCE_MS + (Math.random() * 2 - 1) * JITTER_MS);
+        await storage.updateTrackedCompany(company.id, {
+          lastScanId: savedScan.id,
+          lastScannedAt: new Date(),
+          nextScanAt: next,
+          scanStatus: "ok",
+          priorAiProvider: savedScan.aiProvider,
+          priorAiConfidence: savedScan.aiConfidence,
+        });
+      } catch (err) {
+        console.error(`[Worker] Stub-drain scan failed for ${company.slug}:`, err);
+        const retryAt = new Date(Date.now() + RETRY_DELAY_MS);
+        await storage.updateTrackedCompany(company.id, {
+          scanStatus: "failed",
+          nextScanAt: retryAt,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[Worker] runStubDrainCycle error:", err);
+  }
+}
+
 // ─── Public entry point ──────────────────────────────────
 
 export function startBackgroundWorker(): void {
@@ -1141,6 +1193,7 @@ export function startBackgroundWorker(): void {
     await runDigestCycle();
     await runDailyBundleCycle();
     await runTrackedCompanyScans();
+    await runStubDrainCycle();
     await runWeeklySnapshotCycle();
   }, 60 * 1000);
 
@@ -1152,6 +1205,8 @@ export function startBackgroundWorker(): void {
   setInterval(runDailyBundleCycle, 60 * 60 * 1000);
   // Tracked-company scan loop — runs every 10 min, batches 5 due companies per tick
   setInterval(runTrackedCompanyScans, WORKER_TICK_MS);
+  // Stub-drain loop — picks up newly-imported, never-scanned companies every 5 min
+  setInterval(runStubDrainCycle, STUB_DRAIN_TICK_MS);
   // Weekly snapshot loop — runs hourly; idempotent (no-op if this week's snapshot already exists)
   setInterval(runWeeklySnapshotCycle, 60 * 60 * 1000);
 

@@ -134,6 +134,7 @@ export interface IStorage {
   requestTrackedCompany(input: InsertTrackedCompany): Promise<TrackedCompany>;
   /** Live companies whose nextScanAt has passed (or who have never been scanned). */
   getCompaniesNeedingScan(now: Date, limit?: number): Promise<TrackedCompany[]>;
+  claimTrackedCompanyForScan(id: string): Promise<boolean>;
   /** Update a tracked company row after a scan completes. */
   updateTrackedCompany(id: string, updates: Partial<TrackedCompany>): Promise<TrackedCompany | undefined>;
   /**
@@ -151,6 +152,34 @@ export interface IStorage {
   getCompaniesChangedThisWeek(): Promise<Array<TrackedCompany & { lastScan: Scan | null }>>;
   /** Distinct categories in the tracked_companies table — used for filter UIs. */
   getTrackedCompanyCategories(): Promise<string[]>;
+
+  // ───── Bulk ingestion + paginated reads (programmatic SEO) ─────
+  /**
+   * Insert many tracked companies idempotently. Skips rows whose slug OR
+   * domain already exists. Returns counts so the importer can report.
+   */
+  bulkImportCompanies(rows: InsertTrackedCompany[]): Promise<{ inserted: number; skipped: number; total: number }>;
+  /**
+   * Companies awaiting their first scan (lastScanId IS NULL). Used by the
+   * stub-drain worker. Caps in-flight scans per host so we never hammer
+   * a single domain.
+   */
+  getCompaniesNeedingFirstScan(limit: number, perHostMax?: number): Promise<TrackedCompany[]>;
+  /** Paginated company list with filters; returns rows + total. */
+  getTrackedCompaniesPaginated(opts: {
+    page: number;
+    pageSize: number;
+    category?: string;
+    scanStatus?: "scanned" | "pending" | "failed" | "all";
+    ycBatch?: string;
+    search?: string;
+  }): Promise<{ companies: TrackedCompany[]; total: number }>;
+  /** Total scanned vs pending counts — drives the index page header. */
+  getTrackedCompanyCounts(): Promise<{ total: number; scanned: number; pending: number; failed: number }>;
+  /** Total tracked-company count (for sitemap pagination). */
+  countAllTrackedCompanies(): Promise<number>;
+  /** Page slugs for sitemap chunking (fast — slugs only). */
+  listTrackedCompanySlugsPaginated(offset: number, limit: number): Promise<Array<{ slug: string; lastScannedAt: Date | null }>>;
 
   // ───── Provider rollups ─────
   listProviderRollups(): Promise<ProviderRollup[]>;
@@ -668,12 +697,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompaniesNeedingScan(now: Date, limit = 20): Promise<TrackedCompany[]> {
+    // Rescan loop owns rows that already have at least one scan (lastScanId IS NOT NULL).
+    // Never-scanned rows (CSV stubs) are owned by runStubDrainCycle so we can rate-limit
+    // their first scan independently — see getCompaniesNeedingFirstScan.
     return await db
       .select()
       .from(trackedCompanies)
       .where(
         and(
           eq(trackedCompanies.status, "live"),
+          sql`${trackedCompanies.lastScanId} IS NOT NULL`,
           or(
             isNull(trackedCompanies.nextScanAt),
             lte(trackedCompanies.nextScanAt, now),
@@ -686,6 +719,27 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(sql`${trackedCompanies.lastScannedAt} ASC NULLS FIRST`)
       .limit(limit);
+  }
+
+  // Atomic optimistic claim — flips scan_status to 'scanning' only if no other
+  // tick has already claimed the row. Returns true on success, false if a
+  // concurrent worker beat us. Both runTrackedCompanyScans and runStubDrainCycle
+  // use this so they can't double-scan the same row.
+  async claimTrackedCompanyForScan(id: string): Promise<boolean> {
+    const result = await db
+      .update(trackedCompanies)
+      .set({ scanStatus: "scanning" })
+      .where(
+        and(
+          eq(trackedCompanies.id, id),
+          or(
+            isNull(trackedCompanies.scanStatus),
+            sql`${trackedCompanies.scanStatus} <> 'scanning'`,
+          ),
+        ),
+      )
+      .returning({ id: trackedCompanies.id });
+    return result.length > 0;
   }
 
   async updateTrackedCompany(id: string, updates: Partial<TrackedCompany>): Promise<TrackedCompany | undefined> {
@@ -763,6 +817,200 @@ export class DatabaseStorage implements IStorage {
       .where(eq(trackedCompanies.status, "live"))
       .orderBy(trackedCompanies.category);
     return rows.map((r) => r.category);
+  }
+
+  // ───── Bulk ingestion + paginated reads (programmatic SEO) ─────
+  async bulkImportCompanies(rows: InsertTrackedCompany[]): Promise<{
+    inserted: number;
+    skipped: number;
+    total: number;
+  }> {
+    if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0 };
+
+    // Pre-fetch existing slugs + domains so we can skip duplicates without
+    // round-tripping per row. We dedupe within the input batch first to
+    // avoid two rows in the same CSV both trying to claim the same domain.
+    const incomingSlugs = new Set(rows.map((r) => r.slug));
+    const incomingDomains = new Set(rows.map((r) => r.domain.toLowerCase()));
+
+    const existing = await db
+      .select({ slug: trackedCompanies.slug, domain: trackedCompanies.domain })
+      .from(trackedCompanies);
+    const existingSlugs = new Set(existing.map((r) => r.slug));
+    const existingDomains = new Set(existing.map((r) => r.domain.toLowerCase()));
+
+    const seen = new Set<string>();
+    const seenDomain = new Set<string>();
+    const toInsert: InsertTrackedCompany[] = [];
+    let skipped = 0;
+
+    for (const row of rows) {
+      const dom = row.domain.toLowerCase();
+      if (existingSlugs.has(row.slug) || existingDomains.has(dom)) {
+        skipped++;
+        continue;
+      }
+      if (seen.has(row.slug) || seenDomain.has(dom)) {
+        skipped++;
+        continue;
+      }
+      seen.add(row.slug);
+      seenDomain.add(dom);
+      toInsert.push(row);
+    }
+
+    let inserted = 0;
+    if (toInsert.length > 0) {
+      // Insert in 500-row chunks so a single Postgres call can't exceed
+      // its parameter limit on huge CSVs (~65k params per statement).
+      const CHUNK = 500;
+      for (let i = 0; i < toInsert.length; i += CHUNK) {
+        const slice = toInsert.slice(i, i + CHUNK);
+        const result = await db.insert(trackedCompanies).values(slice).returning({ id: trackedCompanies.id });
+        inserted += result.length;
+      }
+    }
+
+    void incomingSlugs;
+    void incomingDomains;
+    return { inserted, skipped, total: rows.length };
+  }
+
+  async getCompaniesNeedingFirstScan(limit: number, perHostMax = 1): Promise<TrackedCompany[]> {
+    // Pull more than we need so we can apply the per-host cap on the
+    // application side. The cap exists so a CSV import of 200 Vercel-hosted
+    // sites doesn't ask the worker to fan out 200 simultaneous requests
+    // to vercel.com — instead we trickle one per host per tick.
+    //
+    // Honor `nextScanAt` so failed first scans get a real backoff window
+    // (set to RETRY_DELAY_MS in the worker) instead of being re-picked
+    // every tick.
+    const now = new Date();
+    const candidates = await db
+      .select()
+      .from(trackedCompanies)
+      .where(
+        and(
+          eq(trackedCompanies.status, "live"),
+          isNull(trackedCompanies.lastScanId),
+          or(
+            isNull(trackedCompanies.scanStatus),
+            sql`${trackedCompanies.scanStatus} <> 'scanning'`,
+          ),
+          or(
+            isNull(trackedCompanies.nextScanAt),
+            lte(trackedCompanies.nextScanAt, now),
+          ),
+        ),
+      )
+      .orderBy(sql`${trackedCompanies.importedAt} ASC NULLS LAST, ${trackedCompanies.createdAt} ASC`)
+      .limit(limit * 5);
+
+    const perHost = new Map<string, number>();
+    const picked: TrackedCompany[] = [];
+    for (const c of candidates) {
+      if (picked.length >= limit) break;
+      const host = c.domain.toLowerCase();
+      const used = perHost.get(host) ?? 0;
+      if (used >= perHostMax) continue;
+      perHost.set(host, used + 1);
+      picked.push(c);
+    }
+    return picked;
+  }
+
+  async getTrackedCompaniesPaginated(opts: {
+    page: number;
+    pageSize: number;
+    category?: string;
+    scanStatus?: "scanned" | "pending" | "failed" | "all";
+    ycBatch?: string;
+    search?: string;
+  }): Promise<{ companies: TrackedCompany[]; total: number }> {
+    const conds = [eq(trackedCompanies.status, "live")];
+    if (opts.category) conds.push(eq(trackedCompanies.category, opts.category));
+    if (opts.ycBatch) conds.push(eq(trackedCompanies.ycBatch, opts.ycBatch));
+    if (opts.search) {
+      const q = `%${opts.search.toLowerCase()}%`;
+      conds.push(
+        or(
+          sql`LOWER(${trackedCompanies.name}) LIKE ${q}`,
+          sql`LOWER(${trackedCompanies.domain}) LIKE ${q}`,
+          sql`LOWER(${trackedCompanies.category}) LIKE ${q}`,
+        )!,
+      );
+    }
+    if (opts.scanStatus === "scanned") {
+      conds.push(sql`${trackedCompanies.lastScanId} IS NOT NULL`);
+    } else if (opts.scanStatus === "pending") {
+      conds.push(sql`${trackedCompanies.lastScanId} IS NULL`);
+    } else if (opts.scanStatus === "failed") {
+      conds.push(eq(trackedCompanies.scanStatus, "failed"));
+    }
+
+    const where = and(...conds);
+
+    const page = Math.max(1, opts.page | 0);
+    const pageSize = Math.min(200, Math.max(1, opts.pageSize | 0));
+
+    const [companies, totalRow] = await Promise.all([
+      db
+        .select()
+        .from(trackedCompanies)
+        .where(where)
+        .orderBy(
+          // Scanned rows first (most recently scanned), then alphabetical for the long tail
+          sql`${trackedCompanies.lastScanId} IS NULL`,
+          sql`${trackedCompanies.lastScannedAt} DESC NULLS LAST`,
+          trackedCompanies.name,
+        )
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      db.select({ count: sql<number>`COUNT(*)::int` }).from(trackedCompanies).where(where),
+    ]);
+
+    return { companies, total: Number(totalRow[0]?.count ?? 0) };
+  }
+
+  async getTrackedCompanyCounts(): Promise<{ total: number; scanned: number; pending: number; failed: number }> {
+    const rows = await db
+      .select({
+        total: sql<number>`COUNT(*)::int`,
+        scanned: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NOT NULL THEN 1 ELSE 0 END)::int`,
+        pending: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NULL AND COALESCE(${trackedCompanies.scanStatus}, '') <> 'failed' THEN 1 ELSE 0 END)::int`,
+        failed: sql<number>`SUM(CASE WHEN ${trackedCompanies.scanStatus} = 'failed' THEN 1 ELSE 0 END)::int`,
+      })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.status, "live"));
+    const r = rows[0];
+    return {
+      total: Number(r?.total ?? 0),
+      scanned: Number(r?.scanned ?? 0),
+      pending: Number(r?.pending ?? 0),
+      failed: Number(r?.failed ?? 0),
+    };
+  }
+
+  async countAllTrackedCompanies(): Promise<number> {
+    const rows = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.status, "live"));
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async listTrackedCompanySlugsPaginated(
+    offset: number,
+    limit: number,
+  ): Promise<Array<{ slug: string; lastScannedAt: Date | null }>> {
+    const rows = await db
+      .select({ slug: trackedCompanies.slug, lastScannedAt: trackedCompanies.lastScannedAt })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.status, "live"))
+      .orderBy(trackedCompanies.slug)
+      .limit(limit)
+      .offset(offset);
+    return rows;
   }
 
   // ───── Provider rollups ─────

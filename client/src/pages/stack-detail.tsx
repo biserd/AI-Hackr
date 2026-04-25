@@ -58,15 +58,32 @@ export default function StackDetail() {
 
   const { company, latestScan, history, similar } = data;
   const scan = latestScan;
+  const isStub = !scan;
   const provider = scan?.aiProvider || "Pending detection";
   const conf = scan?.aiConfidence;
 
+  // SEO copy diverges meaningfully when there's no scan yet — we never
+  // claim a provider in the title/description for stub pages, otherwise
+  // search engines would index a falsely-confident answer.
   const seoTitle = scan?.aiProvider
     ? `What AI does ${company.name} use? It's ${scan.aiProvider}`
-    : `${company.name} AI Stack — AIHackr Intelligence Report`;
+    : isStub
+      ? `${company.name} AI Stack — Scan in queue · AIHackr`
+      : `${company.name} AI Stack — AIHackr Intelligence Report`;
   const seoDesc = scan?.aiProvider
     ? `${company.name} runs on ${scan.aiProvider}${scan.aiConfidence ? ` (${scan.aiConfidence} confidence)` : ""}${scan.aiGateway ? ` via ${scan.aiGateway}` : ""}. Full evidence trail, framework, hosting and stack changes — refreshed weekly.`
-    : `AIHackr's full AI provider intelligence report for ${company.name}: framework, hosting, payments, auth, analytics, plus the AI provider and model family.`;
+    : isStub
+      ? `${company.name} (${company.domain}) is queued for an AIHackr scan. We'll publish the AI provider, model family, gateway, and full tech stack here within a week.`
+      : `AIHackr's full AI provider intelligence report for ${company.name}: framework, hosting, payments, auth, analytics, plus the AI provider and model family.`;
+
+  // Stub rows use the import/created timestamp as `dateModified` so search
+  // engines see *something* — but we deliberately leave `headline`/`about`
+  // free of provider claims until a scan completes.
+  const dateForSchema = scan?.scannedAt
+    ? new Date(scan.scannedAt).toISOString()
+    : (company.importedAt ?? company.createdAt)
+      ? new Date(company.importedAt ?? company.createdAt).toISOString()
+      : undefined;
 
   const techArticleJsonLd = {
     "@context": "https://schema.org",
@@ -79,8 +96,8 @@ export default function StackDetail() {
       name: "AIHackr",
       logo: { "@type": "ImageObject", url: "https://aihackr.com/favicon.png" },
     },
-    datePublished: scan?.scannedAt ? new Date(scan.scannedAt).toISOString() : undefined,
-    dateModified: scan?.scannedAt ? new Date(scan.scannedAt).toISOString() : undefined,
+    datePublished: dateForSchema,
+    dateModified: dateForSchema,
     mainEntityOfPage: `https://aihackr.com/stack/${company.slug}`,
     about: {
       "@type": "SoftwareApplication",
@@ -189,49 +206,91 @@ export default function StackDetail() {
             </div>
           </div>
 
-          {/* Headline answer */}
-          <Card className="mb-6 border-primary/30">
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Primary AI Provider</div>
-                  <div className="text-2xl font-display font-bold flex items-center gap-2" data-testid="text-ai-provider">
-                    <Bot className="w-5 h-5 text-primary" />
-                    {provider}
+          {/* Stub callout — shown only when no scan has landed yet. We
+              deliberately do NOT render fake provider/model/gateway cells
+              for stub rows so search engines don't pick up a false claim. */}
+          {isStub && (
+            <Card className="mb-6 border-yellow-500/40 bg-yellow-500/5" data-testid="card-stub-callout">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h2 className="font-display text-lg font-bold mb-1" data-testid="text-stub-heading">
+                      Scan in queue for {company.name}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      We've added <span className="font-mono text-foreground">{company.domain}</span> to the AIHackr index but
+                      our scanner hasn't fingerprinted its production stack yet. The next worker tick will pick it up — most
+                      newly imported companies are scanned within an hour. Bookmark this page; the AI provider, model family,
+                      gateway, framework, hosting, payments, auth and analytics will appear here automatically.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Link href="/leaderboard">
+                        <Button variant="outline" size="sm" data-testid="button-stub-leaderboard">
+                          See the live leaderboard
+                        </Button>
+                      </Link>
+                      <Link href={`/stack?category=${encodeURIComponent(company.category)}`}>
+                        <Button variant="outline" size="sm" data-testid="button-stub-category">
+                          Browse {company.category}
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
-                  {conf && (
-                    <Badge variant="outline" className={`mt-2 ${confidenceColor(conf)}`}>
-                      {conf} confidence
-                    </Badge>
-                  )}
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Inferred Model</div>
-                  <div className="text-2xl font-display font-bold" data-testid="text-inferred-model">
-                    {scan?.inferredModel || "—"}
-                  </div>
-                  {scan?.aiTransport && <div className="text-xs text-muted-foreground mt-1">Transport: {scan.aiTransport}</div>}
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">AI Gateway / Path</div>
-                  <div className="text-2xl font-display font-bold" data-testid="text-ai-gateway">
-                    {scan?.aiGateway || "Direct API"}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Tech stack grid */}
-          <h2 className="font-display text-xl font-bold mb-3 mt-8">Surrounding Stack</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-            <TechCard icon={Code2} label="Framework" value={scan?.framework} confidence={scan?.frameworkConfidence} />
-            <TechCard icon={Server} label="Hosting" value={scan?.hosting} confidence={scan?.hostingConfidence} />
-            <TechCard icon={CreditCard} label="Payments" value={scan?.payments} confidence={scan?.paymentsConfidence} />
-            <TechCard icon={Lock} label="Auth" value={scan?.auth} confidence={scan?.authConfidence} />
-            <TechCard icon={BarChart3} label="Analytics" value={scan?.analytics} confidence={scan?.analyticsConfidence} />
-            <TechCard icon={Sparkles} label="Support" value={scan?.support} confidence={scan?.supportConfidence} />
-          </div>
+          {/* Headline answer — only shown once we have a real scan */}
+          {!isStub && (
+            <Card className="mb-6 border-primary/30">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Primary AI Provider</div>
+                    <div className="text-2xl font-display font-bold flex items-center gap-2" data-testid="text-ai-provider">
+                      <Bot className="w-5 h-5 text-primary" />
+                      {provider}
+                    </div>
+                    {conf && (
+                      <Badge variant="outline" className={`mt-2 ${confidenceColor(conf)}`}>
+                        {conf} confidence
+                      </Badge>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Inferred Model</div>
+                    <div className="text-2xl font-display font-bold" data-testid="text-inferred-model">
+                      {scan?.inferredModel || "—"}
+                    </div>
+                    {scan?.aiTransport && <div className="text-xs text-muted-foreground mt-1">Transport: {scan.aiTransport}</div>}
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">AI Gateway / Path</div>
+                    <div className="text-2xl font-display font-bold" data-testid="text-ai-gateway">
+                      {scan?.aiGateway || "Direct API"}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tech stack grid — only once a scan has filled it in */}
+          {!isStub && (
+            <>
+              <h2 className="font-display text-xl font-bold mb-3 mt-8">Surrounding Stack</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+                <TechCard icon={Code2} label="Framework" value={scan?.framework} confidence={scan?.frameworkConfidence} />
+                <TechCard icon={Server} label="Hosting" value={scan?.hosting} confidence={scan?.hostingConfidence} />
+                <TechCard icon={CreditCard} label="Payments" value={scan?.payments} confidence={scan?.paymentsConfidence} />
+                <TechCard icon={Lock} label="Auth" value={scan?.auth} confidence={scan?.authConfidence} />
+                <TechCard icon={BarChart3} label="Analytics" value={scan?.analytics} confidence={scan?.analyticsConfidence} />
+                <TechCard icon={Sparkles} label="Support" value={scan?.support} confidence={scan?.supportConfidence} />
+              </div>
+            </>
+          )}
 
           {/* Evidence */}
           {(patterns.length > 0 || networkDomains.length > 0 || networkPaths.length > 0) && (

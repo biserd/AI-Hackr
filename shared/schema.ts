@@ -369,6 +369,12 @@ export const trackedCompanies = pgTable("tracked_companies", {
   // ISO timestamp string when the primary provider last changed.
   providerChangedAt: timestamp("provider_changed_at"),
 
+  // Provenance — for bulk-imported rows we record where the row came from
+  // (e.g. "yc-w26", "g2-productivity-top-200", "manual") and when the row
+  // was first imported. Manually-added rows leave both null.
+  source: text("source"),
+  importedAt: timestamp("imported_at"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
