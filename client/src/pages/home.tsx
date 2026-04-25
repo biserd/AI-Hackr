@@ -119,7 +119,7 @@ function Navbar() {
           )}
           <a href="#hero">
             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" data-testid="button-nav-scan">
-              Scan URL
+              Scan a Site
             </Button>
           </a>
         </div>
@@ -1318,7 +1318,7 @@ function Footer() {
                   </>
                 ) : (
                   <>
-                    Scan URL
+                    Scan a Site
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </>
                 )}
