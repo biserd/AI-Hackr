@@ -303,9 +303,33 @@ export class DatabaseStorage implements IStorage {
     entryId: string,
     provider: string,
     changeType: string,
-    sinceMs: number
+    sinceMs: number,
+    opts?: { includePendingBundle?: boolean }
   ): Promise<ChangeEvent | undefined> {
     const since = new Date(Date.now() - sinceMs);
+    // Default mode (individual digest): only alerted events count toward dedup,
+    // because suppressed/un-alerted events never went out.
+    //
+    // Bundle mode: also count pending bundle events (alertedAt IS NULL but
+    // detected within the window AND not explicitly suppressed). This prevents
+    // a daily bundle from accumulating multiple identical (provider, changeType)
+    // entries between flushes — the second occurrence is suppressed exactly the
+    // way it would be in individual mode.
+    if (opts?.includePendingBundle) {
+      const result = await db.select().from(changeEvents)
+        .where(
+          and(
+            eq(changeEvents.subscriptionId, entryId),
+            eq(changeEvents.provider, provider),
+            eq(changeEvents.changeType, changeType),
+            gte(changeEvents.detectedAt, since),
+            eq(changeEvents.alertSuppressed, false)
+          )
+        )
+        .orderBy(desc(changeEvents.detectedAt))
+        .limit(1);
+      return result[0];
+    }
     const result = await db.select().from(changeEvents)
       .where(
         and(

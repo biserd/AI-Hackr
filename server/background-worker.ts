@@ -514,7 +514,18 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
   //      which are also wall-clock-based off the user's stored timezone.
   // If a per-day composite key is ever needed for the playbook's "exact" wording,
   // it can be layered on top of this without changing the dedup intent.
-  const recent = await storage.findRecentAlert(sub.id, change.provider || "", change.changeType, ALERT_DEDUP_MS);
+  // In daily-bundle mode, alertedAt is deliberately deferred until the bundle
+  // flush — so a pure alertedAt-based lookup would miss identical events that
+  // are queued in the current pending bundle. Pass includePendingBundle so the
+  // dedup check also catches non-suppressed pending events in the window.
+  const includePendingBundle = settings.alertDigestMode === "daily_bundle";
+  const recent = await storage.findRecentAlert(
+    sub.id,
+    change.provider || "",
+    change.changeType,
+    ALERT_DEDUP_MS,
+    { includePendingBundle }
+  );
   if (recent) {
     console.log(`[Alerts] Suppressed (dedup) for ${sub.domain} ${change.changeType} ${change.provider}`);
     await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
