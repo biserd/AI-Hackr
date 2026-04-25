@@ -169,6 +169,7 @@ export const userSettings = pgTable("user_settings", {
 
   digestEnabled: boolean("digest_enabled").default(true).notNull(),
   lastDigestSentAt: timestamp("last_digest_sent_at"),
+  lastDailyBundleAt: timestamp("last_daily_bundle_at"),
 
   // Free-plan weekly cap (5 alerts/week total)
   alertsThisWeek: integer("alerts_this_week").default(0).notNull(),

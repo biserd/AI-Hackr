@@ -62,7 +62,7 @@ export interface IStorage {
   getSubscriptionByDomain(userId: string, domain: string): Promise<Subscription | undefined>;
 
   // Stack changes
-  createChangeEvent(event: Partial<ChangeEvent> & { subscriptionId: string; newScanId: string; changeType: string }): Promise<ChangeEvent>;
+  createChangeEvent(event: typeof changeEvents.$inferInsert): Promise<ChangeEvent>;
   getSubscriptionChangeEvents(subscriptionId: string, limit?: number): Promise<ChangeEvent[]>;
   getChangeEvent(id: string): Promise<ChangeEvent | undefined>;
   markChangeEventNotified(id: string): Promise<void>;
@@ -72,6 +72,14 @@ export interface IStorage {
   findRecentAlert(entryId: string, provider: string, changeType: string, sinceMs: number): Promise<ChangeEvent | undefined>;
   /** Stack changes detected within a date range, optional user filter */
   getChangeEventsForUser(userId: string, since: Date): Promise<ChangeEvent[]>;
+  /** Pending (un-alerted, un-suppressed) change events for a user since a given time. Used by the daily-bundle digest. */
+  getPendingBundleEventsForUser(userId: string, since: Date): Promise<ChangeEvent[]>;
+  /** Mark a batch of change events as alerted (used after a daily-bundle email is delivered). */
+  markChangeEventsAlertedBulk(ids: string[]): Promise<void>;
+  /** Stamp the user's last daily-bundle send timestamp. */
+  markDailyBundleSent(userId: string): Promise<void>;
+  /** All users whose alertDigestMode = "daily_bundle" and emailAlertsEnabled = true. */
+  getUsersWithDailyBundleMode(): Promise<User[]>;
   /** Mark a change as dismissed (false-positive suppression) */
   dismissChangeEvent(id: string, dismissedUntil: Date): Promise<void>;
   /** Get any active dismissal in effect for (entry, provider, newConfidence) — used to suppress repeat alerts */
@@ -250,9 +258,9 @@ export class DatabaseStorage implements IStorage {
 
   // ───── Stack changes ─────
   async createChangeEvent(
-    event: Partial<ChangeEvent> & { subscriptionId: string; newScanId: string; changeType: string }
+    event: typeof changeEvents.$inferInsert
   ): Promise<ChangeEvent> {
-    const result = await db.insert(changeEvents).values(event as any).returning();
+    const result = await db.insert(changeEvents).values(event).returning();
     return result[0];
   }
 
@@ -321,6 +329,40 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(changeEvents.detectedAt));
     return rows.map((r) => r.ev);
+  }
+
+  async getPendingBundleEventsForUser(userId: string, since: Date): Promise<ChangeEvent[]> {
+    const rows = await db
+      .select({ ev: changeEvents })
+      .from(changeEvents)
+      .innerJoin(subscriptions, eq(changeEvents.subscriptionId, subscriptions.id))
+      .where(
+        and(
+          eq(subscriptions.userId, userId),
+          gte(changeEvents.detectedAt, since),
+          isNull(changeEvents.alertedAt),
+          eq(changeEvents.alertSuppressed, false)
+        )
+      )
+      .orderBy(desc(changeEvents.detectedAt));
+    return rows.map((r) => r.ev);
+  }
+
+  async markChangeEventsAlertedBulk(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const now = new Date();
+    await db.update(changeEvents).set({
+      alertedAt: now,
+      notificationSent: true,
+      notificationSentAt: now,
+    }).where(inArray(changeEvents.id, ids));
+  }
+
+  async markDailyBundleSent(userId: string): Promise<void> {
+    await db.update(userSettings).set({
+      lastDailyBundleAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(userSettings.userId, userId));
   }
 
   async dismissChangeEvent(id: string, dismissedUntil: Date): Promise<void> {
@@ -445,9 +487,9 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     }
     const result = await db.insert(userSettings).values({
-      userId,
       ...updates,
-    } as any).returning();
+      userId,
+    }).returning();
     return result[0];
   }
 
@@ -475,6 +517,20 @@ export class DatabaseStorage implements IStorage {
     await db.update(userSettings)
       .set({ lastDigestSentAt: new Date(), updatedAt: new Date() })
       .where(eq(userSettings.userId, userId));
+  }
+
+  async getUsersWithDailyBundleMode(): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(users)
+      .innerJoin(userSettings, eq(users.id, userSettings.userId))
+      .where(
+        and(
+          eq(userSettings.alertDigestMode, "daily_bundle"),
+          eq(userSettings.emailAlertsEnabled, true)
+        )
+      );
+    return rows.map((r) => r.user);
   }
 }
 

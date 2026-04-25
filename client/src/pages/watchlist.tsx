@@ -271,6 +271,13 @@ export default function WatchlistPage() {
     }
     if (statusFilter === "changed") {
       out = out.filter((s) => s.lastChangedAt && new Date(s.lastChangedAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (statusFilter === "high-confidence") {
+      out = out.filter((s) => {
+        const provs = (s.providersDetected || []) as DetectedProvider[];
+        return provs.some((p) => p.confidence === "high");
+      });
+    } else if (statusFilter === "errors") {
+      out = out.filter((s) => s.scanStatus === "unreachable" || s.scanStatus === "error" || (s.consecutiveFailures ?? 0) > 0);
     } else if (statusFilter === "unreachable") {
       out = out.filter((s) => s.scanStatus === "unreachable");
     } else if (statusFilter === "paused") {
@@ -403,18 +410,29 @@ export default function WatchlistPage() {
             </Select>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40 h-9" data-testid="select-status-filter">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="changed">Changed last 7d</SelectItem>
-                <SelectItem value="unreachable">Unreachable</SelectItem>
-                <SelectItem value="paused">Paused</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Quick filters</Label>
+            <div className="flex flex-wrap gap-1.5" data-testid="chips-status-filter">
+              {[
+                { value: "all", label: "All" },
+                { value: "changed", label: "Changed this week" },
+                { value: "high-confidence", label: "High confidence" },
+                { value: "errors", label: "Errors" },
+              ].map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setStatusFilter(chip.value)}
+                  className={`h-9 px-3 rounded-full border text-xs font-medium transition-colors ${
+                    statusFilter === chip.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  }`}
+                  data-testid={`chip-status-${chip.value}`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground mb-1.5 block">Sort by</Label>
@@ -456,10 +474,12 @@ export default function WatchlistPage() {
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <div className="col-span-4">Domain</div>
-              <div className="col-span-3">Providers detected</div>
-              <div className="col-span-2">Last changed</div>
-              <div className="col-span-2">Status</div>
+              <div className="col-span-3">Domain</div>
+              <div className="col-span-2">Providers detected</div>
+              <div className="col-span-1">Confidence</div>
+              <div className="col-span-2">Last scanned</div>
+              <div className="col-span-2">Change summary</div>
+              <div className="col-span-1">Status</div>
               <div className="col-span-1 text-right">Actions</div>
             </div>
             {filtered.map((sub) => {
@@ -566,10 +586,26 @@ function WatchlistRow({
   onDelete: () => void;
   onToggleNotify: (checked: boolean) => void;
 }) {
+  const highestConfidence: "high" | "medium" | "low" | null = providers.reduce<"high" | "medium" | "low" | null>(
+    (acc, p) => {
+      const rank = (lvl: "high" | "medium" | "low" | null) =>
+        lvl === "high" ? 3 : lvl === "medium" ? 2 : lvl === "low" ? 1 : 0;
+      return rank(p.confidence as "high" | "medium" | "low") > rank(acc) ? (p.confidence as "high" | "medium" | "low") : acc;
+    },
+    null
+  );
+  const changeSummary = (() => {
+    if (!sub.lastChangedAt) return "No changes yet";
+    const lastChange = new Date(sub.lastChangedAt).getTime();
+    const within7d = Date.now() - lastChange < 7 * 24 * 60 * 60 * 1000;
+    if (within7d) return `Changed ${formatRelative(sub.lastChangedAt)}`;
+    return `Stable since ${formatRelative(sub.lastChangedAt)}`;
+  })();
+
   return (
     <div className="border-b border-border last:border-0" data-testid={`row-watchlist-${sub.id}`}>
       <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-muted/20 transition-colors">
-        <div className="col-span-4 flex items-center gap-2">
+        <div className="col-span-3 flex items-center gap-2">
           <button
             onClick={onToggle}
             className="text-muted-foreground hover:text-foreground p-0.5"
@@ -584,27 +620,34 @@ function WatchlistRow({
             <div className="text-xs text-muted-foreground truncate">{sub.domain}</div>
           </div>
         </div>
-        <div className="col-span-3">
+        <div className="col-span-2" data-testid={`cell-providers-${sub.id}`}>
           {providers.length === 0 ? (
             <span className="text-xs text-muted-foreground italic">None detected yet</span>
           ) : (
             <div className="flex flex-wrap gap-1">
               {providers.slice(0, 2).map((p) => (
-                <div key={p.provider} className="inline-flex items-center gap-1.5 text-xs">
-                  <span className="font-medium">{p.displayName}</span>
-                  <ConfidencePill level={p.confidence} />
-                </div>
+                <span key={p.provider} className="text-xs font-medium">{p.displayName}</span>
               ))}
               {providers.length > 2 && (
-                <span className="text-xs text-muted-foreground">+{providers.length - 2} more</span>
+                <span className="text-xs text-muted-foreground">+{providers.length - 2}</span>
               )}
             </div>
           )}
         </div>
-        <div className="col-span-2 text-sm text-muted-foreground">
-          {formatRelative(sub.lastChangedAt)}
+        <div className="col-span-1" data-testid={`cell-confidence-${sub.id}`}>
+          {highestConfidence ? (
+            <ConfidencePill level={highestConfidence} />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
         </div>
-        <div className="col-span-2">
+        <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-last-scanned-${sub.id}`}>
+          {formatRelative(sub.lastScannedAt)}
+        </div>
+        <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-change-summary-${sub.id}`}>
+          {changeSummary}
+        </div>
+        <div className="col-span-1">
           <ScanStatusPill sub={sub} />
         </div>
         <div className="col-span-1 flex items-center justify-end gap-1">
@@ -715,8 +758,11 @@ function EditDialog({
   onSave: (updates: Partial<Subscription>) => void;
   isPro: boolean;
 }) {
+  type AlertThresholdValue = "any_change" | "high_confidence_only" | "provider_added_removed" | "no_alerts";
   const [label, setLabel] = useState(sub.displayLabel || "");
-  const [threshold, setThreshold] = useState(sub.alertThreshold || "any_change");
+  const [threshold, setThreshold] = useState<AlertThresholdValue>(
+    (sub.alertThreshold as AlertThresholdValue) || "any_change"
+  );
   const [notify, setNotify] = useState(sub.notifyOnChange ?? true);
   const [slackEnabled, setSlackEnabled] = useState(!!sub.slackEnabled);
   const [pauseChoice, setPauseChoice] = useState(
@@ -724,15 +770,15 @@ function EditDialog({
   );
 
   const handleSave = () => {
-    let pausedUntil: string | null = null;
-    if (pauseChoice === "paused-7d") pausedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    if (pauseChoice === "paused-30d") pausedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    let pausedUntil: Date | null = null;
+    if (pauseChoice === "paused-7d") pausedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    if (pauseChoice === "paused-30d") pausedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     onSave({
       displayLabel: label,
-      alertThreshold: threshold as any,
+      alertThreshold: threshold,
       notifyOnChange: notify,
       slackEnabled,
-      pausedUntil: pausedUntil as any,
+      pausedUntil,
     });
   };
 
@@ -750,7 +796,7 @@ function EditDialog({
           </div>
           <div>
             <Label>Alert threshold</Label>
-            <Select value={threshold} onValueChange={setThreshold}>
+            <Select value={threshold} onValueChange={(v) => setThreshold(v as AlertThresholdValue)}>
               <SelectTrigger data-testid="select-edit-threshold"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="any_change">Any change</SelectItem>

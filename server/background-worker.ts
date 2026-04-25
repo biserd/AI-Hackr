@@ -127,7 +127,7 @@ function buildDetectedProviders(scan: { aiProvider?: string | null; aiConfidence
       displayName: buildDisplayName(scan.aiProvider),
       confidence: band as "high" | "medium" | "low",
       confidenceScore: score,
-      modelHints: modelHintsFromScan(scan as any),
+      modelHints: modelHintsFromScan(scan),
       firstDetectedAt: priorEntry?.firstDetectedAt || new Date().toISOString(),
       lastSeenAt: new Date().toISOString(),
     },
@@ -550,7 +550,15 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
   let emailOk = false;
   let slackOk = false;
 
-  if (settings.emailAlertsEnabled && user.notificationsEnabled !== false) {
+  // Daily-bundle mode: defer the email; the bundle cron will send a single
+  // grouped email per user. Slack still fires immediately because Slack is
+  // intended as a real-time channel.
+  const deferEmailForBundle =
+    settings.alertDigestMode === "daily_bundle" &&
+    settings.emailAlertsEnabled &&
+    user.notificationsEnabled !== false;
+
+  if (settings.emailAlertsEnabled && user.notificationsEnabled !== false && !deferEmailForBundle) {
     emailOk = await sendStackChangeAlertEmail({
       to: user.email,
       domain: sub.domain,
@@ -561,6 +569,10 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
       scanUrl: `${APP_URL}/scan/${sub.domain}`,
       priorScanAt: sub.lastScannedAt,
     });
+  } else if (deferEmailForBundle) {
+    console.log(
+      `[Alerts] Deferred email for daily bundle: ${sub.domain} ${change.changeType} ${change.provider}`
+    );
   }
 
   if (isPro && sub.slackEnabled && settings.slackAlertsEnabled && settings.slackWebhookUrl) {
@@ -572,6 +584,22 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
       afterProviders: after,
       scanUrl: `${APP_URL}/scan/${sub.domain}`,
     });
+  }
+
+  // If the email is being deferred for a daily bundle, do NOT mark the event
+  // as alerted yet — the bundle cron must still pick it up. Slack delivery is
+  // intentionally fire-and-forget in real time and does not consume the
+  // bundle-eligibility window.
+  if (deferEmailForBundle) {
+    if (slackOk && !isPro) {
+      // Free users don't have Slack, but keep the cap accounting consistent
+      // for safety if that invariant ever changes.
+      await storage.upsertUserSettings(sub.userId, {
+        alertsThisWeek: (settings.alertsThisWeek || 0) + 1,
+        weekResetAt: settings.weekResetAt || new Date(),
+      });
+    }
+    return;
   }
 
   if (emailOk || slackOk) {
@@ -590,7 +618,11 @@ async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Pro
   if (!sub.lastScanId) return out;
   const scan = await storage.getScan(sub.lastScanId);
   if (!scan) return out;
-  const ev = scan.evidence as any;
+  const ev = (scan.evidence ?? null) as {
+    scripts?: string[];
+    networkDomains?: string[];
+    patterns?: string[];
+  } | null;
   if (!ev) return out;
   if (Array.isArray(ev.scripts) && ev.scripts.length) out.push(`Scripts detected: ${ev.scripts.slice(0, 2).join(", ")}`);
   if (Array.isArray(ev.networkDomains) && ev.networkDomains.length) {
@@ -807,6 +839,95 @@ async function computeTrendingBullets(weekStart: Date): Promise<Array<{ emoji: s
   }));
 }
 
+// ─── Daily bundle cron ───────────────────────────────────
+
+/**
+ * For users whose alertDigestMode = "daily_bundle", deliverAlert defers email
+ * sends. This cron runs hourly: for each such user, it gathers any unalerted
+ * change events from the last ~25h and sends a single grouped email, then
+ * marks all included events as alerted.
+ */
+async function runDailyBundleCycle(): Promise<void> {
+  try {
+    const now = new Date();
+    const sinceWindow = new Date(now.getTime() - 25 * 60 * 60 * 1000);
+    const minBundleGap = 22 * 60 * 60 * 1000; // don't send a 2nd bundle within 22h
+
+    const dueUsers = await storage.getUsersWithDailyBundleMode();
+    if (dueUsers.length === 0) return;
+
+    for (const user of dueUsers) {
+      const settings = await storage.getUserSettings(user.id);
+      if (!settings || !settings.emailAlertsEnabled || settings.alertDigestMode !== "daily_bundle") continue;
+      if (user.notificationsEnabled === false) continue;
+
+      // Throttle: don't send twice within 22h
+      if (settings.lastDailyBundleAt && now.getTime() - new Date(settings.lastDailyBundleAt).getTime() < minBundleGap) {
+        continue;
+      }
+
+      const pending = await storage.getPendingBundleEventsForUser(user.id, sinceWindow);
+      if (pending.length === 0) continue;
+
+      const watchlist = await storage.getUserSubscriptions(user.id);
+      const isPro = user.planTier === "pro";
+      const weekStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const changes: DigestChangeRow[] = pending.slice(0, 25).map((e) => ({
+        domain: watchlist.find((w) => w.id === e.subscriptionId)?.domain || "—",
+        changeType: e.changeType,
+        severity: (e.severity as "major" | "minor") || "major",
+        provider: e.providerDisplayName || e.provider || "AI provider",
+        newConfidence: e.newConfidence,
+        priorConfidence: e.priorConfidence,
+        detectedAt: e.detectedAt,
+        scanUrl: `${APP_URL}/scan/${watchlist.find((w) => w.id === e.subscriptionId)?.domain || ""}`,
+        note: e.severity === "minor" ? "May be a temporary detection fluctuation." : undefined,
+      }));
+
+      const digestList: DigestWatchlistRow[] = watchlist.map((w) => {
+        const detected = (w.providersDetected || []) as Array<{ displayName: string; confidence: "high" | "medium" | "low" }>;
+        const highest = detected.reduce<"high" | "medium" | "low" | null>((acc, p) => {
+          const r = bandRank(p.confidence);
+          const accR = acc ? bandRank(acc) : 0;
+          return r > accR ? p.confidence : acc;
+        }, null);
+        return {
+          domain: w.domain,
+          providers: detected.map((p) => p.displayName),
+          highestConfidence: highest,
+          lastChangedAt: w.lastChangedAt,
+          changedThisWeek: w.lastChangedAt ? new Date(w.lastChangedAt).getTime() >= weekStart.getTime() : false,
+        };
+      });
+
+      try {
+        const sent = await sendWeeklyDigestEmail({
+          to: user.email,
+          weekStart,
+          weekEnd: now,
+          changes,
+          watchlist: digestList,
+          trending: [],
+          isPro,
+          subjectOverride: `Daily AI stack bundle — ${pending.length} ${pending.length === 1 ? "change" : "changes"}`,
+        });
+        if (sent !== false) {
+          await storage.markChangeEventsAlertedBulk(pending.map((e) => e.id));
+          await storage.markDailyBundleSent(user.id);
+          console.log(`[Worker] Daily bundle sent to ${user.email}: ${pending.length} events`);
+        } else {
+          console.warn(`[Worker] Daily bundle send returned falsy for ${user.email}; will retry next cycle`);
+        }
+      } catch (err) {
+        console.error(`[Worker] Failed to send daily bundle to ${user.email}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("[Worker] Daily bundle cycle error:", err);
+  }
+}
+
 // ─── Public entry point ──────────────────────────────────
 
 export function startBackgroundWorker(): void {
@@ -815,12 +936,15 @@ export function startBackgroundWorker(): void {
   setTimeout(async () => {
     await runScanCycle();
     await runDigestCycle();
+    await runDailyBundleCycle();
   }, 60 * 1000);
 
   // Scan loop
   setInterval(runScanCycle, WORKER_TICK_MS);
-  // Digest loop — checks every 30 minutes for users whose Monday-morning window is open
+  // Weekly digest loop — checks every 30 minutes for users whose Monday-morning window is open
   setInterval(runDigestCycle, 30 * 60 * 1000);
+  // Daily bundle loop — runs hourly to flush deferred events for daily_bundle users
+  setInterval(runDailyBundleCycle, 60 * 60 * 1000);
 
   console.log("[Worker] Background worker scheduled");
 }

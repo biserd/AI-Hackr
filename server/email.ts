@@ -327,6 +327,8 @@ export interface WeeklyDigestOptions {
   trending: DigestTrendingBullet[]; // empty for free plan
   isPro: boolean;
   intro?: string;
+  /** Optional override for the email subject (used by the daily-bundle digest). */
+  subjectOverride?: string;
 }
 
 /**
@@ -411,7 +413,7 @@ function formatChangeBullet(c: DigestChangeRow): string {
 
 export async function sendWeeklyDigestEmail(opts: WeeklyDigestOptions): Promise<boolean> {
   try {
-    const subject = buildDigestSubject(opts);
+    const subject = opts.subjectOverride || buildDigestSubject(opts);
     const range = formatRange(opts.weekStart, opts.weekEnd);
     const n = opts.changes.length;
     const m = opts.watchlist.length;
