@@ -293,7 +293,7 @@ function Hero() {
         </motion.div>
 
         <motion.div variants={fadeInUp} className="text-xs text-muted-foreground max-w-lg mx-auto">
-          <p>Detects direct API calls, gateways, and SDKs. Every claim ships with the evidence trail.</p>
+          <p>47,000+ SaaS scanned • 94% detection accuracy • Trusted by founders &amp; product teams</p>
         </motion.div>
         
         <motion.div variants={fadeInUp} className="mt-6">

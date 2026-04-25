@@ -184,8 +184,8 @@ export default function Dashboard() {
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="font-display text-3xl font-bold mb-2">Dashboard</h1>
-            <p className="text-muted-foreground">Track competitors and view your scan history</p>
+            <h1 className="font-display text-3xl font-bold mb-2">AI Intelligence Dashboard</h1>
+            <p className="text-muted-foreground">Track which AI providers your competitors are running — and see your scan history</p>
           </div>
           <form onSubmit={handleScan} className="flex gap-2">
             <div className="relative">
@@ -265,7 +265,7 @@ export default function Dashboard() {
                 <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-display text-lg font-semibold mb-2">No scans yet</h3>
                 <p className="text-muted-foreground mb-4">
-                  Start by scanning a URL to see its tech stack
+                  Start by scanning a URL to fingerprint its AI stack
                 </p>
                 <Link href="/">
                   <Button data-testid="button-scan-now">
@@ -351,7 +351,7 @@ export default function Dashboard() {
                 <Eye className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-display text-lg font-semibold mb-2">No competitors tracked</h3>
                 <p className="text-muted-foreground">
-                  Add a competitor URL above to start tracking their tech stack changes
+                  Add a competitor URL above to start monitoring their AI provider migrations
                 </p>
               </div>
             ) : (
