@@ -835,9 +835,12 @@ function EditDialog({
   isPro: boolean;
 }) {
   type AlertThresholdValue = "any_change" | "high_confidence_only" | "provider_added_removed" | "no_alerts";
+  // "__inherit__" is a UI-only sentinel that maps to NULL on the server,
+  // meaning "use the user's global default threshold for this domain".
+  type ThresholdSelectValue = AlertThresholdValue | "__inherit__";
   const [label, setLabel] = useState(sub.displayLabel || "");
-  const [threshold, setThreshold] = useState<AlertThresholdValue>(
-    (sub.alertThreshold as AlertThresholdValue) || "any_change"
+  const [threshold, setThreshold] = useState<ThresholdSelectValue>(
+    (sub.alertThreshold as AlertThresholdValue | null) ?? "__inherit__"
   );
   const [notify, setNotify] = useState(sub.notifyOnChange ?? true);
   const [slackEnabled, setSlackEnabled] = useState(!!sub.slackEnabled);
@@ -851,7 +854,8 @@ function EditDialog({
     if (pauseChoice === "paused-30d") pausedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     onSave({
       displayLabel: label,
-      alertThreshold: threshold,
+      // Map UI sentinel back to NULL on the wire = "inherit global".
+      alertThreshold: threshold === "__inherit__" ? null : threshold,
       notifyOnChange: notify,
       slackEnabled,
       pausedUntil,
@@ -872,15 +876,19 @@ function EditDialog({
           </div>
           <div>
             <Label>Alert threshold</Label>
-            <Select value={threshold} onValueChange={(v) => setThreshold(v as AlertThresholdValue)}>
+            <Select value={threshold} onValueChange={(v) => setThreshold(v as ThresholdSelectValue)}>
               <SelectTrigger data-testid="select-edit-threshold"><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__inherit__">Use global default</SelectItem>
                 <SelectItem value="any_change">Any change</SelectItem>
                 <SelectItem value="high_confidence_only">High-confidence only</SelectItem>
                 <SelectItem value="provider_added_removed">Provider added/removed only</SelectItem>
                 <SelectItem value="no_alerts">No alerts</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Per-domain choices override your global threshold. "Use global default" inherits.
+            </p>
           </div>
           <div className="flex items-center justify-between">
             <Label>Email alerts</Label>

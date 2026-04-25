@@ -268,7 +268,10 @@ export async function registerRoutes(
         url: url.startsWith("http") ? url : `https://${url}`,
         domain,
         displayLabel: displayLabel || domain,
-        alertThreshold: alertThreshold || "any_change",
+        // Pass through explicit threshold or leave null → inherit user's
+        // globalAlertThreshold. The PATCH endpoint also accepts null to
+        // switch a per-domain override back to "inherit global".
+        alertThreshold: typeof alertThreshold === "string" ? alertThreshold : null,
       });
 
       // Ensure user_settings exists for this watcher so weekly digest + alert
@@ -307,7 +310,9 @@ export async function registerRoutes(
       if (typeof isActive === "boolean") updates.isActive = isActive;
       if (typeof notifyOnChange === "boolean") updates.notifyOnChange = notifyOnChange;
       if (typeof displayLabel === "string") updates.displayLabel = displayLabel;
+      // Accept explicit string OR null (null = "inherit user's globalAlertThreshold").
       if (typeof alertThreshold === "string") updates.alertThreshold = alertThreshold;
+      else if (alertThreshold === null) updates.alertThreshold = null;
       if (typeof slackEnabled === "boolean") updates.slackEnabled = slackEnabled;
       if (pausedUntil === null) updates.pausedUntil = null;
       else if (typeof pausedUntil === "string") updates.pausedUntil = new Date(pausedUntil);

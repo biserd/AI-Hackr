@@ -320,10 +320,13 @@ function shouldSendAlert(opts: {
   if (!entry.notifyOnChange) return { ok: false, reason: "entry-alerts-off" };
   if (entry.alertThreshold === "no_alerts") return { ok: false, reason: "entry-no-alerts" };
 
-  // Determine effective threshold (per-domain overrides global)
-  const effectiveThreshold = entry.alertThreshold && entry.alertThreshold !== "any_change"
-    ? entry.alertThreshold
-    : settings.globalAlertThreshold;
+  // Per-domain threshold semantics:
+  //   entry.alertThreshold === null   → inherit user's globalAlertThreshold
+  //   entry.alertThreshold === <any>  → explicit override (including "any_change",
+  //                                     "high_confidence_only", "provider_added_removed")
+  // This lets a user set global=high_confidence_only but still pin a single
+  // domain to any_change, or vice versa.
+  const effectiveThreshold = entry.alertThreshold ?? settings.globalAlertThreshold;
 
   if (effectiveThreshold === "high_confidence_only") {
     const conf = (change.newConfidence || "").toLowerCase();

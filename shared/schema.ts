@@ -64,8 +64,10 @@ export const subscriptions = pgTable("subscriptions", {
   notifyOnChange: boolean("notify_on_change").default(true),
 
   // Watchlist v1 — alert behavior
-  alertThreshold: text("alert_threshold").default("any_change").notNull(),
-  // "any_change" | "high_confidence_only" | "provider_added_removed" | "no_alerts"
+  // NULL means "inherit user's globalAlertThreshold". Any explicit non-null
+  // value (any_change | provider_added_removed | high_confidence_only |
+  // no_alerts) overrides the global setting for this domain.
+  alertThreshold: text("alert_threshold"),
   slackEnabled: boolean("slack_enabled").default(false),
 
   // Scheduling + status
