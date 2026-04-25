@@ -37,7 +37,7 @@ Preferred communication style: Simple, everyday language.
 - **Watchlists**: Allows users to track specific domains with configurable alert settings.
 - **Leaderboard**: Ranks companies based on AI adoption, offering filters by provider, category, and other criteria.
 - **API**: Provides endpoints for scanning, retrieving company and provider information, leaderboard data, and managing user settings.
-- **Blog**: Includes SEO-optimized blog posts discussing AI in SaaS, linking to live data.
+- **Blog**: Long-form, SEO-optimized blog posts (~1,200–3,000 words each) discussing AI in SaaS. All posts use a shared rich `BlogPostLayout` component (`client/src/components/blog-post.tsx`) with primitives for headings (with anchor IDs and a sticky TOC sidebar), data tables, stat grids, callouts, code blocks, methodology footers, internal company/provider chips, and `LiveProviderShare` / `LiveCompaniesByProvider` blocks that fetch from `/api/leaderboard` so the prose stays grounded in live scan data. Each post emits Article + BreadcrumbList JSON-LD, computes reading time + word count from the rendered body, and links out to /leaderboard, /stack/:slug, /provider/:slug, and sibling posts.
 
 ## External Dependencies
 

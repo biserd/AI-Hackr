@@ -1,108 +1,134 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Cpu, ArrowRight, TrendingUp, Calendar, BookOpen } from "lucide-react";
+import { Cpu, ArrowRight, TrendingUp, Calendar, BookOpen, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 
-const blogPosts = [
+type BlogPost = {
+  slug: string;
+  title: string;
+  description: string;
+  date: string;
+  category: string;
+  readingMinutes: number;
+  featured?: boolean;
+};
+
+const blogPosts: BlogPost[] = [
   {
     slug: "the-state-of-ai-in-saas-2026",
     title: "The State of AI in SaaS — 2026",
-    description: "Our annual report on which AI providers, model families, and gateways power the modern SaaS stack.",
+    description:
+      "Annual report on which AI providers, model families, and gateways power the modern SaaS stack — based on continuous wire-level fingerprinting of 50+ products.",
     date: "April 2026",
     category: "Annual Report",
+    readingMinutes: 7,
     featured: true,
   },
   {
     slug: "what-changed-this-week-in-saas-ai-stacks",
     title: "What Changed This Week in SaaS AI Stacks",
-    description: "A weekly pulse on which SaaS products switched AI providers, added new model families, or quietly migrated to gateways.",
+    description:
+      "A weekly pulse on which SaaS products switched AI providers, added model families, or quietly migrated to gateways — surfaced from continuous scans, not anecdote.",
     date: "April 2026",
     category: "Weekly Pulse",
+    readingMinutes: 6,
     featured: true,
   },
   {
     slug: "openai-vs-anthropic-which-saas-companies-use-which",
     title: "OpenAI vs Anthropic: Which SaaS Companies Use Which",
-    description: "Side-by-side breakdown of which SaaS products run GPT versus Claude — based on live AIHackr fingerprinting.",
+    description:
+      "Side-by-side breakdown of which SaaS run GPT vs Claude — with live fingerprinting, the patterns of switching, and the migration math.",
     date: "April 2026",
     category: "Market Analysis",
-    featured: false,
+    readingMinutes: 7,
   },
   {
     slug: "claude-vs-gpt-4-real-world-saas-deployments",
     title: "Claude vs GPT-4: Real-World SaaS Deployments",
-    description: "Comparing Claude 3.5/4 and GPT-4/4o adoption across actual production SaaS — not benchmarks.",
+    description:
+      "Comparing Claude 3.5/4 and GPT-4/4o adoption across actual SaaS in production — by use case, with the live list of who runs each.",
     date: "April 2026",
     category: "Comparison",
-    featured: false,
+    readingMinutes: 6,
   },
   {
     slug: "azure-openai-adoption-in-enterprise-saas",
     title: "Azure OpenAI Adoption in Enterprise SaaS",
-    description: "Why regulated and enterprise-tier SaaS overwhelmingly choose Azure OpenAI over OpenAI direct.",
+    description:
+      "Why regulated SaaS overwhelmingly choose Azure OpenAI over OpenAI direct — the detection fingerprint, procurement math, and live customer list.",
     date: "April 2026",
     category: "Enterprise",
-    featured: false,
+    readingMinutes: 6,
   },
   {
     slug: "aws-bedrock-customers-the-complete-list",
     title: "AWS Bedrock Customers: The Complete List",
-    description: "Every SaaS product running Anthropic, Llama, or Titan models through AWS Bedrock — refreshed weekly.",
+    description:
+      "Every SaaS we&apos;ve detected running Anthropic, Llama, or Titan models through AWS Bedrock — refreshed weekly, with the detection playbook.",
     date: "April 2026",
     category: "Provider Spotlight",
-    featured: false,
+    readingMinutes: 5,
   },
   {
     slug: "ai-gateways-explained-cloudflare-portkey-helicone",
     title: "AI Gateways Explained: Cloudflare AI Gateway, Portkey, Helicone",
-    description: "What an AI gateway does, why ~1 in 5 SaaS now use one, and how AIHackr sees through them.",
+    description:
+      "What an AI gateway actually does, why ~1 in 5 SaaS now use one, and how AIHackr fingerprints traffic that has been routed through them.",
     date: "April 2026",
     category: "Infrastructure",
-    featured: false,
+    readingMinutes: 7,
   },
   {
     slug: "self-hosted-llms-which-saas-products-run-their-own-models",
     title: "Self-Hosted LLMs: Which SaaS Products Run Their Own Models",
-    description: "SaaS products quietly running open-weight Llama, Mistral, and fine-tuned derivatives in production.",
+    description:
+      "SaaS products quietly running open-weight Llama, Mistral, and fine-tuned derivatives in production — with detection signals, economics, and the production stack.",
     date: "April 2026",
     category: "Infrastructure",
-    featured: false,
+    readingMinutes: 6,
   },
   {
     slug: "every-yc-batch-and-which-ai-they-use",
     title: "Every YC Batch and Which AI They Use",
-    description: "Cohort-by-cohort breakdown of AI provider choices across recent Y Combinator batches.",
+    description:
+      "Cohort-by-cohort breakdown of AI provider choices across recent Y Combinator batches — what changes batch over batch.",
     date: "April 2026",
     category: "YC Watch",
-    featured: false,
+    readingMinutes: 6,
   },
   {
     slug: "how-to-tell-which-llm-a-website-is-using",
     title: "How to Tell Which LLM a Website Is Using",
-    description: "A practical, evidence-based guide to fingerprinting any website's AI provider.",
+    description:
+      "A practical, evidence-based guide to fingerprinting any website&apos;s AI provider — devtools, request shapes, gateway tricks.",
     date: "April 2026",
     category: "How-to",
-    featured: false,
+    readingMinutes: 7,
   },
   {
     slug: "the-complete-guide-to-fingerprinting-ai-providers",
     title: "The Complete Guide to Fingerprinting AI Providers",
-    description: "Everything we've learned building AIHackr — signals, scoring, gotchas, and ethical guardrails.",
+    description:
+      "Everything we&apos;ve learned building AIHackr — the signals, scoring rules, false-positive patterns, and ethical guardrails behind reliable AI provider attribution.",
     date: "April 2026",
     category: "Methodology",
-    featured: false,
+    readingMinutes: 7,
   },
   {
     slug: "what-technologies-the-successful-projects-at-hacker-news-are-using",
     title: "What Technologies the Successful Projects at Hacker News Are Using",
-    description: "Deep analysis of tech stacks from top Show HN launches — frameworks, hosting, payments, auth, AI.",
+    description:
+      "Deep analysis of tech stacks from top Show HN launches — frameworks, hosting, payments, auth, and AI providers.",
     date: "January 2026",
     category: "Research",
-    featured: false,
+    readingMinutes: 12,
+    // Long-form research piece written without the BlogPostLayout primitives;
+    // reading time stays the prior estimate.
   },
 ];
 
@@ -177,9 +203,15 @@ export default function BlogIndex() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      {post.date}
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        {post.date}
+                      </span>
+                      <span className="flex items-center gap-1" data-testid={`reading-time-${post.slug}`}>
+                        <Clock className="w-4 h-4" />
+                        {post.readingMinutes} min read
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
