@@ -478,7 +478,7 @@ export default function WatchlistPage() {
               <div className="col-span-2">Providers detected</div>
               <div className="col-span-1">Confidence</div>
               <div className="col-span-2">Last scanned</div>
-              <div className="col-span-2">Change summary</div>
+              <div className="col-span-2">Last changed</div>
               <div className="col-span-1">Status</div>
               <div className="col-span-1 text-right">Actions</div>
             </div>
@@ -598,8 +598,7 @@ function WatchlistRow({
     if (!sub.lastChangedAt) return "No changes yet";
     const lastChange = new Date(sub.lastChangedAt).getTime();
     const within7d = Date.now() - lastChange < 7 * 24 * 60 * 60 * 1000;
-    if (within7d) return `Changed ${formatRelative(sub.lastChangedAt)}`;
-    return `Stable since ${formatRelative(sub.lastChangedAt)}`;
+    return within7d ? "Changed this week" : "Stable";
   })();
 
   return (
@@ -644,8 +643,16 @@ function WatchlistRow({
         <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-last-scanned-${sub.id}`}>
           {formatRelative(sub.lastScannedAt)}
         </div>
-        <div className="col-span-2 text-sm text-muted-foreground" data-testid={`cell-change-summary-${sub.id}`}>
-          {changeSummary}
+        <div className="col-span-2" data-testid={`cell-last-changed-${sub.id}`}>
+          <div className="text-sm text-foreground">
+            {sub.lastChangedAt ? formatRelative(sub.lastChangedAt) : "—"}
+          </div>
+          <div
+            className="text-xs text-muted-foreground"
+            data-testid={`text-change-summary-${sub.id}`}
+          >
+            {changeSummary}
+          </div>
         </div>
         <div className="col-span-1">
           <ScanStatusPill sub={sub} />

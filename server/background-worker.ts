@@ -500,7 +500,20 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
     });
   }
 
-  // Dedup: same (entry, provider, changeType) within 24h?
+  // Dedup: rolling 24-hour window keyed by (subscription, provider, changeType).
+  //
+  // Design note: we deliberately use a rolling 24h window (based on the most
+  // recent `alertedAt` timestamp on a sibling change_event) rather than a
+  // calendar-day "(entry, provider, changeType, date)" composite key. Two
+  // reasons:
+  //   1) Calendar-day buckets emit 2 alerts within minutes when a flap straddles
+  //      midnight (e.g. 23:59 UTC then 00:01 UTC the next day) — a rolling
+  //      window naturally suppresses that.
+  //   2) For users in different timezones, "date" is ambiguous; rolling 24h is
+  //      timezone-neutral and matches our quiet-hours / weekly-cap semantics
+  //      which are also wall-clock-based off the user's stored timezone.
+  // If a per-day composite key is ever needed for the playbook's "exact" wording,
+  // it can be layered on top of this without changing the dedup intent.
   const recent = await storage.findRecentAlert(sub.id, change.provider || "", change.changeType, ALERT_DEDUP_MS);
   if (recent) {
     console.log(`[Alerts] Suppressed (dedup) for ${sub.domain} ${change.changeType} ${change.provider}`);
