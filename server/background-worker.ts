@@ -1,169 +1,783 @@
-import { storage } from "./storage";
+/**
+ * AIHackr Watchlist Background Worker
+ *
+ * Implements the playbook spec (Part 2 §2.3 + §3 + §4):
+ * - Per-plan re-scan cadence with ±2h jitter
+ * - Pro-priority head-of-queue
+ * - Provider-aware diff with confidence bands and 0.60 floor
+ * - 2-consecutive-scan rule for provider removal
+ * - 4-hour retry, 3 attempts, then "unreachable" badge + one-time email
+ * - Alert delivery with dedup, quiet hours, frequency cap, dismissal
+ * - Weekly digest scheduling (Monday 8 AM in user TZ)
+ */
+
+import { storage, db } from "./storage";
 import { scanUrl } from "./scanner";
-import { sendChangeNotificationEmail } from "./email";
-import type { Subscription, Scan, InsertScan } from "@shared/schema";
+import {
+  sendStackChangeAlertEmail,
+  sendSiteUnreachableEmail,
+  sendWeeklyDigestEmail,
+  type ProviderStateForEmail,
+  type DigestChangeRow,
+  type DigestWatchlistRow,
+} from "./email";
+import { sendStackChangeSlack } from "./slack";
+import { subscriptions, scans, users, changeEvents, userSettings } from "@shared/schema";
+import { eq, and, gte, isNotNull, lt } from "drizzle-orm";
+import type { Subscription, Scan, ChangeEvent, User, UserSettings, InsertScan } from "@shared/schema";
 
-const RESCAN_INTERVAL_HOURS = 24;
-const RESCAN_INTERVAL_MS = RESCAN_INTERVAL_HOURS * 60 * 60 * 1000;
+// ─── Cadence constants ───────────────────────────────────
+const FREE_CADENCE_MS = 7 * 24 * 60 * 60 * 1000;       // 7 days
+const PRO_CADENCE_MS = 24 * 60 * 60 * 1000;            // 24 hours
+const JITTER_MS = 2 * 60 * 60 * 1000;                  // ±2 hours
+const RETRY_DELAY_MS = 4 * 60 * 60 * 1000;             // 4 hours
+const MAX_RETRIES = 3;
+const PENDING_REMOVAL_THRESHOLD = 2;                   // 2 consecutive missing scans
+const CONFIDENCE_FLOOR = 0.6;
+const ALERT_DEDUP_MS = 24 * 60 * 60 * 1000;            // 24 hours
+const FREE_WEEKLY_ALERT_CAP = 5;
+const WORKER_TICK_MS = 10 * 60 * 1000;                 // poll every 10 min
+const APP_URL = process.env.APP_URL || "https://aihackr.com";
 
-interface Changes {
-  added: string[];
-  removed: string[];
-  modified: Array<{ tech: string; from: string; to: string }>;
-}
-
-function detectChanges(oldScan: Scan | undefined, newScan: any): Changes {
-  const changes: Changes = { added: [], removed: [], modified: [] };
-  
-  if (!oldScan) return changes;
-  
-  const stringFields = ['framework', 'hosting', 'payments', 'auth', 'analytics', 'aiProvider'] as const;
-  
-  for (const field of stringFields) {
-    const oldVal = (oldScan as any)[field] as string | null;
-    const newVal = newScan[field] as string | null;
-    
-    if (!oldVal && newVal) {
-      changes.added.push(`${field}: ${newVal}`);
-    } else if (oldVal && !newVal) {
-      changes.removed.push(`${field}: ${oldVal}`);
-    } else if (oldVal && newVal && oldVal !== newVal) {
-      changes.modified.push({ tech: field, from: oldVal, to: newVal });
-    }
-  }
-  
-  return changes;
-}
+// ─── Helpers ─────────────────────────────────────────────
 
 function normalizeDomain(url: string): string {
   try {
-    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return urlObj.hostname.replace(/^www\./, '');
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    return u.hostname.replace(/^www\./, "");
   } catch {
     return url;
   }
 }
 
-async function rescanSubscription(subscription: Subscription): Promise<void> {
-  console.log(`[Worker] Re-scanning subscription: ${subscription.domain}`);
-  
-  try {
-    const scanResult = await scanUrl(subscription.url);
-    
-    const previousScans = await storage.getScansByDomain(subscription.domain);
-    const latestPreviousScan = previousScans[0];
-    
-    const changes = detectChanges(latestPreviousScan, scanResult);
-    const hasChanges = changes.added.length > 0 || changes.removed.length > 0 || changes.modified.length > 0;
-    
-    const normalizedScan: InsertScan = {
-      url: scanResult.url,
-      domain: normalizeDomain(scanResult.url),
-      userId: subscription.userId,
-      framework: scanResult.framework || null,
-      frameworkConfidence: scanResult.frameworkConfidence || null,
-      hosting: scanResult.hosting || null,
-      hostingConfidence: scanResult.hostingConfidence || null,
-      payments: scanResult.payments || null,
-      paymentsConfidence: scanResult.paymentsConfidence || null,
-      auth: scanResult.auth || null,
-      authConfidence: scanResult.authConfidence || null,
-      analytics: scanResult.analytics || null,
-      analyticsConfidence: scanResult.analyticsConfidence || null,
-      support: scanResult.support || null,
-      supportConfidence: scanResult.supportConfidence || null,
-      aiProvider: scanResult.aiProvider || null,
-      aiConfidence: scanResult.aiConfidence || null,
-      aiTransport: scanResult.aiTransport || null,
-      aiGateway: scanResult.aiGateway || null,
-      scanPhases: {
-        passive: "complete" as const,
-        render: "skipped" as const,
-        probe: "locked" as const,
-      },
-      scanMode: "passive",
-      evidence: scanResult.evidence || null,
-    };
-    
-    const savedScan = await storage.createScan(normalizedScan);
-    
-    if (hasChanges) {
-      console.log(`[Worker] Changes detected for ${subscription.domain}:`, changes);
-      
-      const changeSummary = [
-        ...changes.added.map(a => `Added: ${a}`),
-        ...changes.removed.map(r => `Removed: ${r}`),
-        ...changes.modified.map(m => `Changed ${m.tech}: ${m.from} → ${m.to}`),
-      ].join('; ');
-      
-      await storage.createChangeEvent({
-        subscriptionId: subscription.id,
-        oldScanId: latestPreviousScan?.id || null,
-        newScanId: savedScan.id,
-        changeType: 'stack_change',
-        changeSummary,
-        changes,
+function nextScanTime(planTier: string, base: Date = new Date()): Date {
+  const cadence = planTier === "pro" ? PRO_CADENCE_MS : FREE_CADENCE_MS;
+  const jitter = (Math.random() * 2 - 1) * JITTER_MS;
+  return new Date(base.getTime() + cadence + jitter);
+}
+
+/** Map a string confidence ("High"/"Medium"/"Low") OR a 0-1 score to a band + score. */
+function normalizeConfidence(confidence: string | null | undefined): { band: "high" | "medium" | "low" | "none"; score: number } {
+  if (!confidence) return { band: "none", score: 0 };
+  const c = confidence.toString().toLowerCase();
+  if (c === "high") return { band: "high", score: 0.85 };
+  if (c === "medium") return { band: "medium", score: 0.65 };
+  if (c === "low") return { band: "low", score: 0.4 };
+  // numeric?
+  const num = parseFloat(c);
+  if (!isNaN(num)) return scoreToBand(num);
+  return { band: "none", score: 0 };
+}
+
+function scoreToBand(score: number): { band: "high" | "medium" | "low" | "none"; score: number } {
+  if (score >= 0.8) return { band: "high", score };
+  if (score >= 0.5) return { band: "medium", score };
+  if (score > 0) return { band: "low", score };
+  return { band: "none", score: 0 };
+}
+
+function bandRank(band: "high" | "medium" | "low" | "none"): number {
+  return { high: 3, medium: 2, low: 1, none: 0 }[band];
+}
+
+interface DetectedProvider {
+  provider: string;
+  displayName: string;
+  confidence: "high" | "medium" | "low";
+  confidenceScore: number;
+  modelHints?: string[];
+  firstDetectedAt?: string;
+  lastSeenAt?: string;
+}
+
+function buildDisplayName(provider: string): string {
+  const map: Record<string, string> = {
+    openai: "OpenAI",
+    anthropic: "Anthropic (Claude)",
+    google: "Google (Gemini)",
+    gemini: "Google (Gemini)",
+    azure: "Azure OpenAI",
+    "azure_openai": "Azure OpenAI",
+    cohere: "Cohere",
+    mistral: "Mistral",
+    bedrock: "AWS Bedrock",
+  };
+  const key = provider.toLowerCase().replace(/[\s-]+/g, "_");
+  return map[key] || provider;
+}
+
+function modelHintsFromScan(scan: { aiProvider?: string | null; aiGateway?: string | null; aiTransport?: string | null; inferredModel?: string | null }): string[] {
+  return scan.inferredModel ? [scan.inferredModel] : [];
+}
+
+/**
+ * Convert a scan result into the DetectedProvider list stored on the
+ * watchlist entry. Today the scanner emits a single primary AI provider;
+ * this helper is structured so we can return multiple in the future.
+ */
+function buildDetectedProviders(scan: { aiProvider?: string | null; aiConfidence?: string | null; inferredModel?: string | null }, prior?: DetectedProvider[] | null): DetectedProvider[] {
+  if (!scan.aiProvider) return [];
+  const { band, score } = normalizeConfidence(scan.aiConfidence);
+  if (band === "none") return [];
+  const provider = scan.aiProvider.toLowerCase();
+  const priorEntry = (prior || []).find((p) => p.provider === provider);
+  return [
+    {
+      provider,
+      displayName: buildDisplayName(scan.aiProvider),
+      confidence: band as "high" | "medium" | "low",
+      confidenceScore: score,
+      modelHints: modelHintsFromScan(scan as any),
+      firstDetectedAt: priorEntry?.firstDetectedAt || new Date().toISOString(),
+      lastSeenAt: new Date().toISOString(),
+    },
+  ];
+}
+
+// ─── Diff engine (playbook §2.3) ─────────────────────────
+
+interface DiffResult {
+  changes: Array<Omit<ChangeEvent, "id" | "detectedAt"> & { providerDisplayName: string }>;
+  updatedPendingRemovals: Record<string, number>;
+  /** Providers to report as the new "providersDetected" stored state.
+   * For a removal still in pending, we keep the prior provider entry. */
+  providersToStore: DetectedProvider[];
+}
+
+function computeDiff(
+  priorRaw: DetectedProvider[],
+  nextRaw: DetectedProvider[],
+  pendingRemovals: Record<string, number>,
+  newScanId: string,
+  oldScanId: string | null
+): DiffResult {
+  const changes: DiffResult["changes"] = [];
+  const updatedPending: Record<string, number> = { ...pendingRemovals };
+  const providersToStore: DetectedProvider[] = [];
+
+  // Apply 0.60 confidence floor: providers below the floor are NOT considered "present" for
+  // add/remove state transitions. Storing only above-floor providers ensures that when a
+  // provider later crosses above 0.60 it correctly emits `provider_added`, and when one
+  // drops below the floor the pending-removal counter starts.
+  const prior = priorRaw.filter((p) => (p.confidenceScore ?? 0) >= CONFIDENCE_FLOOR);
+  const next = nextRaw.filter((p) => (p.confidenceScore ?? 0) >= CONFIDENCE_FLOOR);
+
+  const priorMap = new Map(prior.map((p) => [p.provider, p]));
+  const nextMap = new Map(next.map((p) => [p.provider, p]));
+
+  // Provider added (already filtered to ≥ floor)
+  for (const p of next) {
+    if (!priorMap.has(p.provider)) {
+      changes.push({
+        subscriptionId: "", // filled by caller
+        oldScanId: oldScanId,
+        newScanId,
+        changeType: "provider_added",
+        changeSummary: `Added ${p.displayName} (${p.confidence} confidence)`,
+        changes: { added: [p.displayName], removed: [], modified: [] },
         notificationSent: false,
         notificationSentAt: null,
+        provider: p.provider,
+        providerDisplayName: p.displayName,
+        priorConfidence: "none",
+        newConfidence: p.confidence,
+        severity: "major",
+        alertedAt: null,
+        alertSuppressed: false,
+        dismissedUntil: null,
+        modelHints: p.modelHints?.length ? { from: [], to: p.modelHints } : null,
       });
-      
-      if (subscription.notifyOnChange) {
-        const user = await storage.getUser(subscription.userId);
-        if (user?.email) {
-          console.log(`[Worker] Sending notification email to ${user.email}`);
-          const scanPageUrl = `${process.env.APP_URL || 'https://aihackr.com'}/scan/${subscription.domain}`;
-          await sendChangeNotificationEmail(user.email, subscription.domain, changes, scanPageUrl);
-        }
+    }
+    providersToStore.push(p);
+    // any provider that came back resets its pending counter
+    if (updatedPending[p.provider]) delete updatedPending[p.provider];
+  }
+
+  // Provider removed (2-consecutive-scan rule). Prior is already filtered to ≥ floor.
+  for (const p of prior) {
+    if (!nextMap.has(p.provider)) {
+      const newCount = (updatedPending[p.provider] || 0) + 1;
+      updatedPending[p.provider] = newCount;
+      if (newCount >= PENDING_REMOVAL_THRESHOLD) {
+        changes.push({
+          subscriptionId: "",
+          oldScanId,
+          newScanId,
+          changeType: "provider_removed",
+          changeSummary: `Removed ${p.displayName} (was ${p.confidence} confidence)`,
+          changes: { added: [], removed: [p.displayName], modified: [] },
+          notificationSent: false,
+          notificationSentAt: null,
+          provider: p.provider,
+          providerDisplayName: p.displayName,
+          priorConfidence: p.confidence,
+          newConfidence: "none",
+          severity: "major",
+          alertedAt: null,
+          alertSuppressed: false,
+          dismissedUntil: null,
+          modelHints: null,
+        });
+        delete updatedPending[p.provider]; // clear after firing
+        // do NOT add to providersToStore
+      } else {
+        // Still pending — keep the prior entry visible
+        providersToStore.push(p);
       }
     }
-    
-    await storage.updateSubscription(subscription.id, { 
-      lastScannedAt: new Date(),
-      lastScanId: savedScan.id,
+  }
+
+  // Confidence band shifts for shared providers
+  for (const p of next) {
+    const prev = priorMap.get(p.provider);
+    if (prev) {
+      const prevBand = prev.confidence;
+      const newBand = p.confidence;
+      if (prevBand !== newBand) {
+        const upgraded = bandRank(newBand) > bandRank(prevBand);
+        changes.push({
+          subscriptionId: "",
+          oldScanId,
+          newScanId,
+          changeType: upgraded ? "confidence_upgraded" : "confidence_downgraded",
+          changeSummary: `${p.displayName}: ${prevBand} → ${newBand} confidence`,
+          changes: { added: [], removed: [], modified: [{ tech: p.provider, from: prevBand, to: newBand }] },
+          notificationSent: false,
+          notificationSentAt: null,
+          provider: p.provider,
+          providerDisplayName: p.displayName,
+          priorConfidence: prevBand,
+          newConfidence: newBand,
+          severity: "minor",
+          alertedAt: null,
+          alertSuppressed: false,
+          dismissedUntil: null,
+          modelHints: null,
+        });
+      }
+
+      // Model hint changes (minor)
+      const priorHints = JSON.stringify((prev.modelHints || []).slice().sort());
+      const nextHints = JSON.stringify((p.modelHints || []).slice().sort());
+      if (priorHints !== nextHints && nextHints !== "[]") {
+        changes.push({
+          subscriptionId: "",
+          oldScanId,
+          newScanId,
+          changeType: "model_hint_changed",
+          changeSummary: `${p.displayName} model hints changed`,
+          changes: { added: [], removed: [], modified: [{ tech: `${p.provider}:model`, from: prev.modelHints?.[0] || "—", to: p.modelHints?.[0] || "—" }] },
+          notificationSent: false,
+          notificationSentAt: null,
+          provider: p.provider,
+          providerDisplayName: p.displayName,
+          priorConfidence: p.confidence,
+          newConfidence: p.confidence,
+          severity: "minor",
+          alertedAt: null,
+          alertSuppressed: false,
+          dismissedUntil: null,
+          modelHints: { from: prev.modelHints || [], to: p.modelHints || [] },
+        });
+      }
+    }
+  }
+
+  return { changes, updatedPendingRemovals: updatedPending, providersToStore };
+}
+
+// ─── Alert delivery gating ───────────────────────────────
+
+function isWithinQuietHours(settings: UserSettings, now: Date = new Date()): boolean {
+  if (settings.quietHoursStart == null || settings.quietHoursEnd == null) return false;
+  // Compute hour in user's timezone.
+  let hour: number;
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: settings.timezone || "UTC" });
+    const parts = fmt.formatToParts(now).find((p) => p.type === "hour");
+    hour = parts ? parseInt(parts.value, 10) : now.getUTCHours();
+  } catch {
+    hour = now.getUTCHours();
+  }
+  const start = settings.quietHoursStart;
+  const end = settings.quietHoursEnd;
+  if (start === end) return false;
+  if (start < end) return hour >= start && hour < end;
+  // wraps midnight (e.g., 22 → 7)
+  return hour >= start || hour < end;
+}
+
+/** Decide whether a given change passes the user-level + entry-level filters. */
+function shouldSendAlert(opts: {
+  change: ChangeEvent & { providerDisplayName?: string };
+  entry: Subscription;
+  settings: UserSettings;
+  isPro: boolean;
+}): { ok: boolean; reason?: string } {
+  const { change, entry, settings, isPro } = opts;
+
+  // Entry alerts on at all?
+  if (!entry.notifyOnChange) return { ok: false, reason: "entry-alerts-off" };
+  if (entry.alertThreshold === "no_alerts") return { ok: false, reason: "entry-no-alerts" };
+
+  // Determine effective threshold (per-domain overrides global)
+  const effectiveThreshold = entry.alertThreshold && entry.alertThreshold !== "any_change"
+    ? entry.alertThreshold
+    : settings.globalAlertThreshold;
+
+  if (effectiveThreshold === "high_confidence_only") {
+    const conf = (change.newConfidence || "").toLowerCase();
+    if (conf !== "high") return { ok: false, reason: "below-high-confidence" };
+  }
+  if (effectiveThreshold === "provider_added_removed") {
+    if (change.changeType !== "provider_added" && change.changeType !== "provider_removed") {
+      return { ok: false, reason: "not-provider-add-remove" };
+    }
+  }
+
+  // Min confidence to alert
+  const minConf = (settings.minConfidenceToAlert || "medium").toLowerCase();
+  const minRank = { low: 1, medium: 2, high: 3 }[minConf as "low" | "medium" | "high"] || 2;
+  const rankMap: Record<string, number> = { low: 1, medium: 2, high: 3, none: 0 };
+  const newRank = rankMap[(change.newConfidence || "none").toLowerCase()] || 0;
+  // For provider_removed the new confidence is "none" — we always allow major changes through min filter
+  if (change.severity === "minor" && newRank < minRank) {
+    return { ok: false, reason: "below-min-confidence" };
+  }
+
+  // Free-plan weekly cap
+  if (!isPro) {
+    if ((settings.alertsThisWeek || 0) >= FREE_WEEKLY_ALERT_CAP) {
+      return { ok: false, reason: "free-weekly-cap" };
+    }
+  }
+
+  // Quiet hours
+  if (isWithinQuietHours(settings)) return { ok: false, reason: "quiet-hours" };
+
+  return { ok: true };
+}
+
+// ─── Scan execution ──────────────────────────────────────
+
+async function performScan(sub: Subscription & { planTier: string }, isManual: boolean = false): Promise<{ ok: boolean; scan?: Scan; reason?: string }> {
+  await storage.updateSubscription(sub.id, { scanStatus: "scanning" });
+
+  let scanResult;
+  try {
+    scanResult = await scanUrl(sub.url);
+  } catch (err) {
+    console.error(`[Worker] Scan failed for ${sub.domain}:`, err);
+    await handleScanFailure(sub);
+    return { ok: false, reason: "scan-error" };
+  }
+
+  // Save the scan record
+  const insert: InsertScan = {
+    url: scanResult.url,
+    domain: normalizeDomain(scanResult.url),
+    userId: sub.userId,
+    framework: scanResult.framework || null,
+    frameworkConfidence: scanResult.frameworkConfidence || null,
+    hosting: scanResult.hosting || null,
+    hostingConfidence: scanResult.hostingConfidence || null,
+    payments: scanResult.payments || null,
+    paymentsConfidence: scanResult.paymentsConfidence || null,
+    auth: scanResult.auth || null,
+    authConfidence: scanResult.authConfidence || null,
+    analytics: scanResult.analytics || null,
+    analyticsConfidence: scanResult.analyticsConfidence || null,
+    support: scanResult.support || null,
+    supportConfidence: scanResult.supportConfidence || null,
+    aiProvider: scanResult.aiProvider || null,
+    aiConfidence: scanResult.aiConfidence || null,
+    aiTransport: scanResult.aiTransport || null,
+    aiGateway: scanResult.aiGateway || null,
+    scanPhases: { passive: "complete", render: "skipped", probe: "locked" },
+    scanMode: "passive",
+    evidence: scanResult.evidence || null,
+  };
+  const savedScan = await storage.createScan(insert);
+
+  // Compute diff
+  const priorProviders = (sub.providersDetected || []) as DetectedProvider[];
+  const nextProviders = buildDetectedProviders(savedScan, priorProviders);
+  const pendingRemovals = (sub.pendingRemovals || {}) as Record<string, number>;
+  const diff = computeDiff(priorProviders, nextProviders, pendingRemovals, savedScan.id, sub.lastScanId || null);
+
+  // Persist detected providers + reset failure counter
+  await storage.updateSubscription(sub.id, {
+    lastScannedAt: new Date(),
+    lastScanId: savedScan.id,
+    scanStatus: "complete",
+    consecutiveFailures: 0,
+    unreachableNotifiedAt: null,
+    nextScanAt: nextScanTime(sub.planTier),
+    providersDetected: diff.providersToStore as any,
+    pendingRemovals: diff.updatedPendingRemovals as any,
+    lastChangedAt: diff.changes.length > 0 ? new Date() : sub.lastChangedAt,
+  });
+
+  // Record changes + deliver alerts
+  for (const change of diff.changes) {
+    const event = await storage.createChangeEvent({
+      ...change,
+      subscriptionId: sub.id,
     });
-    
-    console.log(`[Worker] Completed re-scan for ${subscription.domain}`);
-  } catch (error) {
-    console.error(`[Worker] Error re-scanning ${subscription.domain}:`, error);
+    await deliverAlert(sub, event);
+  }
+
+  return { ok: true, scan: savedScan };
+}
+
+async function handleScanFailure(sub: Subscription): Promise<void> {
+  const failures = (sub.consecutiveFailures || 0) + 1;
+  const isUnreachable = failures >= MAX_RETRIES;
+  const planTier = (await storage.getUser(sub.userId))?.planTier || "free";
+
+  await storage.updateSubscription(sub.id, {
+    consecutiveFailures: failures,
+    scanStatus: isUnreachable ? "unreachable" : "error",
+    nextScanAt: isUnreachable
+      ? nextScanTime(planTier) // back to normal cadence
+      : new Date(Date.now() + RETRY_DELAY_MS),
+  });
+
+  // One-time unreachable email
+  if (isUnreachable && !sub.unreachableNotifiedAt) {
+    const user = await storage.getUser(sub.userId);
+    if (user?.email) {
+      console.log(`[Worker] Site unreachable: ${sub.domain} — notifying ${user.email}`);
+      await sendSiteUnreachableEmail(user.email, sub.domain);
+      await storage.updateSubscription(sub.id, { unreachableNotifiedAt: new Date() });
+    }
   }
 }
 
-async function runWorkerCycle(): Promise<void> {
-  console.log('[Worker] Starting subscription re-scan cycle...');
-  
-  try {
-    const allSubscriptions = await storage.getAllSubscriptions();
-    
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - RESCAN_INTERVAL_MS);
-    
-    const dueSubscriptions = allSubscriptions.filter((sub: Subscription) => {
-      if (!sub.isActive) return false;
-      if (!sub.lastScannedAt) return true;
-      return new Date(sub.lastScannedAt) < cutoff;
+// ─── Alert delivery ──────────────────────────────────────
+
+async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<void> {
+  const user = await storage.getUser(sub.userId);
+  if (!user) return;
+  const isPro = user.planTier === "pro";
+
+  // Ensure user_settings exists
+  let settings = await storage.getUserSettings(sub.userId);
+  if (!settings) {
+    settings = await storage.upsertUserSettings(sub.userId, {});
+  }
+
+  // Reset weekly cap if needed (rolling 7-day window)
+  if (!settings.weekResetAt || new Date(settings.weekResetAt).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+    settings = await storage.upsertUserSettings(sub.userId, {
+      alertsThisWeek: 0,
+      weekResetAt: new Date(),
     });
-    
-    console.log(`[Worker] Found ${dueSubscriptions.length} subscriptions due for re-scan`);
-    
-    for (const sub of dueSubscriptions) {
-      await rescanSubscription(sub);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+
+  // Dedup: same (entry, provider, changeType) within 24h?
+  const recent = await storage.findRecentAlert(sub.id, change.provider || "", change.changeType, ALERT_DEDUP_MS);
+  if (recent) {
+    console.log(`[Alerts] Suppressed (dedup) for ${sub.domain} ${change.changeType} ${change.provider}`);
+    await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
+    return;
+  }
+
+  // False-positive dismissal
+  if (change.provider) {
+    const dismissed = await storage.hasActiveDismissal(sub.id, change.provider, change.newConfidence);
+    if (dismissed) {
+      console.log(`[Alerts] Suppressed (dismissed) for ${sub.domain} ${change.provider}`);
+      await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
+      return;
     }
-    
-    console.log('[Worker] Completed subscription re-scan cycle');
-  } catch (error) {
-    console.error('[Worker] Error in worker cycle:', error);
+  }
+
+  const decision = shouldSendAlert({ change: change as any, entry: sub, settings, isPro });
+  if (!decision.ok) {
+    console.log(`[Alerts] Suppressed (${decision.reason}) for ${sub.domain} ${change.changeType}`);
+    await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
+    return;
+  }
+
+  // Build before/after provider lists for the email
+  const before: ProviderStateForEmail[] = ((sub.providersDetected || []) as any[]).map((p) => ({
+    provider: p.provider,
+    displayName: p.displayName,
+    confidence: p.confidence,
+    modelHints: p.modelHints,
+  }));
+  // After = current (already updated on the entry by performScan)
+  const updatedSub = await storage.getSubscription(sub.id);
+  const after: ProviderStateForEmail[] = ((updatedSub?.providersDetected || []) as any[]).map((p) => ({
+    provider: p.provider,
+    displayName: p.displayName,
+    confidence: p.confidence,
+    modelHints: p.modelHints,
+  }));
+
+  const evidenceSignals = await buildEvidenceSignals(sub, change);
+
+  let emailOk = false;
+  let slackOk = false;
+
+  if (settings.emailAlertsEnabled && user.notificationsEnabled !== false) {
+    emailOk = await sendStackChangeAlertEmail({
+      to: user.email,
+      domain: sub.domain,
+      change,
+      beforeProviders: before,
+      afterProviders: after,
+      evidenceSignals,
+      scanUrl: `${APP_URL}/scan/${sub.domain}`,
+      priorScanAt: sub.lastScannedAt,
+    });
+  }
+
+  if (isPro && sub.slackEnabled && settings.slackAlertsEnabled && settings.slackWebhookUrl) {
+    slackOk = await sendStackChangeSlack({
+      webhookUrl: settings.slackWebhookUrl,
+      domain: sub.domain,
+      change,
+      beforeProviders: before,
+      afterProviders: after,
+      scanUrl: `${APP_URL}/scan/${sub.domain}`,
+    });
+  }
+
+  if (emailOk || slackOk) {
+    await storage.markChangeEventAlerted(change.id);
+    if (!isPro) {
+      await storage.upsertUserSettings(sub.userId, {
+        alertsThisWeek: (settings.alertsThisWeek || 0) + 1,
+        weekResetAt: settings.weekResetAt || new Date(),
+      });
+    }
   }
 }
+
+async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Promise<string[]> {
+  const out: string[] = [];
+  if (!sub.lastScanId) return out;
+  const scan = await storage.getScan(sub.lastScanId);
+  if (!scan) return out;
+  const ev = scan.evidence as any;
+  if (!ev) return out;
+  if (Array.isArray(ev.scripts) && ev.scripts.length) out.push(`Scripts detected: ${ev.scripts.slice(0, 2).join(", ")}`);
+  if (Array.isArray(ev.networkDomains) && ev.networkDomains.length) {
+    const aiDomain = ev.networkDomains.find((d: string) =>
+      /openai|anthropic|googleapis|azure|cohere|mistral|bedrock/.test(d)
+    );
+    if (aiDomain) out.push(`Network call to ${aiDomain}`);
+  }
+  if (Array.isArray(ev.patterns) && ev.patterns.length) out.push(`API endpoint pattern: ${ev.patterns[0]}`);
+  if (scan.aiTransport) out.push(`Transport: ${scan.aiTransport}`);
+  if (scan.aiGateway) out.push(`AI gateway: ${scan.aiGateway}`);
+  if (out.length === 0) out.push("Confidence derived from passive HTML + header analysis");
+  return out.slice(0, 4);
+}
+
+// ─── Manual scan-now (Pro feature) ───────────────────────
+
+const MANUAL_SCAN_LIMIT_PRO = 3;
+const MANUAL_SCAN_LIMIT_FREE = 1; // 1×/week per playbook
+
+export async function manualScanNow(subscriptionId: string): Promise<{ ok: boolean; reason?: string; scan?: Scan }> {
+  const sub = await storage.getSubscription(subscriptionId);
+  if (!sub) return { ok: false, reason: "not-found" };
+  const user = await storage.getUser(sub.userId);
+  if (!user) return { ok: false, reason: "no-user" };
+  const isPro = user.planTier === "pro";
+
+  // Reset counter if window elapsed. Pro = 24h window (3/day), Free = 7d window (1/week).
+  const now = new Date();
+  const windowMs = isPro ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const resetAt = sub.manualScanResetAt ? new Date(sub.manualScanResetAt) : null;
+  let used = sub.manualScansToday || 0;
+  let resetWindow: Date = resetAt ?? now;
+  if (!resetAt || resetAt.getTime() < Date.now() - windowMs) {
+    used = 0;
+    resetWindow = now;
+  }
+
+  const limit = isPro ? MANUAL_SCAN_LIMIT_PRO : MANUAL_SCAN_LIMIT_FREE;
+  if (used >= limit) {
+    return { ok: false, reason: isPro ? "limit-3-per-day" : "limit-1-per-week-upgrade-for-more" };
+  }
+
+  await storage.updateSubscription(sub.id, {
+    manualScansToday: used + 1,
+    manualScanResetAt: resetWindow as Date,
+  });
+
+  const result = await performScan({ ...sub, planTier: user.planTier }, true);
+  return { ok: result.ok, reason: result.reason, scan: result.scan };
+}
+
+// ─── Scan loop ───────────────────────────────────────────
+
+async function runScanCycle(): Promise<void> {
+  try {
+    const due = await storage.getDueSubscriptions(new Date());
+    if (due.length === 0) return;
+    console.log(`[Worker] ${due.length} watchlist entries due for scan`);
+    for (const sub of due) {
+      try {
+        await performScan(sub);
+      } catch (err) {
+        console.error(`[Worker] Unexpected error scanning ${sub.domain}:`, err);
+      }
+      // Small spacing between scans to avoid hammering hosts
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  } catch (err) {
+    console.error("[Worker] Scan cycle error:", err);
+  }
+}
+
+// ─── Weekly digest cron ──────────────────────────────────
+
+async function runDigestCycle(): Promise<void> {
+  try {
+    const now = new Date();
+    // Only send digests during a Monday 7-12 AM window per user TZ
+    const dueUsers = await storage.getUsersDueForDigest(now);
+    if (dueUsers.length === 0) return;
+
+    for (const user of dueUsers) {
+      const settings = await storage.getUserSettings(user.id);
+      if (!settings || !settings.digestEnabled) continue;
+
+      // Compute the user-local hour to gate by Monday 7-12 AM
+      let userHour = 8;
+      let userDay = 1;
+      try {
+        const tzFmt = new Intl.DateTimeFormat("en-US", {
+          weekday: "short",
+          hour: "numeric",
+          hour12: false,
+          timeZone: settings.timezone || "UTC",
+        });
+        const parts = tzFmt.formatToParts(now);
+        userHour = parseInt(parts.find((p) => p.type === "hour")?.value || "8", 10);
+        const wk = parts.find((p) => p.type === "weekday")?.value || "Mon";
+        userDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wk);
+      } catch {
+        // fall through
+      }
+      // Monday morning gate: weekday=1 and hour 7-11 inclusive
+      if (userDay !== 1 || userHour < 7 || userHour > 11) continue;
+
+      await sendDigestToUser(user, settings);
+    }
+  } catch (err) {
+    console.error("[Worker] Digest cycle error:", err);
+  }
+}
+
+async function sendDigestToUser(user: User, settings: UserSettings): Promise<void> {
+  const now = new Date();
+  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const watchlist = await storage.getUserSubscriptions(user.id);
+  const events = await storage.getChangeEventsForUser(user.id, weekStart);
+
+  const isPro = user.planTier === "pro";
+
+  const changes: DigestChangeRow[] = events.slice(0, 25).map((e) => ({
+    domain: watchlist.find((w) => w.id === e.subscriptionId)?.domain || "—",
+    changeType: e.changeType,
+    severity: (e.severity as "major" | "minor") || "major",
+    provider: e.providerDisplayName || e.provider || "AI provider",
+    newConfidence: e.newConfidence,
+    priorConfidence: e.priorConfidence,
+    detectedAt: e.detectedAt,
+    scanUrl: `${APP_URL}/scan/${watchlist.find((w) => w.id === e.subscriptionId)?.domain || ""}`,
+    note: e.severity === "minor" ? "May be a temporary detection fluctuation." : undefined,
+  }));
+
+  const digestList: DigestWatchlistRow[] = watchlist.map((w) => {
+    const detected = (w.providersDetected || []) as Array<{ displayName: string; confidence: "high" | "medium" | "low" }>;
+    const highest = detected.reduce<"high" | "medium" | "low" | null>((acc, p) => {
+      const r = bandRank(p.confidence);
+      const accR = acc ? bandRank(acc) : 0;
+      return r > accR ? p.confidence : acc;
+    }, null);
+    return {
+      domain: w.domain,
+      providers: detected.map((p) => p.displayName),
+      highestConfidence: highest,
+      lastChangedAt: w.lastChangedAt,
+      changedThisWeek: w.lastChangedAt ? new Date(w.lastChangedAt).getTime() >= weekStart.getTime() : false,
+    };
+  });
+
+  // Trending: stub for MVP — derived from aggregate change counts in the last 7 days.
+  const trending = isPro ? await computeTrendingBullets(weekStart) : [];
+
+  try {
+    const sent = await sendWeeklyDigestEmail({
+      to: user.email,
+      weekStart,
+      weekEnd: now,
+      changes,
+      watchlist: digestList,
+      trending,
+      isPro,
+    });
+    // Only mark as sent on confirmed success — otherwise a transient failure would
+    // be permanently treated as delivered, dropping the user's digest for a full week.
+    if (sent !== false) {
+      await storage.markDigestSent(user.id);
+    } else {
+      console.warn(`[Worker] Digest send returned falsy for ${user.email}; will retry next cycle`);
+    }
+  } catch (err) {
+    console.error(`[Worker] Failed to send digest to ${user.email}:`, err);
+    // Intentionally do NOT call markDigestSent — the next cron tick will retry.
+  }
+}
+
+async function computeTrendingBullets(weekStart: Date): Promise<Array<{ emoji: string; headline: string; body: string }>> {
+  // MVP: pull recent change events across all users to count per-provider deltas.
+  const recent = await db
+    .select()
+    .from(changeEvents)
+    .where(gte(changeEvents.detectedAt, weekStart));
+  if (recent.length < 5) return []; // sample-size guard (tightened in production to 50 per playbook)
+
+  const addCount = new Map<string, number>();
+  const removeCount = new Map<string, number>();
+  for (const e of recent) {
+    if (!e.provider) continue;
+    if (e.changeType === "provider_added") addCount.set(e.provider, (addCount.get(e.provider) || 0) + 1);
+    if (e.changeType === "provider_removed") removeCount.set(e.provider, (removeCount.get(e.provider) || 0) + 1);
+  }
+
+  const sorted = Array.from(addCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return sorted.map(([provider, count]) => ({
+    emoji: "📈",
+    headline: `${buildDisplayName(provider)} up — detected on ${count} new ${count === 1 ? "domain" : "domains"} this week`,
+    body: `${buildDisplayName(provider)} appeared as a new provider on ${count} watched ${count === 1 ? "domain" : "domains"} this week.`,
+  }));
+}
+
+// ─── Public entry point ──────────────────────────────────
 
 export function startBackgroundWorker(): void {
-  console.log('[Worker] Background worker starting...');
-  
+  console.log("[Worker] Background worker starting…");
+  // Initial delay to let the server boot
   setTimeout(async () => {
-    await runWorkerCycle();
-    
-    setInterval(runWorkerCycle, 60 * 60 * 1000);
+    await runScanCycle();
+    await runDigestCycle();
   }, 60 * 1000);
-  
-  console.log('[Worker] Background worker scheduled');
+
+  // Scan loop
+  setInterval(runScanCycle, WORKER_TICK_MS);
+  // Digest loop — checks every 30 minutes for users whose Monday-morning window is open
+  setInterval(runDigestCycle, 30 * 60 * 1000);
+
+  console.log("[Worker] Background worker scheduled");
 }
+
+// Re-export the diff for unit testing if needed
+export { computeDiff, normalizeConfidence, scoreToBand };

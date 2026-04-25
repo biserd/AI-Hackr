@@ -6,9 +6,12 @@ import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFrom
 import { insertScanSchema, insertSubscriptionSchema } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
+import { sendSlackTestMessage } from "./slack";
+import { manualScanNow } from "./background-worker";
 import { showHnProducts, showHnReports, scans } from "@shared/schema";
 import { db } from "./storage";
 import { sql, desc as descOrder } from "drizzle-orm";
+import { z } from "zod";
 
 // In-memory queue for background scans
 const backgroundScanQueue: Map<string, { phase: "render" | "probe"; url: string }> = new Map();
@@ -222,10 +225,10 @@ export async function registerRoutes(
     }
   });
 
-  // Create subscription
+  // Create subscription / watchlist entry — enforces Free 5-domain cap
   app.post("/api/me/subscriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const { url, displayLabel } = req.body;
+      const { url, displayLabel, alertThreshold } = req.body;
       
       if (!url || typeof url !== "string") {
         return res.status(400).json({ error: "URL is required" });
@@ -240,12 +243,34 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid URL" });
       }
 
+      // Free-plan 5-domain cap
+      const isPro = req.user!.planTier === "pro";
+      if (!isPro) {
+        const count = await storage.countUserSubscriptions(req.user!.id);
+        if (count >= 5) {
+          return res.status(402).json({
+            error: "free-plan-watchlist-cap",
+            message: "Free plan is limited to 5 watched domains. Upgrade to Pro for unlimited.",
+          });
+        }
+      }
+
+      // De-dup by domain per user
+      const existing = await storage.getSubscriptionByDomain(req.user!.id, domain);
+      if (existing) {
+        return res.status(409).json({ error: "already-watching", subscription: existing });
+      }
+
       const subscription = await storage.createSubscription({
         userId: req.user!.id,
         url: url.startsWith("http") ? url : `https://${url}`,
         domain,
         displayLabel: displayLabel || domain,
+        alertThreshold: alertThreshold || "any_change",
       });
+
+      // Schedule the first scan immediately
+      await storage.updateSubscription(subscription.id, { nextScanAt: new Date() });
 
       return res.json(subscription);
     } catch (error) {
@@ -254,7 +279,7 @@ export async function registerRoutes(
     }
   });
 
-  // Update subscription
+  // Update subscription / watchlist entry
   app.patch("/api/me/subscriptions/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
@@ -264,18 +289,63 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Subscription not found" });
       }
 
-      const { isActive, notifyOnChange, displayLabel } = req.body;
+      const { isActive, notifyOnChange, displayLabel, alertThreshold, slackEnabled, pausedUntil } = req.body;
       const updates: any = {};
       
       if (typeof isActive === "boolean") updates.isActive = isActive;
       if (typeof notifyOnChange === "boolean") updates.notifyOnChange = notifyOnChange;
       if (typeof displayLabel === "string") updates.displayLabel = displayLabel;
+      if (typeof alertThreshold === "string") updates.alertThreshold = alertThreshold;
+      if (typeof slackEnabled === "boolean") updates.slackEnabled = slackEnabled;
+      if (pausedUntil === null) updates.pausedUntil = null;
+      else if (typeof pausedUntil === "string") updates.pausedUntil = new Date(pausedUntil);
 
       const updated = await storage.updateSubscription(id, updates);
       return res.json(updated);
     } catch (error) {
       console.error("Update subscription error:", error);
       return res.status(500).json({ error: "Failed to update subscription" });
+    }
+  });
+
+  // Manual "Scan Now" — Pro 3×/day, Free 1×/week
+  app.post("/api/me/subscriptions/:id/scan-now", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const subscription = await storage.getSubscription(id);
+      if (!subscription || subscription.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      const result = await manualScanNow(id);
+      if (!result.ok) {
+        const status = result.reason?.startsWith("limit-") ? 429 : 400;
+        return res.status(status).json({ error: result.reason || "scan-failed" });
+      }
+      return res.json({ ok: true, scan: result.scan });
+    } catch (error) {
+      console.error("Scan-now error:", error);
+      return res.status(500).json({ error: "Failed to trigger scan" });
+    }
+  });
+
+  // Dismiss a change event as a false positive (suppresses similar alerts for 30 days)
+  app.post("/api/me/subscriptions/:id/changes/:changeId/dismiss", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id, changeId } = req.params;
+      const subscription = await storage.getSubscription(id);
+      if (!subscription || subscription.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      const change = await storage.getChangeEvent(changeId);
+      if (!change || change.subscriptionId !== id) {
+        return res.status(404).json({ error: "Change not found" });
+      }
+      const dismissUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await storage.dismissChangeEvent(changeId, dismissUntil);
+      return res.json({ ok: true, dismissedUntil: dismissUntil });
+    } catch (error) {
+      console.error("Dismiss change error:", error);
+      return res.status(500).json({ error: "Failed to dismiss change" });
     }
   });
 
@@ -315,7 +385,7 @@ export async function registerRoutes(
     }
   });
 
-  // Update user settings
+  // Update user profile (displayName / global notifications toggle)
   app.patch("/api/me/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { displayName, notificationsEnabled } = req.body;
@@ -329,6 +399,94 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Update settings error:", error);
       return res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  // ─── Alert settings (per playbook §3.5) ───
+  app.get("/api/me/alert-settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      let settings = await storage.getUserSettings(req.user!.id);
+      if (!settings) {
+        settings = await storage.upsertUserSettings(req.user!.id, {});
+      }
+      // Don't leak the raw webhook URL — return a masked indicator
+      return res.json({
+        ...settings,
+        slackWebhookUrl: settings.slackWebhookUrl ? "***configured***" : null,
+        slackWebhookConfigured: !!settings.slackWebhookUrl,
+      });
+    } catch (error) {
+      console.error("Get alert settings error:", error);
+      return res.status(500).json({ error: "Failed to get alert settings" });
+    }
+  });
+
+  app.patch("/api/me/alert-settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM (24h)");
+      const ianaTz = z.string().min(1).max(64).refine(
+        (tz) => {
+          try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
+        },
+        { message: "Invalid IANA timezone" },
+      );
+      const slackUrl = z.string().trim().refine(
+        (s) => s === "" || /^https:\/\/hooks\.slack\.com\//.test(s),
+        { message: "Slack webhook must start with https://hooks.slack.com/" },
+      );
+
+      const alertSettingsPatchSchema = z.object({
+        emailAlertsEnabled: z.boolean().optional(),
+        slackAlertsEnabled: z.boolean().optional(),
+        slackWebhookUrl: slackUrl.optional().nullable(),
+        alertFrequencyCap: z.enum(["immediate", "hourly", "daily"]).optional(),
+        globalAlertThreshold: z.enum(["any_change", "high_confidence_only", "provider_added_removed"]).optional(),
+        minConfidenceToAlert: z.enum(["low", "medium", "high"]).optional(),
+        quietHoursStart: hhmm.nullable().optional(),
+        quietHoursEnd: hhmm.nullable().optional(),
+        timezone: ianaTz.optional(),
+        alertDigestMode: z.enum(["realtime", "daily", "weekly"]).optional(),
+        digestEnabled: z.boolean().optional(),
+      }).strict();
+
+      const parsed = alertSettingsPatchSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid alert settings",
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+        });
+      }
+      const updates: any = { ...parsed.data };
+      // Normalize empty Slack webhook to null so we can clear it
+      if (typeof updates.slackWebhookUrl === "string") {
+        updates.slackWebhookUrl = updates.slackWebhookUrl.trim() || null;
+      }
+
+      const settings = await storage.upsertUserSettings(req.user!.id, updates);
+      return res.json({
+        ...settings,
+        slackWebhookUrl: settings.slackWebhookUrl ? "***configured***" : null,
+        slackWebhookConfigured: !!settings.slackWebhookUrl,
+      });
+    } catch (error) {
+      console.error("Update alert settings error:", error);
+      return res.status(500).json({ error: "Failed to update alert settings" });
+    }
+  });
+
+  // Test the user's saved Slack webhook
+  app.post("/api/me/alert-settings/slack-test", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const settings = await storage.getUserSettings(req.user!.id);
+      if (!settings?.slackWebhookUrl) {
+        return res.status(400).json({ error: "No Slack webhook configured" });
+      }
+      const ok = await sendSlackTestMessage(settings.slackWebhookUrl);
+      if (!ok) return res.status(502).json({ error: "Slack webhook delivery failed" });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("Slack test error:", error);
+      return res.status(500).json({ error: "Failed to test webhook" });
     }
   });
 

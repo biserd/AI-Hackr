@@ -28,13 +28,27 @@ import {
   Bot,
   Sparkles,
   Clock,
-  Link2
+  Link2,
+  Plus,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { useMutation } from "@tanstack/react-query";
 import type { Scan } from "@shared/schema";
 import { useScan } from "@/hooks/use-scan";
+import { useAuth } from "@/hooks/use-auth";
 
 type ScanPhases = {
   passive: "pending" | "running" | "complete" | "failed";
@@ -879,10 +893,7 @@ export default function CardPage() {
                   Compare vs competitor
                 </Button>
               </Link>
-              <Button variant="secondary" size="sm" disabled data-testid="button-monitor">
-                <Clock className="w-4 h-4 mr-2" />
-                Monitor weekly (Pro)
-              </Button>
+              <AddToWatchlistButton domain={scan.domain || new URL(scan.url).hostname.replace(/^www\./, "")} url={scan.url} />
             </div>
           </div>
 
@@ -988,5 +999,105 @@ function SummaryItem({
         </div>
       )}
     </div>
+  );
+}
+
+function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) {
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+
+  const addMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/me/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, displayLabel: label.trim() || domain }),
+        credentials: "include",
+      });
+      const body = await res.json();
+      if (!res.ok) throw body;
+      return body;
+    },
+    onSuccess: () => {
+      toast.success(`${domain} added to your watchlist`);
+      setOpen(false);
+      setTimeout(() => navigate("/watchlist"), 700);
+    },
+    onError: (err: any) => {
+      if (err?.error === "free-plan-watchlist-cap") {
+        toast.error(err.message || "Free plan capped at 5 domains. Upgrade to Pro.");
+      } else if (err?.error === "already-watching") {
+        toast.message(`${domain} is already on your watchlist`, {
+          action: { label: "Open watchlist", onClick: () => navigate("/watchlist") },
+        });
+      } else {
+        toast.error(err?.message || "Failed to add to watchlist");
+      }
+    },
+  });
+
+  const handleClick = () => {
+    if (!user) {
+      toast.message("Sign in to monitor this domain", {
+        action: { label: "Sign in", onClick: () => navigate("/login") },
+      });
+      return;
+    }
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <Button
+        variant="default"
+        size="sm"
+        onClick={handleClick}
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
+        data-testid="button-add-to-watchlist"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Add to Watchlist
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent data-testid="dialog-add-to-watchlist">
+          <DialogHeader>
+            <DialogTitle>Monitor {domain}</DialogTitle>
+            <DialogDescription>
+              We'll re-scan this domain on a regular cadence and email you the moment its AI provider stack changes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="watchlist-label">Label (optional)</Label>
+              <Input
+                id="watchlist-label"
+                placeholder={`e.g. "${domain.split(".")[0]} — top competitor"`}
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                data-testid="input-watchlist-label"
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Free plan: weekly re-scans and 5 domain slots. Pro: 24-hour re-scans, unlimited domains, Slack alerts, manual scan-now.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => addMutation.mutate()}
+              disabled={addMutation.isPending}
+              data-testid="button-confirm-watchlist"
+            >
+              {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <><Eye className="w-4 h-4 mr-2" /> Add to Watchlist</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -45,6 +45,21 @@ The scanner (`server/scanner.ts`) uses pattern matching against HTML, scripts, h
 
 Detection includes confidence levels (High/Medium/Low) and evidence trails.
 
+### Watchlists & Change Alerts (Task #2)
+- **Watchlists** (`subscriptions` table): Free plan capped at 5 domains; Pro unlimited. Each domain has per-row `alertThreshold`, `slackEnabled`, `pausedUntil`, `nextScanAt`, `scanStatus`, `consecutiveFailures`, `manualScansToday`, `pendingRemovals`, and `providersDetected`.
+- **Background worker** (`server/background-worker.ts`):
+  - Per-plan rescan cadence (Pro 24h, Free 7d) with ±2h jitter, Pro head-of-queue priority.
+  - `computeDiff` applies a **0.60 confidence floor**: providers below the floor are not "present" for add/remove transitions; this ensures crossing the floor correctly emits `provider_added`.
+  - 2-consecutive-scan removal counter via `pendingRemovals` jsonb to avoid one-off flakes.
+  - 4h retry × 3 then site-unreachable email.
+  - Alert delivery filters: 24h dedup `(subscriptionId, provider, changeType)`, quiet hours, free-plan 5 alerts/week cap, dismissal windows, min-confidence and per-row threshold gating.
+  - Manual scan limits: Pro 3/day, Free 1/week.
+  - Weekly digest cron (Mon 7–11 AM in user's timezone); only marks digest sent on confirmed email success.
+- **User settings** (`user_settings` table): email/Slack toggles, Slack webhook (masked on GET), frequency cap, global threshold, min confidence, quiet hours, timezone, digest mode. PATCH endpoint validates with strict zod schema (enums, `HH:MM` regex, IANA timezone).
+- **Email** (`server/email.ts`): `sendStackChangeAlertEmail`, `sendSiteUnreachableEmail`, `sendWeeklyDigestEmail` (Resend with `hello@aihackr.com` sender).
+- **Slack** (`server/slack.ts`): `sendStackChangeSlack` (Block Kit) + `sendSlackTestMessage`.
+- **UI**: `/watchlist` (table with filters, sort, expansion, edit/add modals), `/settings/alerts` (email/Slack/threshold/quiet-hours/digest sections), and a new "+ Add to Watchlist" CTA on the report card replacing the old disabled "Monitor weekly (Pro)" button.
+
 ### Key Design Decisions
 
 1. **Shared Schema**: Database types are defined once in `shared/schema.ts` and used by both frontend (for type safety) and backend (for Drizzle ORM). Uses drizzle-zod for validation.

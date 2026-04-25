@@ -14,6 +14,8 @@ import Privacy from "@/pages/privacy";
 import Login from "@/pages/login";
 import AuthCallback from "@/pages/auth-callback";
 import Dashboard from "@/pages/dashboard";
+import WatchlistPage from "@/pages/watchlist";
+import SettingsAlerts from "@/pages/settings-alerts";
 import BlogIndex from "@/pages/blog/index";
 import HNTechStack from "@/pages/blog/what-technologies-the-successful-projects-at-hacker-news-are-using";
 
@@ -29,6 +31,8 @@ function Router() {
       <Route path="/login" component={Login}/>
       <Route path="/auth/verify" component={AuthCallback}/>
       <Route path="/dashboard" component={Dashboard}/>
+      <Route path="/watchlist" component={WatchlistPage}/>
+      <Route path="/settings/alerts" component={SettingsAlerts}/>
       <Route path="/blog" component={BlogIndex}/>
       <Route path="/blog/what-technologies-the-successful-projects-at-hacker-news-are-using" component={HNTechStack}/>
       <Route component={NotFound} />
