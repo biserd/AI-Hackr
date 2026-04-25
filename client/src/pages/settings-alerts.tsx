@@ -140,13 +140,23 @@ export default function SettingsAlerts() {
 
   const handleSaveAll = () => {
     if (!draft) return;
-    const payload: any = { ...draft };
-    delete payload.slackWebhookConfigured;
-    delete payload.alertsThisWeek;
+    // Strict allow-list — server PATCH validates with .strict() so we must not
+    // forward server-managed fields like userId / createdAt / updatedAt /
+    // weekResetAt / lastDigestSentAt / alertsThisWeek / slackWebhookConfigured.
+    const payload: Partial<AlertSettings & { slackWebhookUrl: string | null }> = {
+      emailAlertsEnabled: draft.emailAlertsEnabled,
+      slackAlertsEnabled: draft.slackAlertsEnabled,
+      alertFrequencyCap: draft.alertFrequencyCap,
+      globalAlertThreshold: draft.globalAlertThreshold,
+      minConfidenceToAlert: draft.minConfidenceToAlert,
+      quietHoursStart: draft.quietHoursStart,
+      quietHoursEnd: draft.quietHoursEnd,
+      timezone: draft.timezone,
+      digestEnabled: draft.digestEnabled,
+      alertDigestMode: draft.alertDigestMode,
+    };
     if (webhookDirty) {
       payload.slackWebhookUrl = webhookInput.trim() || null;
-    } else {
-      delete payload.slackWebhookUrl;
     }
     saveMutation.mutate(payload);
   };
@@ -345,7 +355,7 @@ export default function SettingsAlerts() {
               <Label>Start hour</Label>
               <Select
                 value={draft.quietHoursStart != null ? String(draft.quietHoursStart) : "off"}
-                onValueChange={(v) => update("quietHoursStart", v === "off" ? null : (parseInt(v) as any))}
+                onValueChange={(v) => update("quietHoursStart", v === "off" ? null : parseInt(v, 10))}
               >
                 <SelectTrigger data-testid="select-quiet-start"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -360,7 +370,7 @@ export default function SettingsAlerts() {
               <Label>End hour</Label>
               <Select
                 value={draft.quietHoursEnd != null ? String(draft.quietHoursEnd) : "off"}
-                onValueChange={(v) => update("quietHoursEnd", v === "off" ? null : (parseInt(v) as any))}
+                onValueChange={(v) => update("quietHoursEnd", v === "off" ? null : parseInt(v, 10))}
               >
                 <SelectTrigger data-testid="select-quiet-end"><SelectValue /></SelectTrigger>
                 <SelectContent>

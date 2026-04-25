@@ -218,11 +218,13 @@ export const scans = pgTable("scans", {
   aiTransport: text("ai_transport"),
   aiGateway: text("ai_gateway"),
   
-  // Scan phase tracking
+  // Scan phase tracking. Stored as plain strings rather than literal unions so that
+  // upstream call sites that compose values dynamically (worker, batch scanner) type-check
+  // without forcing a runtime narrowing layer.
   scanPhases: jsonb("scan_phases").$type<{
-    passive: "pending" | "running" | "complete" | "failed";
-    render: "pending" | "running" | "complete" | "failed" | "skipped";
-    probe: "pending" | "running" | "complete" | "failed" | "locked";
+    passive: string;
+    render: string;
+    probe: string;
   }>().default({ passive: "pending", render: "pending", probe: "locked" }),
   
   // Probe scan metrics

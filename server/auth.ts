@@ -89,6 +89,9 @@ export async function requestMagicLink(email: string, baseUrl: string): Promise<
     await storage.createMagicLink(normalizedEmail, tokenHash, expiresAt);
 
     const magicLink = `${baseUrl}/auth/verify?token=${token}`;
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[Auth][dev] Magic link for ${normalizedEmail}: ${magicLink}`);
+    }
     const emailSent = await sendMagicLinkEmail(normalizedEmail, magicLink);
 
     if (!emailSent) {

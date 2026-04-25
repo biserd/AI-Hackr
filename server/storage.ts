@@ -76,6 +76,15 @@ export interface IStorage {
   dismissChangeEvent(id: string, dismissedUntil: Date): Promise<void>;
   /** Get any active dismissal in effect for (entry, provider, newConfidence) — used to suppress repeat alerts */
   hasActiveDismissal(entryId: string, provider: string, newConfidence: string | null): Promise<boolean>;
+  /** Has the user received any alert (across all subscriptions) since the given time? Used for per-user frequency caps. */
+  hasUserAlertSince(userId: string, since: Date): Promise<boolean>;
+  /**
+   * Atomically claim a subscription for scanning. Returns true if this caller won
+   * the claim (scan_status flipped from non-'scanning' to 'scanning'); false if
+   * another scanner already owns the row. Used to prevent the immediate-scan +
+   * worker-tick double-fire race.
+   */
+  claimSubscriptionForScan(subscriptionId: string): Promise<boolean>;
 
   // Scans
   createScan(scan: InsertScan): Promise<Scan>;
@@ -201,7 +210,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDueSubscriptions(now: Date): Promise<Array<Subscription & { planTier: string }>> {
-    // Active + not paused + (next_scan_at IS NULL OR next_scan_at <= now)
+    // Active + not paused + (next_scan_at IS NULL OR next_scan_at <= now) +
+    // scan_status != 'scanning' so we never double-fire the same row when an
+    // immediate-scan (POST /api/me/subscriptions) is racing with the worker tick.
     // Joined with users to read planTier; ordered by Pro first then by next_scan_at asc.
     const rows = await db
       .select({
@@ -220,6 +231,10 @@ export class DatabaseStorage implements IStorage {
           or(
             isNull(subscriptions.nextScanAt),
             lte(subscriptions.nextScanAt, now)
+          ),
+          or(
+            isNull(subscriptions.scanStatus),
+            sql`${subscriptions.scanStatus} <> 'scanning'`
           )
         )
       )
@@ -328,6 +343,43 @@ export class DatabaseStorage implements IStorage {
           isNotNull(changeEvents.dismissedUntil),
           gt(changeEvents.dismissedUntil, now)
         )
+      )
+      .limit(1);
+    return result.length > 0;
+  }
+
+  async claimSubscriptionForScan(subscriptionId: string): Promise<boolean> {
+    // Atomic compare-and-swap: only flip to 'scanning' if not already 'scanning'.
+    // RETURNING id lets us tell whether we actually won the claim.
+    const rows = await db
+      .update(subscriptions)
+      .set({ scanStatus: "scanning" })
+      .where(
+        and(
+          eq(subscriptions.id, subscriptionId),
+          or(
+            isNull(subscriptions.scanStatus),
+            sql`${subscriptions.scanStatus} <> 'scanning'`,
+          ),
+        ),
+      )
+      .returning({ id: subscriptions.id });
+    return rows.length > 0;
+  }
+
+  async hasUserAlertSince(userId: string, since: Date): Promise<boolean> {
+    // Join change_events to subscriptions to scope by user. We're only interested
+    // in events where alertedAt is set (i.e. an email/Slack actually went out).
+    const result = await db
+      .select({ id: changeEvents.id })
+      .from(changeEvents)
+      .innerJoin(subscriptions, eq(changeEvents.subscriptionId, subscriptions.id))
+      .where(
+        and(
+          eq(subscriptions.userId, userId),
+          isNotNull(changeEvents.alertedAt),
+          gte(changeEvents.alertedAt, since),
+        ),
       )
       .limit(1);
     return result.length > 0;

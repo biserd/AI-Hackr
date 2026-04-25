@@ -43,6 +43,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
@@ -1002,18 +1009,25 @@ function SummaryItem({
   );
 }
 
+type AlertThreshold = "any_change" | "provider_added_removed" | "high_confidence_only";
+
 function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
+  const [alertThreshold, setAlertThreshold] = useState<AlertThreshold>("any_change");
 
   const addMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/me/subscriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, displayLabel: label.trim() || domain }),
+        body: JSON.stringify({
+          url,
+          displayLabel: label.trim() || domain,
+          alertThreshold,
+        }),
         credentials: "include",
       });
       const body = await res.json();
@@ -1069,7 +1083,7 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
               We'll re-scan this domain on a regular cadence and email you the moment its AI provider stack changes.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <Label htmlFor="watchlist-label">Label (optional)</Label>
               <Input
@@ -1079,6 +1093,31 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
                 onChange={(e) => setLabel(e.target.value)}
                 data-testid="input-watchlist-label"
               />
+            </div>
+            <div>
+              <Label htmlFor="watchlist-threshold">Alert me when</Label>
+              <Select
+                value={alertThreshold}
+                onValueChange={(v) => setAlertThreshold(v as AlertThreshold)}
+              >
+                <SelectTrigger id="watchlist-threshold" data-testid="select-watchlist-threshold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any_change" data-testid="option-threshold-any">
+                    Any change is detected
+                  </SelectItem>
+                  <SelectItem value="provider_added_removed" data-testid="option-threshold-swap">
+                    A provider is added or removed
+                  </SelectItem>
+                  <SelectItem value="high_confidence_only" data-testid="option-threshold-high">
+                    Only high-confidence changes
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can change this anytime per domain in your watchlist.
+              </p>
             </div>
             <div className="text-xs text-muted-foreground">
               Free plan: weekly re-scans and 5 domain slots. Pro: 24-hour re-scans, unlimited domains, Slack alerts, manual scan-now.

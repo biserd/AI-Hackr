@@ -309,7 +309,7 @@ function isWithinQuietHours(settings: UserSettings, now: Date = new Date()): boo
 
 /** Decide whether a given change passes the user-level + entry-level filters. */
 function shouldSendAlert(opts: {
-  change: ChangeEvent & { providerDisplayName?: string };
+  change: ChangeEvent & { providerDisplayName?: string | null };
   entry: Subscription;
   settings: UserSettings;
   isPro: boolean;
@@ -358,10 +358,35 @@ function shouldSendAlert(opts: {
   return { ok: true };
 }
 
+/**
+ * Per-user frequency cap (configured in user_settings.alertFrequencyCap).
+ * - "immediate"        → no extra throttle
+ * - "max_1_per_day"    → suppress if any alert was delivered in the last 24h
+ * - "max_1_per_week"   → suppress if any alert was delivered in the last 7d
+ *
+ * Implemented at delivery time (not in shouldSendAlert) so the change-event row
+ * is still recorded; only the email/Slack send is suppressed.
+ */
+async function passesFrequencyCap(userId: string, settings: UserSettings): Promise<{ ok: boolean; reason?: string }> {
+  const cap = settings.alertFrequencyCap || "immediate";
+  if (cap === "immediate") return { ok: true };
+  const windowMs = cap === "max_1_per_day" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const since = new Date(Date.now() - windowMs);
+  const recentlyAlerted = await storage.hasUserAlertSince(userId, since);
+  if (recentlyAlerted) return { ok: false, reason: `frequency-cap-${cap}` };
+  return { ok: true };
+}
+
 // ─── Scan execution ──────────────────────────────────────
 
 async function performScan(sub: Subscription & { planTier: string }, isManual: boolean = false): Promise<{ ok: boolean; scan?: Scan; reason?: string }> {
-  await storage.updateSubscription(sub.id, { scanStatus: "scanning" });
+  // Atomic claim: bail out cleanly if another scanner (immediate-scan trigger or
+  // another worker tick using a stale due-list) already owns this row.
+  const claimed = await storage.claimSubscriptionForScan(sub.id);
+  if (!claimed) {
+    console.log(`[Worker] Skipping ${sub.domain}: scan already in progress`);
+    return { ok: false, reason: "already-scanning" };
+  }
 
   let scanResult;
   try {
@@ -413,8 +438,8 @@ async function performScan(sub: Subscription & { planTier: string }, isManual: b
     consecutiveFailures: 0,
     unreachableNotifiedAt: null,
     nextScanAt: nextScanTime(sub.planTier),
-    providersDetected: diff.providersToStore as any,
-    pendingRemovals: diff.updatedPendingRemovals as any,
+    providersDetected: diff.providersToStore,
+    pendingRemovals: diff.updatedPendingRemovals,
     lastChangedAt: diff.changes.length > 0 ? new Date() : sub.lastChangedAt,
   });
 
@@ -493,28 +518,32 @@ async function deliverAlert(sub: Subscription, change: ChangeEvent): Promise<voi
     }
   }
 
-  const decision = shouldSendAlert({ change: change as any, entry: sub, settings, isPro });
+  const decision = shouldSendAlert({ change, entry: sub, settings, isPro });
   if (!decision.ok) {
     console.log(`[Alerts] Suppressed (${decision.reason}) for ${sub.domain} ${change.changeType}`);
     await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
     return;
   }
 
+  // Per-user frequency cap (immediate / max_1_per_day / max_1_per_week)
+  const freq = await passesFrequencyCap(sub.userId, settings);
+  if (!freq.ok) {
+    console.log(`[Alerts] Suppressed (${freq.reason}) for ${sub.domain} ${change.changeType}`);
+    await db.update(changeEvents).set({ alertSuppressed: true }).where(eq(changeEvents.id, change.id));
+    return;
+  }
+
   // Build before/after provider lists for the email
-  const before: ProviderStateForEmail[] = ((sub.providersDetected || []) as any[]).map((p) => ({
+  const toEmailState = (p: DetectedProvider): ProviderStateForEmail => ({
     provider: p.provider,
     displayName: p.displayName,
     confidence: p.confidence,
     modelHints: p.modelHints,
-  }));
+  });
+  const before: ProviderStateForEmail[] = (sub.providersDetected ?? []).map(toEmailState);
   // After = current (already updated on the entry by performScan)
   const updatedSub = await storage.getSubscription(sub.id);
-  const after: ProviderStateForEmail[] = ((updatedSub?.providersDetected || []) as any[]).map((p) => ({
-    provider: p.provider,
-    displayName: p.displayName,
-    confidence: p.confidence,
-    modelHints: p.modelHints,
-  }));
+  const after: ProviderStateForEmail[] = (updatedSub?.providersDetected ?? []).map(toEmailState);
 
   const evidenceSignals = await buildEvidenceSignals(sub, change);
 
@@ -581,6 +610,23 @@ async function buildEvidenceSignals(sub: Subscription, change: ChangeEvent): Pro
 
 const MANUAL_SCAN_LIMIT_PRO = 3;
 const MANUAL_SCAN_LIMIT_FREE = 1; // 1×/week per playbook
+
+/**
+ * Run a one-shot scan for a freshly-added subscription, bypassing the manual-scan
+ * rate limit (this is the "first scan on add" baseline, not a user-initiated rescan).
+ * Fire-and-forget: errors are logged but never thrown.
+ */
+export async function triggerImmediateScan(subscriptionId: string): Promise<void> {
+  try {
+    const sub = await storage.getSubscription(subscriptionId);
+    if (!sub) return;
+    const user = await storage.getUser(sub.userId);
+    if (!user) return;
+    await performScan({ ...sub, planTier: user.planTier }, /* isManual */ true);
+  } catch (err) {
+    console.error(`[Worker] triggerImmediateScan failed for ${subscriptionId}:`, err);
+  }
+}
 
 export async function manualScanNow(subscriptionId: string): Promise<{ ok: boolean; reason?: string; scan?: Scan }> {
   const sub = await storage.getSubscription(subscriptionId);

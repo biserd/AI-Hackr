@@ -3,11 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
-import { insertScanSchema, insertSubscriptionSchema } from "@shared/schema";
+import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
 import { sendSlackTestMessage } from "./slack";
-import { manualScanNow } from "./background-worker";
+import { manualScanNow, triggerImmediateScan } from "./background-worker";
 import { showHnProducts, showHnReports, scans } from "@shared/schema";
 import { db } from "./storage";
 import { sql, desc as descOrder } from "drizzle-orm";
@@ -269,8 +269,10 @@ export async function registerRoutes(
         alertThreshold: alertThreshold || "any_change",
       });
 
-      // Schedule the first scan immediately
+      // Schedule the first scan immediately + fire-and-forget the actual scan so the
+      // baseline result is captured without waiting for the next worker tick.
       await storage.updateSubscription(subscription.id, { nextScanAt: new Date() });
+      void triggerImmediateScan(subscription.id);
 
       return res.json(subscription);
     } catch (error) {
@@ -423,7 +425,6 @@ export async function registerRoutes(
 
   app.patch("/api/me/alert-settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM (24h)");
       const ianaTz = z.string().min(1).max(64).refine(
         (tz) => {
           try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
@@ -434,18 +435,19 @@ export async function registerRoutes(
         (s) => s === "" || /^https:\/\/hooks\.slack\.com\//.test(s),
         { message: "Slack webhook must start with https://hooks.slack.com/" },
       );
+      const hour = z.number().int().min(0).max(23);
 
       const alertSettingsPatchSchema = z.object({
         emailAlertsEnabled: z.boolean().optional(),
         slackAlertsEnabled: z.boolean().optional(),
         slackWebhookUrl: slackUrl.optional().nullable(),
-        alertFrequencyCap: z.enum(["immediate", "hourly", "daily"]).optional(),
+        alertFrequencyCap: z.enum(["immediate", "max_1_per_day", "max_1_per_week"]).optional(),
         globalAlertThreshold: z.enum(["any_change", "high_confidence_only", "provider_added_removed"]).optional(),
         minConfidenceToAlert: z.enum(["low", "medium", "high"]).optional(),
-        quietHoursStart: hhmm.nullable().optional(),
-        quietHoursEnd: hhmm.nullable().optional(),
+        quietHoursStart: hour.nullable().optional(),
+        quietHoursEnd: hour.nullable().optional(),
         timezone: ianaTz.optional(),
-        alertDigestMode: z.enum(["realtime", "daily", "weekly"]).optional(),
+        alertDigestMode: z.enum(["individual", "daily_bundle"]).optional(),
         digestEnabled: z.boolean().optional(),
       }).strict();
 
@@ -456,7 +458,7 @@ export async function registerRoutes(
           issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
         });
       }
-      const updates: any = { ...parsed.data };
+      const updates: Partial<InsertUserSettings> = { ...parsed.data };
       // Normalize empty Slack webhook to null so we can clear it
       if (typeof updates.slackWebhookUrl === "string") {
         updates.slackWebhookUrl = updates.slackWebhookUrl.trim() || null;
@@ -507,21 +509,16 @@ export async function registerRoutes(
       const passiveTime = Date.now() - startTime;
       console.log(`[API] Passive scan completed in ${passiveTime}ms`);
 
-      // Set initial phase status
-      (scanResult as any).scanPhases = {
-        passive: "complete",
-        render: "pending",
-        probe: "locked",
+      // Set initial phase status + link to user if authenticated.
+      const enriched: Record<string, unknown> = {
+        ...scanResult,
+        scanPhases: { passive: "complete", render: "pending", probe: "locked" },
+        scanMode: "passive",
+        ...(req.user ? { userId: req.user.id } : {}),
       };
-      scanResult.scanMode = "passive";
-
-      // Link to user if authenticated
-      if (req.user) {
-        (scanResult as any).userId = req.user.id;
-      }
 
       // Save to database
-      const validatedScan = insertScanSchema.parse(scanResult);
+      const validatedScan = insertScanSchema.parse(enriched);
       const savedScan = await storage.createScan(validatedScan);
       
       // Notify admin of new scan (fire and forget)
