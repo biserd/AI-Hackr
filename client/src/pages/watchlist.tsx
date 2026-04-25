@@ -683,6 +683,7 @@ function WatchlistRow({
 }
 
 function RowExpansion({ sub, onToggleNotify }: { sub: Subscription; onToggleNotify: (b: boolean) => void }) {
+  const queryClient = useQueryClient();
   const { data: changes = [], isLoading } = useQuery<ChangeEvent[]>({
     queryKey: ["sub-changes", sub.id],
     queryFn: async () => {
@@ -691,6 +692,27 @@ function RowExpansion({ sub, onToggleNotify }: { sub: Subscription; onToggleNoti
       return res.json();
     },
   });
+
+  const dismissMutation = useMutation({
+    mutationFn: async (changeId: string) => {
+      const res = await fetch(`/api/me/subscriptions/${sub.id}/changes/${changeId}/dismiss`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to dismiss");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Marked as false positive");
+      queryClient.invalidateQueries({ queryKey: ["sub-changes", sub.id] });
+    },
+    onError: () => {
+      toast.error("Could not dismiss change");
+    },
+  });
+
+  const isDismissed = (c: ChangeEvent) =>
+    !!c.dismissedUntil && new Date(c.dismissedUntil) > new Date();
 
   return (
     <div className="px-4 pb-4 pt-2 bg-muted/10 border-t border-border" data-testid={`expansion-${sub.id}`}>
@@ -704,16 +726,47 @@ function RowExpansion({ sub, onToggleNotify }: { sub: Subscription; onToggleNoti
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
               {changes.slice(0, 8).map((c) => (
-                <div key={c.id} className="text-sm flex items-start gap-2 py-1.5 border-b border-border/50 last:border-0">
+                <div
+                  key={c.id}
+                  className="text-sm flex items-start gap-2 py-1.5 border-b border-border/50 last:border-0"
+                  data-testid={`change-row-${c.id}`}
+                >
                   <Badge variant="outline" className="shrink-0 text-xs">
                     {changeTypeLabel(c.changeType)}
                   </Badge>
                   <div className="flex-1 min-w-0">
                     <div className="text-foreground">{c.changeSummary || c.provider || "Change detected"}</div>
                     <div className="text-xs text-muted-foreground">{formatRelative(c.detectedAt)}</div>
+                    {isDismissed(c) && (
+                      <span
+                        className="inline-block mt-0.5 text-[10px] uppercase tracking-wide text-amber-600 font-semibold"
+                        data-testid={`badge-dismissed-${c.id}`}
+                      >
+                        Dismissed (false positive)
+                      </span>
+                    )}
+                    {c.alertSuppressed && !isDismissed(c) && (
+                      <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground italic">
+                        Suppressed
+                      </span>
+                    )}
                   </div>
-                  {c.alertSuppressed && (
-                    <span className="text-xs text-muted-foreground italic">suppressed</span>
+                  {!isDismissed(c) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      disabled={dismissMutation.isPending && dismissMutation.variables === c.id}
+                      onClick={() => dismissMutation.mutate(c.id)}
+                      title="Mark as false positive (suppress repeat alerts for 30 days)"
+                      data-testid={`button-dismiss-${c.id}`}
+                    >
+                      {dismissMutation.isPending && dismissMutation.variables === c.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        "False positive"
+                      )}
+                    </Button>
                   )}
                 </div>
               ))}

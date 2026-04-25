@@ -3,7 +3,7 @@ import { showHnProducts, scans, showHnReports, type Scan } from "@shared/schema"
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { scanUrl } from "../scanner";
 import { browserScan, detectAIFromNetwork, detectFrameworkFromHints, type BrowserSignals } from "../probeScanner";
-import { insertScanSchema } from "@shared/schema";
+import { insertScanSchema, type InsertScan } from "@shared/schema";
 import { chromium, type Browser } from "playwright";
 
 const CONCURRENCY_LIMIT = 1;
@@ -795,7 +795,7 @@ async function scanProductMultiPage(product: typeof showHnProducts.$inferSelect)
     (scanResult as any).scanMode = "full-probe";
     (scanResult as any).evidence = merged.evidence;
     
-    const validatedScan = insertScanSchema.parse(scanResult);
+    const validatedScan = insertScanSchema.parse(scanResult) as InsertScan;
     const [savedScan] = await db.insert(scans).values(validatedScan).returning();
     
     await db.update(showHnProducts)

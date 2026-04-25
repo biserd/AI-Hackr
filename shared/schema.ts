@@ -283,7 +283,14 @@ export const insertScanSchema = createInsertSchema(scans).omit({
   scannedAt: true,
 });
 
-export type InsertScan = z.infer<typeof insertScanSchema>;
+// Use Drizzle's inferred insert type for the InsertScan type so that nested
+// optional fields on `evidence` (which use `.$type<{...}>()`) keep their
+// precise types. drizzle-zod conversion of `.$type<>()` collapses every
+// nested property to `unknown`, which breaks `db.insert(scans).values(...)`
+// and `db.update(scans).set(...)` overload resolution. The Zod schema is
+// still used for runtime validation; insert sites cast the parsed result
+// back to InsertScan when calling the storage layer.
+export type InsertScan = typeof scans.$inferInsert;
 export type Scan = typeof scans.$inferSelect;
 
 export const showHnProducts = pgTable("show_hn_products", {

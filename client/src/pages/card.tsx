@@ -1015,8 +1015,27 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
+  const [domainInput, setDomainInput] = useState(domain);
   const [label, setLabel] = useState("");
   const [alertThreshold, setAlertThreshold] = useState<AlertThreshold>("any_change");
+
+  // Re-prefill the domain field whenever the modal opens or the source
+  // domain changes (e.g. user re-scans on a different URL).
+  useEffect(() => {
+    if (open) setDomainInput(domain);
+  }, [open, domain]);
+
+  const submitDomain = (domainInput.trim() || domain).toLowerCase().replace(/^www\./, "");
+  const submitUrl = (() => {
+    // If the user edited the domain to something different, build a URL from
+    // it. Otherwise keep the original URL we scanned (so we preserve any
+    // protocol / path information).
+    const cleanOriginalDomain = domain.toLowerCase().replace(/^www\./, "");
+    if (submitDomain && submitDomain !== cleanOriginalDomain) {
+      return `https://${submitDomain}`;
+    }
+    return url;
+  })();
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -1024,8 +1043,8 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url,
-          displayLabel: label.trim() || domain,
+          url: submitUrl,
+          displayLabel: label.trim() || submitDomain,
           alertThreshold,
         }),
         credentials: "include",
@@ -1035,7 +1054,7 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
       return body;
     },
     onSuccess: () => {
-      toast.success(`${domain} added to your watchlist`);
+      toast.success(`${submitDomain} added to your watchlist`);
       setOpen(false);
       setTimeout(() => navigate("/watchlist"), 700);
     },
@@ -1043,7 +1062,7 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
       if (err?.error === "free-plan-watchlist-cap") {
         toast.error(err.message || "Free plan capped at 5 domains. Upgrade to Pro.");
       } else if (err?.error === "already-watching") {
-        toast.message(`${domain} is already on your watchlist`, {
+        toast.message(`${submitDomain} is already on your watchlist`, {
           action: { label: "Open watchlist", onClick: () => navigate("/watchlist") },
         });
       } else {
@@ -1061,6 +1080,8 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
     }
     setOpen(true);
   };
+
+  const isValidDomain = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(submitDomain);
 
   return (
     <>
@@ -1085,10 +1106,31 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label htmlFor="watchlist-domain">Domain</Label>
+              <Input
+                id="watchlist-domain"
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+                placeholder="example.com"
+                data-testid="input-watchlist-domain"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                We'll re-scan this exact domain. You can edit if you'd rather monitor a different host.
+              </p>
+              {!isValidDomain && (
+                <p
+                  className="text-xs text-destructive mt-1"
+                  data-testid="text-domain-invalid"
+                >
+                  Enter a valid domain like example.com
+                </p>
+              )}
+            </div>
+            <div>
               <Label htmlFor="watchlist-label">Label (optional)</Label>
               <Input
                 id="watchlist-label"
-                placeholder={`e.g. "${domain.split(".")[0]} — top competitor"`}
+                placeholder={`e.g. "${submitDomain.split(".")[0]} — top competitor"`}
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 data-testid="input-watchlist-label"
@@ -1127,7 +1169,7 @@ function AddToWatchlistButton({ domain, url }: { domain: string; url: string }) 
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
               onClick={() => addMutation.mutate()}
-              disabled={addMutation.isPending}
+              disabled={addMutation.isPending || !isValidDomain}
               data-testid="button-confirm-watchlist"
             >
               {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (

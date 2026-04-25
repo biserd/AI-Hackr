@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
-import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings } from "@shared/schema";
+import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings, type InsertScan } from "@shared/schema";
 import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
 import { sendSlackTestMessage } from "./slack";
@@ -517,8 +517,10 @@ export async function registerRoutes(
         ...(req.user ? { userId: req.user.id } : {}),
       };
 
-      // Save to database
-      const validatedScan = insertScanSchema.parse(enriched);
+      // Save to database. The Zod parse return-type does not include
+      // server-defaulted columns (id, scannedAt) that Drizzle's $inferInsert
+      // accepts as optional, so cast to InsertScan for the storage layer.
+      const validatedScan = insertScanSchema.parse(enriched) as InsertScan;
       const savedScan = await storage.createScan(validatedScan);
       
       // Notify admin of new scan (fire and forget)
