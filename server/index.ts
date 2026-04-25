@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { startBackgroundWorker } from "./background-worker";
+import { runSeed } from "./seed";
 
 const app = express();
 const httpServer = createServer(app);
@@ -94,8 +95,16 @@ app.use((req, res, next) => {
       host: "0.0.0.0",
       reusePort: true,
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
+      try {
+        const seeded = await runSeed();
+        if (seeded.companies > 0 || seeded.providers > 0) {
+          log(`seeded ${seeded.companies} companies, ${seeded.providers} provider rollups`);
+        }
+      } catch (err) {
+        console.error("[seed] failed:", err);
+      }
       startBackgroundWorker();
     },
   );

@@ -10,6 +10,8 @@ import {
   changeEvents,
   scans,
   userSettings,
+  trackedCompanies,
+  providerRollups,
   type User,
   type InsertUser,
   type Session,
@@ -21,6 +23,9 @@ import {
   type InsertScan,
   type UserSettings,
   type InsertUserSettings,
+  type TrackedCompany,
+  type InsertTrackedCompany,
+  type ProviderRollup,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -113,6 +118,42 @@ export interface IStorage {
   /** Users whose digest is due (active + digestEnabled + last sent > 6 days ago or never) */
   getUsersDueForDigest(now: Date): Promise<User[]>;
   markDigestSent(userId: string): Promise<void>;
+
+  // ───── Tracked companies (the seeded SaaS list) ─────
+  /** All live tracked companies (excludes "queued" requests). Optional filters. */
+  listTrackedCompanies(opts?: {
+    status?: string;
+    category?: string;
+    search?: string;
+  }): Promise<TrackedCompany[]>;
+  getTrackedCompanyBySlug(slug: string): Promise<TrackedCompany | undefined>;
+  /** Insert a "queued" company request from a logged-in user. */
+  requestTrackedCompany(input: InsertTrackedCompany): Promise<TrackedCompany>;
+  /** Live companies whose nextScanAt has passed (or who have never been scanned). */
+  getCompaniesNeedingScan(now: Date, limit?: number): Promise<TrackedCompany[]>;
+  /** Update a tracked company row after a scan completes. */
+  updateTrackedCompany(id: string, updates: Partial<TrackedCompany>): Promise<TrackedCompany | undefined>;
+  /**
+   * Leaderboard rows — joins tracked_companies to its lastScanId scan row so the
+   * frontend can render Rank/Provider/Confidence/etc in one query.
+   */
+  getLeaderboardRows(opts?: {
+    provider?: string;
+    category?: string;
+    confidence?: string;
+    ycBatch?: string;
+    changedThisWeek?: boolean;
+  }): Promise<Array<TrackedCompany & { lastScan: Scan | null }>>;
+  /** Companies whose primary AI provider changed in the last 7 days. */
+  getCompaniesChangedThisWeek(): Promise<Array<TrackedCompany & { lastScan: Scan | null }>>;
+  /** Distinct categories in the tracked_companies table — used for filter UIs. */
+  getTrackedCompanyCategories(): Promise<string[]>;
+
+  // ───── Provider rollups ─────
+  listProviderRollups(): Promise<ProviderRollup[]>;
+  getProviderRollupBySlug(slug: string): Promise<ProviderRollup | undefined>;
+  /** Get all live tracked companies whose latest scan's primary AI provider matches this rollup's aliases. */
+  getCompaniesForProvider(rollup: ProviderRollup): Promise<Array<TrackedCompany & { lastScan: Scan | null }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -586,6 +627,142 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return rows.map((r) => r.user);
+  }
+
+  // ───── Tracked companies ─────
+  async listTrackedCompanies(opts: {
+    status?: string;
+    category?: string;
+    search?: string;
+  } = {}): Promise<TrackedCompany[]> {
+    const conds = [eq(trackedCompanies.status, opts.status ?? "live")];
+    if (opts.category) conds.push(eq(trackedCompanies.category, opts.category));
+    if (opts.search) {
+      const q = `%${opts.search.toLowerCase()}%`;
+      conds.push(
+        or(
+          sql`LOWER(${trackedCompanies.name}) LIKE ${q}`,
+          sql`LOWER(${trackedCompanies.domain}) LIKE ${q}`,
+          sql`LOWER(${trackedCompanies.category}) LIKE ${q}`,
+        )!
+      );
+    }
+    return await db
+      .select()
+      .from(trackedCompanies)
+      .where(and(...conds))
+      .orderBy(trackedCompanies.name);
+  }
+
+  async getTrackedCompanyBySlug(slug: string): Promise<TrackedCompany | undefined> {
+    const result = await db.select().from(trackedCompanies).where(eq(trackedCompanies.slug, slug));
+    return result[0];
+  }
+
+  async requestTrackedCompany(input: InsertTrackedCompany): Promise<TrackedCompany> {
+    const result = await db.insert(trackedCompanies).values(input).returning();
+    return result[0];
+  }
+
+  async getCompaniesNeedingScan(now: Date, limit = 20): Promise<TrackedCompany[]> {
+    return await db
+      .select()
+      .from(trackedCompanies)
+      .where(
+        and(
+          eq(trackedCompanies.status, "live"),
+          or(
+            isNull(trackedCompanies.nextScanAt),
+            lte(trackedCompanies.nextScanAt, now),
+          ),
+          or(
+            isNull(trackedCompanies.scanStatus),
+            sql`${trackedCompanies.scanStatus} <> 'scanning'`,
+          ),
+        )
+      )
+      .orderBy(sql`${trackedCompanies.lastScannedAt} ASC NULLS FIRST`)
+      .limit(limit);
+  }
+
+  async updateTrackedCompany(id: string, updates: Partial<TrackedCompany>): Promise<TrackedCompany | undefined> {
+    const result = await db.update(trackedCompanies).set(updates).where(eq(trackedCompanies.id, id)).returning();
+    return result[0];
+  }
+
+  async getLeaderboardRows(opts: {
+    provider?: string;
+    category?: string;
+    confidence?: string;
+    ycBatch?: string;
+    changedThisWeek?: boolean;
+  } = {}): Promise<Array<TrackedCompany & { lastScan: Scan | null }>> {
+    // LEFT JOIN scans on lastScanId so companies awaiting their first scan still appear.
+    const rows = await db
+      .select({ company: trackedCompanies, scan: scans })
+      .from(trackedCompanies)
+      .leftJoin(scans, eq(trackedCompanies.lastScanId, scans.id))
+      .where(eq(trackedCompanies.status, "live"));
+
+    let merged = rows.map((r) => ({ ...r.company, lastScan: r.scan }));
+
+    if (opts.category) merged = merged.filter((r) => r.category === opts.category);
+    if (opts.ycBatch) merged = merged.filter((r) => r.ycBatch === opts.ycBatch);
+    if (opts.confidence) {
+      merged = merged.filter((r) => (r.lastScan?.aiConfidence ?? "").toLowerCase() === opts.confidence!.toLowerCase());
+    }
+    if (opts.provider) {
+      const target = opts.provider.toLowerCase();
+      merged = merged.filter((r) => (r.lastScan?.aiProvider ?? "").toLowerCase().includes(target));
+    }
+    if (opts.changedThisWeek) {
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      merged = merged.filter((r) => r.providerChangedAt && r.providerChangedAt >= cutoff);
+    }
+
+    // Stable rank: by aiConfidence (High > Medium > Low > none), then name.
+    const confRank = (c?: string | null) => (c === "High" ? 0 : c === "Medium" ? 1 : c === "Low" ? 2 : 3);
+    merged.sort((a, b) => {
+      const ca = confRank(a.lastScan?.aiConfidence);
+      const cb = confRank(b.lastScan?.aiConfidence);
+      if (ca !== cb) return ca - cb;
+      return a.name.localeCompare(b.name);
+    });
+
+    return merged;
+  }
+
+  async getCompaniesChangedThisWeek(): Promise<Array<TrackedCompany & { lastScan: Scan | null }>> {
+    return this.getLeaderboardRows({ changedThisWeek: true });
+  }
+
+  async getTrackedCompanyCategories(): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ category: trackedCompanies.category })
+      .from(trackedCompanies)
+      .where(eq(trackedCompanies.status, "live"))
+      .orderBy(trackedCompanies.category);
+    return rows.map((r) => r.category);
+  }
+
+  // ───── Provider rollups ─────
+  async listProviderRollups(): Promise<ProviderRollup[]> {
+    return await db.select().from(providerRollups).orderBy(providerRollups.sortOrder, providerRollups.name);
+  }
+
+  async getProviderRollupBySlug(slug: string): Promise<ProviderRollup | undefined> {
+    const result = await db.select().from(providerRollups).where(eq(providerRollups.slug, slug));
+    return result[0];
+  }
+
+  async getCompaniesForProvider(rollup: ProviderRollup): Promise<Array<TrackedCompany & { lastScan: Scan | null }>> {
+    const all = await this.getLeaderboardRows();
+    const aliases = rollup.aliases.map((a) => a.toLowerCase());
+    return all.filter((r) => {
+      const p = (r.lastScan?.aiProvider ?? "").toLowerCase();
+      if (rollup.slug === "unknown") return !p || p === "none" || aliases.some((a) => p.includes(a));
+      return aliases.some((a) => p === a || p.includes(a));
+    });
   }
 }
 

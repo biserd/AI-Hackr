@@ -985,6 +985,82 @@ async function runDailyBundleCycle(): Promise<void> {
   }
 }
 
+// ─── Tracked-company scan cycle (Task #3) ────────────────
+//
+// The seeded tracked_companies list (50 SaaS products) backs the public
+// /stack and /leaderboard pages. Each row is rescanned on a 7-day cadence
+// (with the same ±2h jitter as user watchlists). A row that has never been
+// scanned (lastScannedAt IS NULL) is treated as immediately due so the first
+// boot after deploy backfills every company.
+//
+// We deliberately scan a small batch per tick (TRACKED_BATCH) so playwright
+// load stays bounded if many companies are due simultaneously. Each scan also
+// stamps the company's lastScanId / lastScannedAt / nextScanAt and tracks the
+// week-over-week providerChangedAt delta used by the leaderboard.
+const TRACKED_BATCH = 5;
+
+async function runTrackedCompanyScans(): Promise<void> {
+  try {
+    const due = await storage.getCompaniesNeedingScan(new Date(), TRACKED_BATCH);
+    if (due.length === 0) return;
+    console.log(`[Worker] Tracked-company scan: ${due.length} due`);
+
+    for (const company of due) {
+      // Optimistic lock — flip scan_status to "scanning" so a second
+      // tick won't pick the same row up. The next-scan stamp gets set
+      // on the success path below.
+      const claimed = await storage.updateTrackedCompany(company.id, {
+        scanStatus: "scanning",
+      });
+      if (!claimed) continue;
+
+      try {
+        const result = await scanUrl(company.url);
+        // Persist a scan row identical in shape to the public /api/scan path
+        // so the same Scan UI renders cleanly on /stack/[slug].
+        const enriched = {
+          ...result,
+          scanPhases: { passive: "complete", render: "skipped", probe: "locked" },
+          scanMode: "passive",
+        } as unknown as InsertScan;
+
+        const savedScan = await storage.createScan(enriched);
+
+        // Compute provider-changed-at: only stamp if the *primary* provider's
+        // canonical name flipped (case-insensitive). Confidence-only changes
+        // don't count, and a transition into/out of null does count.
+        const oldP = (company.priorAiProvider || "").toLowerCase();
+        const newP = (savedScan.aiProvider || "").toLowerCase();
+        const providerChanged = oldP !== newP;
+
+        // 7-day cadence with ±2h jitter (Free-equivalent — tracked
+        // companies are public-facing and don't get the Pro 24h cadence).
+        const next = new Date(Date.now() + FREE_CADENCE_MS + (Math.random() * 2 - 1) * JITTER_MS);
+
+        await storage.updateTrackedCompany(company.id, {
+          lastScanId: savedScan.id,
+          lastScannedAt: new Date(),
+          nextScanAt: next,
+          scanStatus: "ok",
+          priorAiProvider: savedScan.aiProvider,
+          priorAiConfidence: savedScan.aiConfidence,
+          providerChangedAt: providerChanged ? new Date() : company.providerChangedAt,
+        });
+      } catch (err) {
+        console.error(`[Worker] Tracked scan failed for ${company.slug}:`, err);
+        // Failure: shorter retry window so the next tick picks it back up.
+        const retryAt = new Date(Date.now() + RETRY_DELAY_MS);
+        await storage.updateTrackedCompany(company.id, {
+          scanStatus: "failed",
+          nextScanAt: retryAt,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[Worker] runTrackedCompanyScans error:", err);
+  }
+}
+
 // ─── Public entry point ──────────────────────────────────
 
 export function startBackgroundWorker(): void {
@@ -994,6 +1070,7 @@ export function startBackgroundWorker(): void {
     await runScanCycle();
     await runDigestCycle();
     await runDailyBundleCycle();
+    await runTrackedCompanyScans();
   }, 60 * 1000);
 
   // Scan loop
@@ -1002,6 +1079,8 @@ export function startBackgroundWorker(): void {
   setInterval(runDigestCycle, 30 * 60 * 1000);
   // Daily bundle loop — runs hourly to flush deferred events for daily_bundle users
   setInterval(runDailyBundleCycle, 60 * 60 * 1000);
+  // Tracked-company scan loop — runs every 10 min, batches 5 due companies per tick
+  setInterval(runTrackedCompanyScans, WORKER_TICK_MS);
 
   console.log("[Worker] Background worker scheduled");
 }

@@ -332,3 +332,77 @@ export const showHnReports = pgTable("show_hn_reports", {
 });
 
 export type ShowHnReport = typeof showHnReports.$inferSelect;
+
+/**
+ * Tracked companies — the seeded SaaS list that powers /stack/[slug],
+ * /leaderboard, and /provider/[slug]. Each row gets a recurring 7-day
+ * scan via the background worker; the latest scan's id is denormalized
+ * onto `lastScanId` for fast leaderboard reads.
+ */
+export const trackedCompanies = pgTable("tracked_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  domain: text("domain").notNull(),
+  url: text("url").notNull(),
+  category: text("category").notNull(),
+  ycBatch: text("yc_batch"),
+  logoUrl: text("logo_url"),
+  description: text("description"),
+
+  // Lifecycle. "live" rows are scanned on cadence and surfaced everywhere;
+  // "queued" rows came from the request-a-company form and need approval.
+  status: text("status").default("live").notNull(),
+  // When non-null, this is the requesting user_id (for queued requests).
+  requestedBy: varchar("requested_by"),
+
+  // Latest scan denormalization (rebuilt on each successful re-scan).
+  lastScanId: varchar("last_scan_id"),
+  lastScannedAt: timestamp("last_scanned_at"),
+  nextScanAt: timestamp("next_scan_at"),
+  scanStatus: text("scan_status").default("pending"),
+
+  // Snapshot of the prior scan's primary AI provider, so we can compute
+  // week-over-week deltas for the leaderboard "What changed" panel cheaply.
+  priorAiProvider: text("prior_ai_provider"),
+  priorAiConfidence: text("prior_ai_confidence"),
+  // ISO timestamp string when the primary provider last changed.
+  providerChangedAt: timestamp("provider_changed_at"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTrackedCompanySchema = createInsertSchema(trackedCompanies).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type TrackedCompany = typeof trackedCompanies.$inferSelect;
+export type InsertTrackedCompany = z.infer<typeof insertTrackedCompanySchema>;
+
+/**
+ * Provider rollup pages — canonical list of AI providers we want
+ * /provider/[slug] pages for. Decoupled from the scanner's emitted
+ * provider strings so we can map "OpenAI" / "openai" / "Azure OpenAI"
+ * to the correct rollup via `aliases`.
+ */
+export const providerRollups = pgTable("provider_rollups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  logoUrl: text("logo_url"),
+  // Lowercased strings the scanner may emit that should map to this rollup.
+  aliases: text("aliases").array().default(sql`ARRAY[]::text[]`).notNull(),
+  // For ordering on the index page (lower = earlier).
+  sortOrder: integer("sort_order").default(100).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertProviderRollupSchema = createInsertSchema(providerRollups).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ProviderRollup = typeof providerRollups.$inferSelect;
+export type InsertProviderRollup = z.infer<typeof insertProviderRollupSchema>;

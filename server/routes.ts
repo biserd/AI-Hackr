@@ -771,5 +771,241 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Stack pages, leaderboard, providers (Task #3) ──────────────
+
+  // GET /api/stack — list of all live tracked companies, optionally filtered
+  app.get("/api/stack", async (req, res) => {
+    try {
+      const { category, search } = req.query;
+      const companies = await storage.listTrackedCompanies({
+        category: typeof category === "string" ? category : undefined,
+        search: typeof search === "string" ? search : undefined,
+      });
+      const categories = await storage.getTrackedCompanyCategories();
+      return res.json({ companies, categories });
+    } catch (error) {
+      console.error("[API] /api/stack error:", error);
+      return res.status(500).json({ error: "Failed to load stack list" });
+    }
+  });
+
+  // GET /api/stack/:slug — detail page payload (company + latest scan + history + similar)
+  app.get("/api/stack/:slug", async (req, res) => {
+    try {
+      const company = await storage.getTrackedCompanyBySlug(req.params.slug);
+      if (!company) return res.status(404).json({ error: "Not found" });
+
+      const latestScan = company.lastScanId
+        ? await storage.getScan(company.lastScanId)
+        : await storage.getScanByDomain(company.domain);
+
+      const history = await storage.getScansByDomain(company.domain, 10);
+
+      // "Similar companies" — same category, max 6, exclude self.
+      const sameCat = await storage.listTrackedCompanies({ category: company.category });
+      const similar = sameCat.filter((c) => c.slug !== company.slug).slice(0, 6);
+
+      return res.json({ company, latestScan: latestScan ?? null, history, similar });
+    } catch (error) {
+      console.error("[API] /api/stack/:slug error:", error);
+      return res.status(500).json({ error: "Failed to load company" });
+    }
+  });
+
+  // POST /api/stack/request — anyone can request a company to be added
+  // Body: { name, domain, category }
+  app.post("/api/stack/request", async (req: AuthenticatedRequest, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1).max(100),
+        domain: z.string().min(3).max(200),
+        category: z.string().min(1).max(80),
+      });
+      const parsed = schema.parse(req.body);
+      const slug = parsed.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+      // Idempotent — if a row already exists with this slug, return it instead of creating a dupe.
+      const existing = await storage.getTrackedCompanyBySlug(slug);
+      if (existing) return res.json({ company: existing, alreadyExists: true });
+
+      const created = await storage.requestTrackedCompany({
+        slug,
+        name: parsed.name,
+        domain: parsed.domain.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+        url: parsed.domain.startsWith("http") ? parsed.domain : `https://${parsed.domain}`,
+        category: parsed.category,
+        status: "queued",
+        requestedBy: req.user?.id ?? null,
+      });
+      return res.json({ company: created, alreadyExists: false });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      console.error("[API] /api/stack/request error:", error);
+      return res.status(500).json({ error: "Failed to submit request" });
+    }
+  });
+
+  // GET /api/leaderboard — full leaderboard rows with filters
+  app.get("/api/leaderboard", async (req, res) => {
+    try {
+      const { provider, category, confidence, ycBatch, changedThisWeek } = req.query;
+      const rows = await storage.getLeaderboardRows({
+        provider: typeof provider === "string" ? provider : undefined,
+        category: typeof category === "string" ? category : undefined,
+        confidence: typeof confidence === "string" ? confidence : undefined,
+        ycBatch: typeof ycBatch === "string" ? ycBatch : undefined,
+        changedThisWeek: changedThisWeek === "true",
+      });
+      const categories = await storage.getTrackedCompanyCategories();
+      const providers = await storage.listProviderRollups();
+      return res.json({ rows, categories, providers });
+    } catch (error) {
+      console.error("[API] /api/leaderboard error:", error);
+      return res.status(500).json({ error: "Failed to load leaderboard" });
+    }
+  });
+
+  // GET /api/leaderboard/changes-this-week — companies whose primary AI provider flipped
+  app.get("/api/leaderboard/changes-this-week", async (_req, res) => {
+    try {
+      const rows = await storage.getCompaniesChangedThisWeek();
+      return res.json({ rows });
+    } catch (error) {
+      console.error("[API] /api/leaderboard/changes-this-week error:", error);
+      return res.status(500).json({ error: "Failed to load weekly changes" });
+    }
+  });
+
+  // GET /api/providers — list of canonical provider rollups
+  app.get("/api/providers", async (_req, res) => {
+    try {
+      const providers = await storage.listProviderRollups();
+      return res.json({ providers });
+    } catch (error) {
+      console.error("[API] /api/providers error:", error);
+      return res.status(500).json({ error: "Failed to load providers" });
+    }
+  });
+
+  // GET /api/providers/:slug — provider detail with all companies using it
+  app.get("/api/providers/:slug", async (req, res) => {
+    try {
+      const rollup = await storage.getProviderRollupBySlug(req.params.slug);
+      if (!rollup) return res.status(404).json({ error: "Not found" });
+      const companies = await storage.getCompaniesForProvider(rollup);
+      return res.json({ provider: rollup, companies });
+    } catch (error) {
+      console.error("[API] /api/providers/:slug error:", error);
+      return res.status(500).json({ error: "Failed to load provider" });
+    }
+  });
+
+  // GET /badge/:slug.svg — embeddable badge for a tracked company
+  app.get("/badge/:slug.svg", async (req, res) => {
+    try {
+      const slug = req.params.slug.replace(/\.svg$/, "");
+      const company = await storage.getTrackedCompanyBySlug(slug);
+      if (!company) return res.status(404).send("Not found");
+
+      const scan = company.lastScanId ? await storage.getScan(company.lastScanId) : null;
+      const provider = scan?.aiProvider || "Unknown";
+      const confidence = scan?.aiConfidence || "Pending";
+      const accent = confidence === "High" ? "#10b981" : confidence === "Medium" ? "#f59e0b" : confidence === "Low" ? "#ef4444" : "#6b7280";
+
+      const labelText = `Powered by ${provider}`;
+      const valueText = `${confidence} · AIHackr`;
+      // Approx text width — 7px per character, 10 px padding either side.
+      const labelWidth = Math.max(110, labelText.length * 7 + 20);
+      const valueWidth = Math.max(110, valueText.length * 7 + 20);
+      const totalWidth = labelWidth + valueWidth;
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="28" role="img" aria-label="${labelText}: ${valueText}">
+  <linearGradient id="g" x2="0" y2="100%">
+    <stop offset="0" stop-color="#fff" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <rect width="${totalWidth}" height="28" rx="4" fill="#0b1020"/>
+  <rect x="${labelWidth}" width="${valueWidth}" height="28" rx="4" fill="${accent}"/>
+  <rect x="${labelWidth}" width="2" height="28" fill="#0b1020"/>
+  <rect width="${totalWidth}" height="28" rx="4" fill="url(#g)"/>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" font-size="12">
+    <text x="${labelWidth / 2}" y="19">${labelText}</text>
+    <text x="${labelWidth + valueWidth / 2}" y="19">${valueText}</text>
+  </g>
+</svg>`;
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
+      return res.send(svg);
+    } catch (error) {
+      console.error("[API] /badge/:slug.svg error:", error);
+      return res.status(500).send("Error");
+    }
+  });
+
+  // GET /sitemap.xml — dynamic sitemap including every /stack/:slug, /provider/:slug, etc.
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const base = process.env.APP_URL || "https://aihackr.com";
+      const companies = await storage.listTrackedCompanies();
+      const providers = await storage.listProviderRollups();
+      const blogSlugs = [
+        "what-technologies-the-successful-projects-at-hacker-news-are-using",
+        "openai-vs-anthropic-which-saas-companies-use-which",
+        "the-state-of-ai-in-saas-2026",
+        "azure-openai-adoption-in-enterprise-saas",
+        "ai-gateways-explained-cloudflare-portkey-helicone",
+        "claude-vs-gpt-4-real-world-saas-deployments",
+        "self-hosted-llms-which-saas-products-run-their-own-models",
+        "aws-bedrock-customers-the-complete-list",
+        "every-yc-batch-and-which-ai-they-use",
+        "how-to-tell-which-llm-a-website-is-using",
+        "what-changed-this-week-in-saas-ai-stacks",
+        "the-complete-guide-to-fingerprinting-ai-providers",
+      ];
+
+      const urls: Array<{ loc: string; changefreq: string; priority: string }> = [
+        { loc: `${base}/`, changefreq: "daily", priority: "1.0" },
+        { loc: `${base}/about`, changefreq: "monthly", priority: "0.5" },
+        { loc: `${base}/stack`, changefreq: "daily", priority: "0.95" },
+        { loc: `${base}/leaderboard`, changefreq: "daily", priority: "0.95" },
+        { loc: `${base}/blog`, changefreq: "weekly", priority: "0.8" },
+        { loc: `${base}/login`, changefreq: "monthly", priority: "0.3" },
+        { loc: `${base}/terms`, changefreq: "yearly", priority: "0.2" },
+        { loc: `${base}/privacy`, changefreq: "yearly", priority: "0.2" },
+      ];
+
+      for (const c of companies) {
+        urls.push({ loc: `${base}/stack/${c.slug}`, changefreq: "weekly", priority: "0.9" });
+      }
+      for (const p of providers) {
+        urls.push({ loc: `${base}/provider/${p.slug}`, changefreq: "weekly", priority: "0.85" });
+      }
+      for (const slug of blogSlugs) {
+        urls.push({ loc: `${base}/blog/${slug}`, changefreq: "weekly", priority: "0.7" });
+      }
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
+  .map(
+    (u) => `  <url>
+    <loc>${u.loc}</loc>
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`,
+  )
+  .join("\n")}
+</urlset>`;
+
+      res.setHeader("Content-Type", "application/xml");
+      res.setHeader("Cache-Control", "public, max-age=900");
+      return res.send(xml);
+    } catch (error) {
+      console.error("[API] /sitemap.xml error:", error);
+      return res.status(500).send("Error");
+    }
+  });
+
   return httpServer;
 }

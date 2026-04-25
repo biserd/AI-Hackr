@@ -62,6 +62,28 @@ Detection includes confidence levels (High/Medium/Low) and evidence trails.
 - **Slack** (`server/slack.ts`): `sendStackChangeSlack` (Block Kit) + `sendSlackTestMessage`.
 - **UI**: `/watchlist` (table with filters, sort, expansion, edit/add modals), `/settings/alerts` (email/Slack/threshold/quiet-hours/digest sections), and a new "+ Add to Watchlist" CTA on the report card replacing the old disabled "Monitor weekly (Pro)" button.
 
+### Content & Leaderboard Engine (Task #3)
+- **Tracked companies** (`tracked_companies` table): seeded with 50 well-known SaaS products (Notion, Linear, Stripe, Cursor, Replit, Perplexity, ...), each with `slug`, `domain`, `category`, optional `ycBatch`, `lastScanId`, `priorAiProvider`, `providerChangedAt`, plus the same 7-day rescan plumbing (`nextScanAt`, `scanStatus`). Anyone can submit a new company via `POST /api/stack/request` (idempotent on slug).
+- **Provider rollups** (`provider_rollups` table): 10 canonical providers — `openai`, `anthropic`, `google-gemini`, `azure-openai`, `aws-bedrock`, `mistral`, `meta-llama`, `cohere`, `other`, `unknown` — each with an `aliases[]` list used for case-insensitive matching when a Scan's `aiProvider` string maps onto a rollup.
+- **Background worker — tracked-company cycle** (`runTrackedCompanyScans` in `server/background-worker.ts`): on a 10-minute tick, claims up to 5 due companies via an optimistic `scanStatus = "scanning"` flip, runs the same `scanUrl()` used by `/api/scan`, persists a `Scan` row, then stamps `lastScanId / lastScannedAt / nextScanAt` on the company. `providerChangedAt` is updated only when the canonical primary AI provider's lowercase name flips (so confidence drift alone doesn't pollute "this week's changes"). 7-day cadence with ±2h jitter, 4h retry on failure.
+- **API routes** (`server/routes.ts`):
+  - `GET /api/stack` — filterable list of tracked companies + categories.
+  - `GET /api/stack/:slug` — company + latestScan + 10-row history + similar (same category).
+  - `POST /api/stack/request` — z-validated, idempotent by slug; auto-derives slug from name.
+  - `GET /api/leaderboard` — rows with filters (provider/category/confidence/changedThisWeek), plus categories + provider rollups sidebar payload.
+  - `GET /api/leaderboard/changes-this-week` — companies whose primary provider flipped in last 7 days.
+  - `GET /api/providers`, `GET /api/providers/:slug` — provider rollups + companies-using-this-provider via alias matching.
+  - `GET /badge/:slug.svg` — dynamically generated SVG badge ("Powered by {provider} · {confidence} · AIHackr") with confidence-band coloring, cached 1h.
+  - `GET /sitemap.xml` — dynamic, includes 8 static + 50 stack + 10 provider + 12 blog URLs (80 total). Replaces the old static `client/public/sitemap.xml` (deleted).
+- **Pages**:
+  - `/stack` (`stack-index.tsx`): searchable, category-filtered grid of all tracked companies + "Request a company" modal.
+  - `/stack/:slug` (`stack-detail.tsx`): full intelligence report with `TechArticle` + `BreadcrumbList` JSON-LD, evidence trail (signals, network domains), AI Stack History timeline, badge embed snippet, and similar-companies grid.
+  - `/leaderboard` (`leaderboard.tsx`): rank table with provider/category/confidence filters, "This Week's Provider Changes" panel, provider-rollup grid, and embed-iframe CTA.
+  - `/provider/:slug` (`provider-rollup.tsx`): full list of companies detected on a given provider (alias-matched).
+  - `/embed/leaderboard` (`leaderboard-embed.tsx`): minimal table with no chrome, intended for iframe embeds with backlink attribution.
+- **Blog scaffolds**: 12 SEO posts (1 pre-existing + 11 new) under `client/src/pages/blog/*.tsx`. Each new post is a thin wrapper around the shared `BlogPostScaffold` (`client/src/components/blog-post.tsx`) which standardizes SEO/JSON-LD plumbing, lead paragraphs, sectioned outlines, and a "Live data behind this post" internal-link block that points at `/leaderboard`, relevant `/provider/:slug`, and 3-5 `/stack/:slug` pages. Slugs: `openai-vs-anthropic-which-saas-companies-use-which`, `the-state-of-ai-in-saas-2026`, `azure-openai-adoption-in-enterprise-saas`, `ai-gateways-explained-cloudflare-portkey-helicone`, `claude-vs-gpt-4-real-world-saas-deployments`, `self-hosted-llms-which-saas-products-run-their-own-models`, `aws-bedrock-customers-the-complete-list`, `every-yc-batch-and-which-ai-they-use`, `how-to-tell-which-llm-a-website-is-using`, `what-changed-this-week-in-saas-ai-stacks`, `the-complete-guide-to-fingerprinting-ai-providers`. Blog index updated to list all 12.
+- **Seed** (`server/seed.ts`): `runSeed()` invoked on server boot in `server/index.ts`, populates `tracked_companies` + `provider_rollups` idempotently with `ON CONFLICT DO NOTHING`.
+
 ### Key Design Decisions
 
 1. **Shared Schema**: Database types are defined once in `shared/schema.ts` and used by both frontend (for type safety) and backend (for Drizzle ORM). Uses drizzle-zod for validation.
