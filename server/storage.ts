@@ -860,6 +860,9 @@ export class DatabaseStorage implements IStorage {
   // filter Select on /stack. Skips rows with NULL ycBatch — many of the
   // bulk-imported long-tail companies aren't YC-funded.
   async getTrackedCompanyYcBatches(): Promise<string[]> {
+    // Sort chronologically newest-first: parse the 2-digit year then sort by
+    // year DESC, season DESC (W=winter > F=fall > S=summer within same year).
+    // Plain alphabetical sort would put F24 before S06 which is misleading.
     const rows = await db
       .selectDistinct({ ycBatch: trackedCompanies.ycBatch })
       .from(trackedCompanies)
@@ -868,9 +871,24 @@ export class DatabaseStorage implements IStorage {
           eq(trackedCompanies.status, "live"),
           sql`${trackedCompanies.ycBatch} IS NOT NULL`,
         ),
-      )
-      .orderBy(trackedCompanies.ycBatch);
-    return rows.map((r) => r.ycBatch).filter((b): b is string => Boolean(b));
+      );
+    const seasonRank: Record<string, number> = { W: 3, F: 2, S: 1 };
+    return rows
+      .map((r) => r.ycBatch)
+      .filter((b): b is string => Boolean(b))
+      .sort((a, b) => {
+        const ua = a.toUpperCase();
+        const ub = b.toUpperCase();
+        const yearA = parseInt(ua.slice(1), 10) || 0;
+        const yearB = parseInt(ub.slice(1), 10) || 0;
+        if (yearA !== yearB) return yearB - yearA;
+        const rankDelta = (seasonRank[ub[0]] ?? 0) - (seasonRank[ua[0]] ?? 0);
+        if (rankDelta !== 0) return rankDelta;
+        // Final tiebreaker so two unknown season prefixes in the same year
+        // (e.g. "X25" vs "Y25") sort deterministically rather than relying
+        // on Array.sort's input order.
+        return ua.localeCompare(ub);
+      });
   }
 
   // ───── Bulk ingestion + paginated reads (programmatic SEO) ─────
