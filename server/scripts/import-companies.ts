@@ -5,12 +5,17 @@
  *   tsx server/scripts/import-companies.ts <path/to/file.csv> [--dry-run] [--source=<label>]
  *
  * CSV columns (header row required):
- *   slug,name,domain,category[,ycBatch][,description][,url][,source]
+ *   slug,name,domain,category[,ycBatch][,description][,url][,logoUrl][,source]
  *
  *  - `url` is auto-derived from `domain` if omitted (https://<domain>).
+ *  - `logoUrl` is an optional absolute URL to a small square thumbnail
+ *    used by the Stack Index card. When present on a re-import, we also
+ *    backfill it onto the existing row if its `logo_url` is currently null
+ *    (so re-running the importer fills logos in for previously-imported
+ *    rows that landed before this column existed).
  *  - `source` per-row beats the --source flag; both are optional.
  *  - The script is idempotent: rows whose slug OR domain already exist
- *    in `tracked_companies` are skipped.
+ *    in `tracked_companies` are skipped (modulo the logo backfill above).
  *
  * The importer normalizes slugs (lowercase, alnum + dashes only) and
  * domains (strip protocol, trailing slash, www. prefix). It dedupes
@@ -177,6 +182,7 @@ async function main() {
       category,
       ycBatch: r.ycBatch?.trim() || null,
       description: r.description?.trim() || null,
+      logoUrl: r.logoUrl?.trim() || null,
       source: r.source?.trim() || source || null,
       importedAt: now,
       status: "live",

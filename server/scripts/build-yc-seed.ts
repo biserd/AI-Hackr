@@ -14,6 +14,12 @@
  *     co-listed URLs are all handled by `normalizeDomain` now).
  *   - Ranks rows: AI/SaaS-tagged → top_company → larger team → newer batch.
  *   - Writes a CSV that the importer (`import-companies.ts`) can consume.
+ *   - Includes each company's `small_logo_thumb_url` as the `logoUrl` column,
+ *     skipping the YC default-missing thumbnail (`/company/thumb/missing.png`).
+ *     The importer maps this onto `tracked_companies.logo_url` so the Stack
+ *     Index card can render the real logo immediately on first import,
+ *     instead of falling back to the initials placeholder until the first
+ *     scan completes.
  *
  * Stability guarantee
  *   - If `--out` already exists, every row whose slug also appears in the
@@ -71,6 +77,27 @@ interface YcCompany {
   top_company: boolean;
   tags: string[] | null;
   one_liner: string | null;
+  small_logo_thumb_url: string | null;
+}
+
+/** YC's "no logo uploaded" placeholder. Treated the same as a missing
+ *  logo — we don't want to flood the Stack Index with the YC default
+ *  thumbnail on every newly-imported card. Includes both the relative
+ *  path the API returns and the absolute form, in case YC ever switches. */
+const YC_MISSING_LOGO_RE = /\/company\/thumb\/missing\.png$/i;
+
+/** Keep only absolute, https-served logo URLs. The yc-oss API uses two
+ *  variants today: an absolute S3 URL for real logos and a relative
+ *  `/company/thumb/missing.png` for unset ones. We skip relative URLs
+ *  outright (we'd have no host to resolve them against from our domain)
+ *  and the missing placeholder, returning null otherwise. */
+function pickLogo(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (YC_MISSING_LOGO_RE.test(trimmed)) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed;
 }
 
 interface CliFlags {
@@ -281,8 +308,9 @@ async function main() {
       `(preserved=${preserved.size}, rescued=${rescuedAdded}, new=${newAdded}, limit=${limit})`,
   );
 
-  const header = "slug,name,domain,category,ycBatch,description,source";
+  const header = "slug,name,domain,category,ycBatch,description,logoUrl,source";
   const lines = [header];
+  let withLogo = 0;
   for (const c of picked) {
     const slug = normalizeSlug(c.slug);
     const domain = normalizeDomain(c.website ?? "");
@@ -290,12 +318,15 @@ async function main() {
     const yc = batchCode(c.batch);
     const desc = (c.one_liner ?? "").trim();
     const source = yc ? `yc-${yc.toLowerCase()}` : "yc-oss";
+    const logo = pickLogo(c.small_logo_thumb_url);
+    if (logo) withLogo++;
     lines.push(
-      [slug, c.name, domain, category, yc ?? "", desc, source]
+      [slug, c.name, domain, category, yc ?? "", desc, logo ?? "", source]
         .map((v) => csvCell(String(v ?? "")))
         .join(","),
     );
   }
+  console.log(`[seed] ${withLogo}/${picked.length} rows include a logo URL`);
 
   const abs = path.resolve(process.cwd(), out);
   await writeFile(abs, lines.join("\n") + "\n", "utf-8");

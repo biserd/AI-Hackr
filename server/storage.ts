@@ -899,26 +899,39 @@ export class DatabaseStorage implements IStorage {
   }> {
     if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0 };
 
-    // Pre-fetch existing slugs + domains so we can skip duplicates without
-    // round-tripping per row. We dedupe within the input batch first to
-    // avoid two rows in the same CSV both trying to claim the same domain.
-    const incomingSlugs = new Set(rows.map((r) => r.slug));
-    const incomingDomains = new Set(rows.map((r) => r.domain.toLowerCase()));
-
+    // Pre-fetch existing slug/domain → (id, logoUrl) so we can skip
+    // duplicates without round-tripping per row, and also backfill
+    // `logo_url` onto existing rows whose value is null when the CSV
+    // provides one. We dedupe within the input batch first to avoid
+    // two rows in the same CSV both trying to claim the same domain.
     const existing = await db
-      .select({ slug: trackedCompanies.slug, domain: trackedCompanies.domain })
+      .select({
+        id: trackedCompanies.id,
+        slug: trackedCompanies.slug,
+        domain: trackedCompanies.domain,
+        logoUrl: trackedCompanies.logoUrl,
+      })
       .from(trackedCompanies);
-    const existingSlugs = new Set(existing.map((r) => r.slug));
-    const existingDomains = new Set(existing.map((r) => r.domain.toLowerCase()));
+    const existingBySlug = new Map(existing.map((r) => [r.slug, r]));
+    const existingByDomain = new Map(existing.map((r) => [r.domain.toLowerCase(), r]));
 
     const seen = new Set<string>();
     const seenDomain = new Set<string>();
     const toInsert: InsertTrackedCompany[] = [];
+    const toBackfillLogo: Array<{ id: string; logoUrl: string }> = [];
     let skipped = 0;
 
     for (const row of rows) {
       const dom = row.domain.toLowerCase();
-      if (existingSlugs.has(row.slug) || existingDomains.has(dom)) {
+      const dup = existingBySlug.get(row.slug) ?? existingByDomain.get(dom);
+      if (dup) {
+        // Backfill the logo onto the existing row if the CSV has one
+        // and the DB doesn't. Re-imports never overwrite an existing
+        // logo — the CSV is treated as the seed, not as the source of
+        // truth.
+        if (row.logoUrl && !dup.logoUrl) {
+          toBackfillLogo.push({ id: dup.id, logoUrl: row.logoUrl });
+        }
         skipped++;
         continue;
       }
@@ -943,8 +956,19 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    void incomingSlugs;
-    void incomingDomains;
+    if (toBackfillLogo.length > 0) {
+      // One UPDATE per row — these only fire on first re-import after
+      // a CSV gains the column, so the volume is bounded (~1.3k rows
+      // for the YC seed) and per-row keeps the SQL trivial.
+      for (const { id, logoUrl } of toBackfillLogo) {
+        await db
+          .update(trackedCompanies)
+          .set({ logoUrl })
+          .where(eq(trackedCompanies.id, id));
+      }
+      console.log(`[bulkImport] backfilled logo_url on ${toBackfillLogo.length} existing rows`);
+    }
+
     return { inserted, skipped, total: rows.length };
   }
 

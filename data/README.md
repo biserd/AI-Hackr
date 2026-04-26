@@ -17,6 +17,7 @@ Required header row, columns in any order:
 | `ycBatch`     | no       | `W26`, `S25` etc — leave empty for non-YC companies.               |
 | `description` | no       | One-sentence blurb shown in the index card.                        |
 | `url`         | no       | Override URL; defaults to `https://<domain>`.                      |
+| `logoUrl`     | no       | Absolute URL to a small square thumbnail for the index card. Re-imports backfill `logo_url` on existing rows when the DB value is null. |
 | `source`      | no       | Provenance label (`yc-w26`, `g2-top-200`). Falls back to `--source` flag. |
 
 ## Importing
@@ -25,7 +26,8 @@ Required header row, columns in any order:
 # Dry run first — parses, normalizes, and prints sample row.
 tsx server/scripts/import-companies.ts data/sample-companies.csv --dry-run
 
-# Real import. Idempotent: rows whose slug OR domain already exist are skipped.
+# Real import. Idempotent: rows whose slug OR domain already exist are skipped
+# (but their `logo_url` is backfilled from the CSV when the DB value is null).
 tsx server/scripts/import-companies.ts data/sample-companies.csv
 
 # Tag every row in this file with a source label (per-row column wins if present).

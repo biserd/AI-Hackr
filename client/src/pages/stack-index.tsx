@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -302,7 +302,6 @@ export default function StackIndex() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCompanies.map((c) => {
                   const det = scanBySlug.get(c.slug);
-                  const initials = c.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
                   return (
                     <Link key={c.slug} href={`/stack/${c.slug}`}>
                       <Card
@@ -311,21 +310,7 @@ export default function StackIndex() {
                       >
                         <CardHeader className="pb-3">
                           <div className="flex items-start gap-3">
-                            {c.logoUrl ? (
-                              <img
-                                src={c.logoUrl}
-                                alt=""
-                                className="w-10 h-10 rounded-lg object-cover bg-muted flex-shrink-0"
-                                data-testid={`img-logo-${c.slug}`}
-                              />
-                            ) : (
-                              <div
-                                className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center text-xs font-display font-bold text-primary flex-shrink-0"
-                                data-testid={`img-logo-${c.slug}`}
-                              >
-                                {initials}
-                              </div>
-                            )}
+                            <CompanyLogo slug={c.slug} name={c.name} logoUrl={c.logoUrl ?? null} />
                             <div className="min-w-0 flex-1">
                               <CardTitle className="text-base group-hover:text-primary transition-colors flex items-center gap-1.5 truncate" data-testid={`text-name-${c.slug}`}>
                                 {c.name}
@@ -425,6 +410,46 @@ export default function StackIndex() {
     </div>
   );
 }
+
+/**
+ * Logo tile for a Stack Index card. When `logoUrl` is provided we try to
+ * render it; if the remote image fails (404, network error, blocked host)
+ * we fall back to the gradient initials tile rather than showing the
+ * browser's broken-image icon. Memoized so re-renders of the parent
+ * grid don't reset the error state mid-load.
+ */
+const CompanyLogo = memo(function CompanyLogo({
+  slug,
+  name,
+  logoUrl,
+}: {
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+}) {
+  const [errored, setErrored] = useState(false);
+  const initials = name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+  if (logoUrl && !errored) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setErrored(true)}
+        className="w-10 h-10 rounded-lg object-cover bg-muted flex-shrink-0"
+        data-testid={`img-logo-${slug}`}
+      />
+    );
+  }
+  return (
+    <div
+      className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center text-xs font-display font-bold text-primary flex-shrink-0"
+      data-testid={`img-logo-${slug}`}
+    >
+      {initials}
+    </div>
+  );
+});
 
 function RequestForm({
   onSubmit,
