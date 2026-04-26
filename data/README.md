@@ -40,6 +40,17 @@ After import, new rows land in `tracked_companies` with:
   `STUB_DRAIN_PER_HOST_MAX` (default 1) in-flight per host. See
   `server/background-worker.ts → runStubDrainCycle`.
 
+## Bundled seed CSVs
+
+| file                       | rows  | notes                                                                                                  |
+|----------------------------|-------|--------------------------------------------------------------------------------------------------------|
+| `sample-companies.csv`     | 5     | Tiny smoke-test fixture used by the docs above.                                                         |
+| `yc-saas-1k.csv`           | 1,200 | Curated 1.2k slice of active YC companies in B2B / Consumer / Fintech / Healthcare / Education / Gov / RE&C, sourced from the public yc-oss API (`https://yc-oss.github.io/api/companies/all.json`). Rows are ranked AI/SaaS-tagged → top-company → larger team → newer batch, normalized through the same slug/domain rules the importer uses. Tagged `source=yc-<batch>` per row. |
+
+The 1k seed already imported in this environment populates `tracked_companies`
+to ~1,247 rows; the drain worker grinds those `pending` rows down to scanned
+state at the cadence configured by `STUB_DRAIN_PER_TICK`.
+
 ## Stub pages
 
 Until a row is scanned, `/stack/<slug>` renders a stub: the company name,
