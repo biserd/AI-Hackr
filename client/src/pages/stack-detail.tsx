@@ -17,6 +17,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
+  Cloud,
+  Workflow,
+  Gauge,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +43,56 @@ function confidenceColor(c: string | null | undefined): string {
   if (c === "Medium") return "text-yellow-500 bg-yellow-500/20 border-yellow-500/30";
   if (c === "Low") return "text-orange-500 bg-orange-500/20 border-orange-500/30";
   return "text-muted-foreground bg-muted border-border";
+}
+
+// Map the scanner's enum-ish snake_case host codes onto the human labels we
+// want on the page. Anything not in this map (e.g. a future provider like
+// "groq_direct") falls back to a Title-Cased version so we never render the
+// raw enum to users.
+const INFERENCE_HOST_LABELS: Record<string, string> = {
+  aws_bedrock: "AWS Bedrock",
+  azure_openai: "Azure OpenAI",
+  vertex_ai: "Google Vertex AI",
+  google_agent_platform: "Google Agent Platform",
+  openai_direct: "OpenAI (direct)",
+  anthropic_direct: "Anthropic (direct)",
+  google_direct: "Google (direct)",
+  xai_direct: "xAI (direct)",
+  mistral_direct: "Mistral (direct)",
+  self_hosted: "Self-hosted",
+  unknown: "Unknown",
+};
+
+function formatInferenceHost(host: string | null | undefined): string {
+  if (!host) return "—";
+  if (INFERENCE_HOST_LABELS[host]) return INFERENCE_HOST_LABELS[host];
+  // Future-proof fallback: turn "foo_bar_baz" into "Foo Bar Baz".
+  return host.split("_").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
+}
+
+const FRAMEWORK_LABELS: Record<string, string> = {
+  langchain: "LangChain",
+  langgraph: "LangGraph",
+  llamaindex: "LlamaIndex",
+  crewai: "CrewAI",
+  autogen: "AutoGen",
+  semantic_kernel: "Semantic Kernel",
+  mcp: "MCP",
+};
+
+function formatFramework(name: string): string {
+  return FRAMEWORK_LABELS[name] || name;
+}
+
+function modelTierColor(tier: string): string {
+  if (tier === "frontier") return "text-primary bg-primary/20 border-primary/30";
+  if (tier === "balanced") return "text-secondary bg-secondary/20 border-secondary/30";
+  if (tier === "efficiency") return "text-blue-500 bg-blue-500/20 border-blue-500/30";
+  return "text-muted-foreground bg-muted border-border";
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function StackDetail() {
@@ -342,6 +396,65 @@ export default function StackDetail() {
                     </div>
                   </div>
                 </div>
+
+                {/* Advanced AI attributes — inference host, model tier, orchestration,
+                    and agentic flag. Only renders if at least one signal landed,
+                    so we don't show a row of em-dashes on lightly-instrumented sites. */}
+                {(scan?.inferenceHost || scan?.modelTier || scan?.orchestrationFramework || scan?.isAgentic) && (
+                  <div
+                    className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border"
+                    data-testid="ai-advanced-attributes"
+                  >
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Cloud className="w-3 h-3" /> Inference Host
+                      </div>
+                      <div className="text-base font-display font-semibold" data-testid="text-inference-host">
+                        {formatInferenceHost(scan?.inferenceHost)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Gauge className="w-3 h-3" /> Model Tier
+                      </div>
+                      <div className="text-base font-display font-semibold" data-testid="text-model-tier">
+                        {scan?.modelTier ? (
+                          <Badge variant="outline" className={modelTierColor(scan.modelTier)}>
+                            {capitalize(scan.modelTier)}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Workflow className="w-3 h-3" /> Orchestration
+                      </div>
+                      <div className="text-base font-display font-semibold" data-testid="text-orchestration-framework">
+                        {scan?.orchestrationFramework
+                          ? formatFramework(scan.orchestrationFramework)
+                          : "None detected"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Agentic
+                      </div>
+                      <div className="text-base font-display font-semibold" data-testid="text-is-agentic">
+                        {scan?.isAgentic ? (
+                          <Badge variant="outline" className="text-secondary bg-secondary/20 border-secondary/30">
+                            Yes
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground bg-muted border-border">
+                            No
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

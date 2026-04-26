@@ -220,6 +220,21 @@ export const scans = pgTable("scans", {
   aiConfidence: text("ai_confidence"),
   aiTransport: text("ai_transport"),
   aiGateway: text("ai_gateway"),
+
+  // Advanced AI attributes — derived from evidence in scanner.inferAdvancedAIAttributes.
+  // Stored on the scan row so the leaderboard, stack-detail page, and change-detection
+  // diff can all read them without re-deriving from raw evidence on every request.
+  // - inferenceHost: where the model is actually served (anthropic_direct, aws_bedrock,
+  //   azure_openai, google_agent_platform, vertex_ai, self_hosted, unknown)
+  // - orchestrationFramework: agent/LLM orchestration layer if any (langchain, langgraph,
+  //   llamaindex, crewai, autogen, semantic_kernel, mcp, custom). null if none detected.
+  // - modelTier: rolled up from inferredModel + provider into a coarse business tier
+  //   (frontier / balanced / efficiency). null if no model hint.
+  // - isAgentic: true when an orchestration framework or MCP endpoint is observed.
+  inferenceHost: text("inference_host"),
+  orchestrationFramework: text("orchestration_framework"),
+  modelTier: text("model_tier"),
+  isAgentic: boolean("is_agentic").default(false),
   
   // Scan phase tracking. Stored as plain strings rather than literal unions so that
   // upstream call sites that compose values dynamically (worker, batch scanner) type-check

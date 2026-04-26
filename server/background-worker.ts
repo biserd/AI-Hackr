@@ -421,6 +421,14 @@ async function performScan(sub: Subscription & { planTier: string }, isManual: b
     aiConfidence: scanResult.aiConfidence || null,
     aiTransport: scanResult.aiTransport || null,
     aiGateway: scanResult.aiGateway || null,
+    // Advanced AI attributes — must be forwarded explicitly because this
+    // insert object is hand-built (not spread from scanResult), so any new
+    // scanner fields would otherwise silently get dropped on the watchlist
+    // scan path even though /api/scan and the leaderboard worker persist them.
+    inferenceHost: scanResult.inferenceHost || null,
+    orchestrationFramework: scanResult.orchestrationFramework || null,
+    modelTier: scanResult.modelTier || null,
+    isAgentic: scanResult.isAgentic ?? false,
     scanPhases: { passive: "complete", render: "skipped", probe: "locked" },
     scanMode: "passive",
     evidence: scanResult.evidence || null,

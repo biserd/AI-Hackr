@@ -233,6 +233,111 @@ function detectAIProviders(signals: ScanSignals): DetectionResult[] {
   return results;
 }
 
+/**
+ * Derive the four advanced AI attributes from raw scan signals + the AI provider
+ * that we already detected. Returns null fields when there's no signal — we
+ * deliberately do NOT guess (e.g. "Bedrock by default for Anthropic") because the
+ * stack-detail page and change-detection diff trust these fields verbatim.
+ *
+ * Search order is intentionally cheap: we look at the merged text blob once
+ * (HTML + script srcs + evidence domains + network paths), then check each
+ * pattern against that single string. This keeps the call inside scanUrl's
+ * synchronous post-processing path with no measurable overhead.
+ */
+export function inferAdvancedAIAttributes(
+  signals: Pick<ScanSignals, "html" | "scriptSrcs" | "domain">,
+  aiProviderName: string | null,
+  inferredModel: string | null,
+  evidenceDomains: string[] = [],
+  networkPaths: string[] = [],
+): {
+  inferenceHost: string | null;
+  orchestrationFramework: string | null;
+  modelTier: string | null;
+  isAgentic: boolean;
+} {
+  // Build one lowercased haystack so each pattern test is a single indexOf.
+  const haystack = [
+    signals.html,
+    signals.scriptSrcs.join(" "),
+    evidenceDomains.join(" "),
+    networkPaths.join(" "),
+  ].join(" ").toLowerCase();
+
+  // ───── Inference host ─────
+  // Order matters: AWS/Azure/Vertex are more specific than the *_direct fallbacks,
+  // so we check those first. Returns null when no specific signal landed so the
+  // UI hides the row entirely — we used to emit "unknown" here but that meant
+  // every site with an AI provider rendered a confusing all-em-dash row.
+  let inferenceHost: string | null = null;
+  if (aiProviderName) {
+    if (/bedrock-runtime|\.bedrock\./.test(haystack) || haystack.includes("amazonaws.com/bedrock")) {
+      inferenceHost = "aws_bedrock";
+    } else if (haystack.includes("openai.azure.com") || /\.azure\.com\/.*openai/.test(haystack)) {
+      inferenceHost = "azure_openai";
+    } else if (haystack.includes("aiplatform.googleapis.com") || haystack.includes("vertex-ai")) {
+      inferenceHost = "vertex_ai";
+    } else if (haystack.includes("googleapis.com/v1/agents") || haystack.includes("agentbuilder.googleapis.com")) {
+      inferenceHost = "google_agent_platform";
+    } else if (haystack.includes("api.openai.com") || haystack.includes("api.anthropic.com")
+            || haystack.includes("api.x.ai") || haystack.includes("api.mistral.ai")
+            || haystack.includes("generativelanguage.googleapis.com")) {
+      inferenceHost = `${aiProviderName.toLowerCase().split(/\s+/)[0]}_direct`;
+    } else if (/ollama|localhost:11434|self.?host/.test(haystack)) {
+      inferenceHost = "self_hosted";
+    }
+    // else: leave null — better to omit the row than show a meaningless "unknown".
+  }
+
+  // ───── Orchestration framework ─────
+  // Bundle imports / chunked filenames are the most reliable signal — webpack
+  // chunks like `chunks/langchain.abc123.js` survive minification and tree-shaking.
+  let orchestrationFramework: string | null = null;
+  const orchestrationPatterns: Array<[RegExp, string]> = [
+    [/langgraph/, "langgraph"],
+    [/langchain/, "langchain"],
+    [/llamaindex|llama_index/, "llamaindex"],
+    [/crew[-_ ]?ai|crewai/, "crewai"],
+    [/autogen[-_ ]?(agent|microsoft)/, "autogen"],
+    [/semantic[-_ ]?kernel/, "semantic_kernel"],
+    [/\/mcp\/|model[-_ ]?context[-_ ]?protocol|@modelcontextprotocol/, "mcp"],
+  ];
+  for (const [pattern, name] of orchestrationPatterns) {
+    if (pattern.test(haystack)) {
+      orchestrationFramework = name;
+      break;
+    }
+  }
+
+  // ───── Model tier ─────
+  // Coarse buckets aimed at decision-makers, not model-naming purists.
+  // Frontier = "they're paying real money for the smartest model in the family".
+  // Efficiency = "they explicitly chose the small/cheap variant".
+  // Balanced = the default workhorse tier in between.
+  let modelTier: string | null = null;
+  const modelStr = (inferredModel || "").toLowerCase();
+  if (modelStr) {
+    if (/opus|gpt[- ]?5(?!\.\d?[- ]?mini)|gpt[- ]?4(?!o[- ]?mini)|claude[- ]?(sonnet[- ]?4|opus|capybara|mythos)|gemini[- ]?\d?[- ]?(pro|ultra)|grok[- ]?(2|3|4)|mistral[- ]?large|command[- ]?r[- ]?plus/.test(modelStr)) {
+      modelTier = "frontier";
+    } else if (/haiku|gpt[- ]?\d.*mini|gpt[- ]?3\.5|claude[- ]?(haiku|instant)|gemini[- ]?(flash|nano)|mistral[- ]?(small|tiny)|phi|tinyllama|gemma[- ]?2b/.test(modelStr)) {
+      modelTier = "efficiency";
+    } else {
+      modelTier = "balanced";
+    }
+  }
+
+  // ───── Is agentic ─────
+  // Strict signals only: an orchestration framework was identified, OR an MCP /
+  // agent-invocation endpoint was observed. We deliberately do NOT match generic
+  // tokens like "/agents" or "/tools" alone — those are too common across
+  // unrelated SaaS routes (admin tools, agent-as-in-customer-support, etc.) and
+  // would inflate the agentic count by several percent.
+  const agenticEndpointHit = /\/mcp\/|\/(invoke|run)[-_ ]?agent|\/v\d+\/agents?\/runs?\b|\/agentkit\b/.test(haystack);
+  const isAgentic = orchestrationFramework !== null || agenticEndpointHit;
+
+  return { inferenceHost, orchestrationFramework, modelTier, isAgentic };
+}
+
 export async function scanUrl(inputUrl: string) {
   const url = normalizeUrl(inputUrl);
   
@@ -371,6 +476,18 @@ export async function scanUrl(inputUrl: string) {
     }
   });
 
+  // Derive the four advanced AI attributes from the same evidence we just
+  // collected — these get persisted on the scans row and surfaced on
+  // /stack/[slug]. We pass evidenceDomains explicitly because they're built
+  // here from script_src/dns evidence rules and aren't on the raw signals.
+  const advanced = inferAdvancedAIAttributes(
+    signals,
+    aiProvider?.name || null,
+    null, // inferredModel isn't filled in passive mode — probe scans set it later
+    Array.from(evidenceDomains),
+    [],
+  );
+
   return {
     url,
     domain: signals.domain.replace(/^www\./, ''),
@@ -390,6 +507,10 @@ export async function scanUrl(inputUrl: string) {
     aiConfidence: aiProvider?.confidence || null,
     aiTransport: null,
     aiGateway: null,
+    inferenceHost: advanced.inferenceHost,
+    orchestrationFramework: advanced.orchestrationFramework,
+    modelTier: advanced.modelTier,
+    isAgentic: advanced.isAgentic,
     evidence: {
       domains: Array.from(evidenceDomains),
       patterns: Array.from(evidencePatterns),
@@ -424,6 +545,53 @@ export function mergeWithBrowserSignals(
   }
 
   merged.scanMode = "probe";
+
+  // Re-derive advanced AI attributes now that probe scans give us network
+  // paths + (possibly) an inferredModel — these are richer signals than the
+  // passive scan had access to. The synthetic ScanSignals carries empty
+  // html/scriptSrcs because the haystack already absorbed those during the
+  // passive pass; the value-add of this re-derive is purely the new
+  // browserSignals.network.{domains,paths} we feed in.
+  const probeAdvanced = inferAdvancedAIAttributes(
+    {
+      html: "",
+      scriptSrcs: [],
+      domain: merged.domain || "",
+    },
+    merged.aiProvider || null,
+    merged.inferredModel || null,
+    [...(merged.evidence?.domains || []), ...browserSignals.network.domains],
+    browserSignals.network.paths,
+  );
+  // Inference host precedence: a probe-observed managed host (Bedrock, Azure
+  // OpenAI, Vertex, Agent Platform, self-hosted) is *stronger* evidence than
+  // a passive-detected `*_direct` value, because passive can only see provider
+  // API hostnames in HTML — it can't tell whether they're being called via a
+  // managed wrapper. So we let those upgrade direct-class values, but never
+  // downgrade managed→direct.
+  const STRONG_HOSTS = new Set([
+    "aws_bedrock",
+    "azure_openai",
+    "vertex_ai",
+    "google_agent_platform",
+    "self_hosted",
+  ]);
+  if (probeAdvanced.inferenceHost) {
+    const passiveIsDirect = merged.inferenceHost?.endsWith("_direct") ?? false;
+    const probeIsStrong = STRONG_HOSTS.has(probeAdvanced.inferenceHost);
+    if (!merged.inferenceHost || (passiveIsDirect && probeIsStrong)) {
+      merged.inferenceHost = probeAdvanced.inferenceHost;
+    }
+  }
+  if (probeAdvanced.orchestrationFramework && !merged.orchestrationFramework) {
+    merged.orchestrationFramework = probeAdvanced.orchestrationFramework;
+  }
+  if (probeAdvanced.modelTier && !merged.modelTier) {
+    merged.modelTier = probeAdvanced.modelTier;
+  }
+  if (probeAdvanced.isAgentic) {
+    merged.isAgentic = true;
+  }
 
   const aiNetworkDomains = browserSignals.network.domains.filter(d => 
     d.includes("openai") || 
