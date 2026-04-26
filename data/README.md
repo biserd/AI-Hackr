@@ -45,11 +45,33 @@ After import, new rows land in `tracked_companies` with:
 | file                       | rows  | notes                                                                                                  |
 |----------------------------|-------|--------------------------------------------------------------------------------------------------------|
 | `sample-companies.csv`     | 5     | Tiny smoke-test fixture used by the docs above.                                                         |
-| `yc-saas-1k.csv`           | 1,200 | Curated 1.2k slice of active YC companies in B2B / Consumer / Fintech / Healthcare / Education / Gov / RE&C, sourced from the public yc-oss API (`https://yc-oss.github.io/api/companies/all.json`). Rows are ranked AI/SaaS-tagged → top-company → larger team → newer batch, normalized through the same slug/domain rules the importer uses. Tagged `source=yc-<batch>` per row. |
+| `yc-saas-1k.csv`           | ~1,300| Curated slice of active YC companies in B2B / Consumer / Fintech / Healthcare / Education / Gov / RE&C, sourced from the public yc-oss API (`https://yc-oss.github.io/api/companies/all.json`). Rows are ranked AI/SaaS-tagged → top-company → larger team → newer batch, normalized through the same slug/domain rules the importer uses. Tagged `source=yc-<batch>` per row. |
 
-The 1k seed already imported in this environment populates `tracked_companies`
-to ~1,247 rows; the drain worker grinds those `pending` rows down to scanned
-state at the cadence configured by `STUB_DRAIN_PER_TICK`.
+The seed populates `tracked_companies` to ~1,360 rows; the drain worker grinds
+those `pending` rows down to scanned state at the cadence configured by
+`STUB_DRAIN_PER_TICK`.
+
+### Regenerating `yc-saas-1k.csv`
+
+The CSV is produced by `server/scripts/build-yc-seed.ts`, which fetches the
+public yc-oss API, applies the curation rules above, and writes the CSV in
+place. Re-running is monotonic — every slug already in the existing CSV is
+preserved (so old rows can never be silently dropped), and any row whose raw
+website needs query-string / fragment / co-listed-URL cleanup is force-included
+(so future tracking-parameter additions on YC profiles don't get dropped
+again):
+
+```bash
+# Refresh the seed from yc-oss. Uses the existing CSV as a baseline.
+tsx server/scripts/build-yc-seed.ts --out=data/yc-saas-1k.csv --limit=1300
+
+# Then re-import. Idempotent — only newly-recoverable rows are inserted.
+tsx server/scripts/import-companies.ts data/yc-saas-1k.csv --source=yc-oss-saas
+```
+
+A short assertion-style unit test for the URL cleanup lives at
+`server/scripts/normalize-domain.test.ts` and can be run with
+`tsx server/scripts/normalize-domain.test.ts`.
 
 ## Stub pages
 

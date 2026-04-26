@@ -44,7 +44,7 @@ function parseArgs(argv: string[]): CliFlags {
   return { dryRun, source, file };
 }
 
-function normalizeSlug(s: string): string {
+export function normalizeSlug(s: string): string {
   return s
     .toLowerCase()
     .trim()
@@ -52,12 +52,39 @@ function normalizeSlug(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function normalizeDomain(d: string): string {
-  return d
+/**
+ * Normalize a raw "website" string into a bare hostname suitable for
+ * the `tracked_companies.domain` column.
+ *
+ * YC-sourced website fields are notoriously dirty:
+ *   - tracking parameters: `https://example.com?utm_source=yc`
+ *   - hash fragments:      `https://munily.com/#/`
+ *   - co-listed URLs:      `https://a.com, https://b.com`
+ *   - protocol + www:      `https://www.example.com/path`
+ *   - trailing port:       `example.com:8080`
+ *
+ * We strip all of the above so the result matches the bare-hostname regex
+ * used by the YC seed generator and downstream URL builders. If the input
+ * has multiple URLs co-listed (separated by commas, semicolons, or
+ * whitespace), we keep the first one — that's the canonical website per
+ * YC convention.
+ *
+ * Exported so the seed generator (`build-yc-seed.ts`) and unit tests can
+ * use the exact same logic the importer uses.
+ */
+export function normalizeDomain(d: string): string {
+  if (!d) return "";
+  // Take the first usable URL when multiple are co-listed in one cell.
+  // Splitter handles "a, b", "a , b", "a; b", and "a b". We skip pieces
+  // that are just a bare protocol (`https://` with nothing after, often
+  // left behind by sloppy YC profile editing like "https:// , https://x").
+  const pieces = d.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean);
+  const first = pieces.find((p) => !/^https?:\/\/$/i.test(p)) ?? pieces[0] ?? d;
+  return first
     .toLowerCase()
-    .trim()
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
+    .replace(/[?#].*$/, "") // strip query string and hash fragment
     .replace(/\/.*$/, "")
     .replace(/:\d+$/, "");
 }
@@ -175,7 +202,21 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("[import] fatal:", err);
-  process.exit(1);
-});
+// Only run main() when invoked directly (e.g. `tsx server/scripts/import-companies.ts ...`).
+// This guard lets sibling scripts/tests `import { normalizeDomain }` from this
+// file without accidentally triggering a CSV import.
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === new URL(`file://${path.resolve(process.argv[1])}`).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error("[import] fatal:", err);
+    process.exit(1);
+  });
+}
