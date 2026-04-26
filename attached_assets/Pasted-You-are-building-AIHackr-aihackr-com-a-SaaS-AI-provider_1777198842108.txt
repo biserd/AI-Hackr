@@ -1,0 +1,207 @@
+You are building AIHackr (aihackr.com), a SaaS AI provider intelligence tool built on Next.js with Clerk for auth. 
+
+## Product Context
+AIHackr detects which AI/LLM provider (OpenAI GPT-5.4, Anthropic Claude Sonnet/Opus/Mythos-tier, 
+Gemini 3.1, Grok 4.20, Mistral, Cohere) a SaaS product is using in production — with confidence 
+scores, evidence trails, and change monitoring. It is NOT a generic tech stack tool. The entire 
+product is positioned around AI provider intelligence. No feature should be built that doesn't 
+serve this core use case.
+
+## What To Build (in priority order)
+
+### PRIORITY 1 — Watchlist & Change Alerts (retention loop)
+Build the following database schema and features:
+
+Tables:
+- watchlist_entry (id, user_id, domain, label, last_scanned_at, next_scan_at, scan_status, 
+  alert_enabled, alert_threshold)
+- scan_result (id, watchlist_entry_id, domain, scanned_at, providers_detected JSONB, 
+  raw_signals JSONB, site_reachable, http_status, scan_version)
+- stack_change (id, watchlist_entry_id, scan_result_id, prior_scan_result_id, change_type, 
+  provider, prior_confidence, new_confidence, change_severity, alerted_at)
+
+provider_detection JSON shape per scan:
+{
+  "provider": "anthropic",
+  "display_name": "Anthropic Claude",
+  "confidence": "high",
+  "confidence_score": 0.91,
+  "signals": ["sdk_detected", "api_endpoint_pattern"],
+  "model_hints": ["claude-sonnet-4-6"],
+  "inference_host": "aws_bedrock" // new field — decouple host from model
+}
+
+Diff algorithm (pseudocode):
+- PROVIDER_ADDED: new provider with confidence_score >= 0.60, not in prior scan
+- PROVIDER_REMOVED: prior provider with score >= 0.60, missing from new scan 
+  (requires 2 consecutive missed scans before firing — pending_removal state)
+- CONFIDENCE_UPGRADED/DOWNGRADED: confidence band changes (bands: high>=0.80, medium>=0.50, low<0.50)
+- MODEL_HINT_CHANGED: model_hints array differs between scans
+- Ignore: score fluctuations < 0.10 within same band, scan_version mismatches
+
+Rescan cadence: Free = 7 days, Pro = 24 hours. Add ±2hr jitter. Pro domains are head-of-queue.
+
+### PRIORITY 2 — Detection Engine Expansion
+Expand the scanner to detect and distinguish:
+
+Providers to detect:
+- OpenAI: GPT-5.4, GPT-5.4 Thinking, GPT-5.4 mini — detect tier from latency signature + 
+  response headers + token patterns
+- Anthropic: Haiku/Sonnet/Opus/Capybara tier — detect from SDK version, endpoint, 
+  streaming format. Capybara/Mythos-class signals: elevated latency (>3s TTFT), 
+  distinct streaming chunk sizes, new SDK namespace if observed
+- Gemini 3.1: detect direct API vs. Google Enterprise Agent Platform vs. AWS Bedrock Gemini
+- Grok 4.20: xAI API patterns, multi-agent response signatures
+- Mistral: mistral.ai API, Mistral on Azure, Le Chat endpoints
+
+New detection fields:
+- inference_host: "anthropic_direct" | "aws_bedrock" | "azure_openai" | 
+  "google_agent_platform" | "vertex_ai" | "self_hosted" | "unknown"
+- orchestration_framework: "langchain" | "langgraph" | "llamaindex" | 
+  "crewai" | "autogen" | "semantic_kernel" | "mcp" | "custom" | null
+- model_tier: "frontier" | "balanced" | "efficiency" — inferred from model_hints
+- is_agentic: boolean — true if orchestration_framework detected or 
+  MCP endpoint observable
+
+Signal detection sources (in order of confidence weight):
+1. HTTP response headers (x-llm-provider, x-model-id, cf-ray patterns)
+2. JavaScript bundle analysis (SDK imports, API client init strings)
+3. Network request patterns (outbound endpoint URLs, streaming format)
+4. Response latency profiles (TTFT, token rate, chunk sizes)
+5. Error message fingerprints (model name strings in client-side JS)
+6. DNS/IP routing (AWS Bedrock IPs, Azure OpenAI endpoints)
+7. Public disclosure (changelog/blog mentions — lower confidence, mark as "disclosed")
+
+### PRIORITY 3 — Programmatic SEO Pages
+
+Route: /stack/[company-slug]
+
+Page requirements:
+- Title tag: "[Company] AI Stack — Which LLM Does [Company] Use? | AIHackr"
+- H1: "[Company]'s AI Stack: Which LLM Are They Using?"
+- Meta description: "See which AI provider [Company] uses in production. AIHackr 
+  detected [Provider] with [X]% confidence. Updated [cadence]."
+- generateMetadata() must be dynamic, pulling from latest scan_result
+- revalidate: 86400 (daily ISR)
+
+Data card fields (in priority order):
+1. Primary AI Provider (name + logo chip)
+2. Detection Confidence (% + color: green>=80, yellow>=50, red<50)
+3. Last Scanned (relative + absolute)
+4. Inference Host (new field — e.g. "AWS Bedrock" vs "Direct API")
+5. Model Tier (Frontier / Balanced / Efficiency)
+6. Orchestration Framework (if detected)
+7. Is Agentic (boolean badge)
+8. Secondary Provider (if detected)
+9. Model Version hints (labeled "inferred")
+10. Scan history count
+
+Schema markup (TechArticle + BreadcrumbList):
+{
+  "@type": "TechArticle",
+  "headline": "[Company]'s AI Stack: Which LLM Are They Using?",
+  "dateModified": "[last_scanned_at]",
+  "author": { "@type": "Organization", "name": "AIHackr" },
+  "about": { "@type": "SoftwareApplication", "name": "[Company]" }
+}
+
+Internal links each page must include:
+- → /stack (index, anchor: "Browse all AI stacks")
+- → /leaderboard (anchor: "AI Stack Leaderboard")
+- → /provider/[detected-provider-slug] (anchor: "[Provider] in production")
+- → 6 related company cards (same provider, same category)
+
+CTAs:
+- Primary (after data card): "Track [Company] Changes" → watchlist add flow
+- Secondary (after evidence): "Run a Fresh Scan"
+- Tertiary (bottom): "Scan any domain →" → homepage scanner
+
+### PRIORITY 4 — /leaderboard page
+
+URL: /leaderboard (permanent) + /leaderboard/[year]-W[week] (weekly snapshots)
+
+Table columns: Company | Category | Primary AI Provider | Inference Host | 
+Model Tier | Confidence | Last Changed | Week-over-week delta badge
+
+Filters: Provider (multiselect) | Category | Model Tier | Confidence level
+Sort: Default = Last Changed desc
+
+"This week's changes" panel (top of page):
+- Provider switches (PROVIDER_REMOVED + PROVIDER_ADDED same company)
+- New additions (first scan)
+- Confidence upgrades
+- Weekly stat: "X companies monitored this week"
+
+Update flow: Sunday automated rescan → Monday 7am human review flag in admin → 
+Monday 8am publish with og:image auto-generated at /api/og/leaderboard
+
+OG image spec (/api/og/leaderboard using @vercel/og):
+- "AI Stack Leaderboard" headline
+- "Week of [date]"
+- Top 5 movers as a mini-table
+- AIHackr logo bottom right
+- Dark background, monospace font for data
+
+## SEO Requirements (implement all of these)
+
+### Technical SEO
+- generateMetadata() on every page — no static meta tags
+- sitemap.xml: auto-generated, includes all /stack/[slug] pages, updated on new scan
+- robots.txt: allow all, disallow /api/, disallow /watchlist (auth-gated)
+- Canonical tags: self-referencing on all pages, 301 redirect /stack/notion.so → /stack/notion
+- Open Graph images: auto-generated per company page via /api/og/[slug] using @vercel/og
+  - OG image spec: company name, detected provider logo, confidence score, 
+    "Last scanned [date]", dark card design, 1200×630
+- JSON-LD schema: TechArticle + BreadcrumbList on /stack/[slug], 
+  ItemList on /stack index and /leaderboard
+- No duplicate content: /stack index page uses noindex if it's a pure listing page 
+  with no unique content; add unique intro copy per category
+
+### URL & crawlability
+- All /stack/[slug] pages server-rendered (SSR or ISR with 24h revalidate)
+- No JS-only rendering for data card content — must be in HTML for crawlers
+- Internal link equity flow: Homepage → /stack index → individual pages → /provider/[slug]
+- Every /stack/[slug] page links to at least 6 other /stack pages (the "similar companies" grid)
+- /leaderboard links to every company in the table
+- Breadcrumb nav: Home > Stack Explorer > [Company]
+
+### Keyword targeting per page type
+/stack/[slug]:
+  Primary: "[Company] AI stack", "which LLM does [Company] use", "[Company] AI provider"
+  Secondary: "[Company] OpenAI", "[Company] Anthropic", "[Company] Claude"
+  
+/provider/[slug] (e.g. /provider/anthropic):
+  Primary: "SaaS tools using Anthropic", "companies using Claude", "Anthropic production usage"
+  
+/leaderboard:
+  Primary: "AI stack leaderboard", "which AI do SaaS companies use", 
+           "YC companies AI providers 2026"
+  Secondary: "top SaaS OpenAI usage", "SaaS Anthropic Claude adoption"
+
+Blog posts (/blog/[slug]):
+  Target: "what AI does [Company] use", "OpenAI vs Anthropic production SaaS",
+          "how to detect LLM a website uses", "AI provider competitive intelligence"
+
+### Content freshness signals
+- Every /stack/[slug] page must show "Last updated: [date]" prominently
+- dateModified in JSON-LD must match last_scanned_at from DB — keep in sync
+- Revalidate ISR at 86400s (24h). On manual scan, trigger on-demand revalidation 
+  via revalidatePath('/stack/[slug]')
+
+### Core Web Vitals requirements
+- LCP < 2.5s: pre-render data card server-side, no client waterfall for primary content
+- CLS = 0: reserve explicit height for provider logo images, skeleton loaders for async
+- INP < 200ms: defer watchlist add modal, prefetch on hover for /stack links
+
+## Tone & Copy Rules
+- Every page speaks to competitive PMs, VCs, and technical founders — not generic users
+- Never say "BuiltWith for AI" — that framing is dead
+- Lead with: which AI brain, which inference host, frontier vs efficiency tier
+- CTA copy: "Track [Company]" not "Monitor" / "Scan" not "Check" / "Stack" not "Tech stack"
+- Confidence language: "High confidence" not "Likely" / "Detected" not "Found"
+
+## Do not build
+- Generic tech stack detection (framework, hosting, CDN) as primary features — 
+  these are secondary signals only
+- Any feature that doesn't directly serve AI provider intelligence
+- Breadth over depth — 10 providers detected accurately beats 100 detected poorly
