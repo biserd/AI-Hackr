@@ -1213,12 +1213,27 @@ export async function registerRoutes(
       if (!company) return res.status(404).send("Not found");
 
       const scan = company.lastScanId ? await storage.getScan(company.lastScanId) : null;
-      const provider = scan?.aiProvider || "Unknown";
-      const confidence = scan?.aiConfidence || "Pending";
-      const accent = confidence === "High" ? "#10b981" : confidence === "Medium" ? "#f59e0b" : confidence === "Low" ? "#ef4444" : "#6b7280";
-
-      const labelText = `Powered by ${provider}`;
-      const valueText = `${confidence} · AIHackr`;
+      // Never emit "Powered by Unknown" — that's a confidence-killing badge
+      // for a paid intelligence product. Pick label/value/accent by what we
+      // actually know about this scan: provider+confidence when detected,
+      // a verdict-aware status string when not.
+      let labelText: string;
+      let valueText: string;
+      let accent: string;
+      if (scan?.aiProvider) {
+        const confidence = scan.aiConfidence || "Detected";
+        accent = confidence === "High" ? "#10b981" : confidence === "Medium" ? "#f59e0b" : confidence === "Low" ? "#ef4444" : "#6b7280";
+        labelText = `AI: ${scan.aiProvider}`;
+        valueText = `${confidence} · AIHackr`;
+      } else if (!scan) {
+        accent = "#6b7280";
+        labelText = "AI stack monitored by";
+        valueText = "AIHackr";
+      } else {
+        accent = "#6b7280";
+        labelText = "AI provider not publicly visible";
+        valueText = "Tracked by AIHackr";
+      }
       // Approx text width — 7px per character, 10 px padding either side.
       const labelWidth = Math.max(110, labelText.length * 7 + 20);
       const valueWidth = Math.max(110, valueText.length * 7 + 20);

@@ -1,0 +1,375 @@
+You are improving AIHackr’s public `/stack/[company]` pages.
+
+Current issue:
+Some stack profile pages look empty or weak when AIHackr has limited detection data. Example page: `/stack/perplexity`.
+
+The page currently shows things like:
+- Primary AI Provider: Pending detection
+- Inferred model: —
+- AI Gateway / Path: Direct API
+- Framework: —
+- Hosting: Cloudflare
+- Payments: —
+- Auth: —
+- Analytics: Google Analytics
+- Support: —
+- AI Stack History: Unknown / Unknown
+- Embed badge: “Powered by Unknown”
+
+This makes the product look like it failed, even if the real reason is that the company hides AI calls server-side, behind login, through backend APIs, or through internal infrastructure.
+
+Goal:
+Turn `/stack/[company]` pages into useful AI company intelligence profiles, not empty scan reports.
+
+Positioning:
+These pages should support AIHackr’s positioning as:
+“Competitive intelligence for AI-native SaaS.”
+
+They should answer:
+- What does AIHackr detect?
+- What does AIHackr not detect?
+- How confident are we?
+- Why might detection be limited?
+- What is publicly known about this company’s AI usage?
+- What changed over time?
+- What should the user do next?
+- Should the user compare, probe, watch, or model cost?
+
+Important:
+Do not fake detection.
+Do not claim the scanner found something it did not find.
+Separate “AIHackr detected” from “publicly known / company-disclosed context.”
+
+Page type:
+Treat `/stack/[company]` as a canonical AI stack profile page.
+
+Recommended page structure:
+
+1. Company Profile Header
+Include:
+- Company name
+- Website
+- Category
+- Short description
+- Last scanned date
+- Scan depth
+- Watchlist CTA
+- Copy link CTA
+
+Example:
+“Perplexity”
+“AI-powered answer engine with citations.”
+Website: perplexity.ai
+Category: Search / AI Answer Engine
+Last scanned: [date]
+
+2. AI Stack Verdict
+Add a large verdict card near the top.
+
+Possible verdict states:
+- AI provider detected
+- AI likely, provider hidden
+- No browser-visible AI provider found
+- AI possible, insufficient interaction depth
+- AI behind login likely
+- Scan limited or blocked
+- Detection pending
+- No AI evidence found
+
+For pages like Perplexity where the product is clearly AI-related but provider is not detected, use:
+
+Title:
+“AI likely, provider hidden from public scan”
+
+Description:
+“This product is AI-native, but AIHackr did not observe browser-visible provider calls during this scan. The most likely explanation is that prompts and model routing are handled server-side, through internal infrastructure, through a backend proxy, or behind authenticated product flows.”
+
+Best next action:
+“Run an interactive or authenticated probe, or add this company to Watchlist for future stack changes.”
+
+3. Detection Summary
+Show separate confidence scores:
+- AI Usage Confidence
+- Provider Confidence
+- Gateway Confidence
+- Visibility Score
+- Evidence Strength
+- Scan Depth
+
+Example:
+AI Usage Confidence: High
+Provider Confidence: Low
+Gateway Confidence: Low/Unknown
+Visibility Score: Medium
+Evidence Strength: Commodity signals only
+Scan Depth: Passive + Rendered
+
+Important:
+Do not collapse these into one generic confidence score.
+
+4. AIHackr Detected
+Show only what the scanner actually found.
+
+Include:
+- Browser-visible provider
+- Model family
+- Gateway/path
+- Streaming
+- Chat UI
+- AI endpoints
+- SDKs
+- Evidence
+
+Use better labels for empty states.
+
+Bad:
+“—”
+“Unknown”
+“No public signal”
+
+Better:
+“Not publicly visible”
+“Not detected in browser scan”
+“Requires interactive probe”
+“Behind-login possible”
+“Insufficient public evidence”
+“Not fingerprinted from public assets”
+
+Examples:
+Provider:
+“No browser-visible AI provider found”
+
+Model:
+“No model family exposed in public scan”
+
+Gateway:
+“No gateway confirmed from public evidence”
+
+Framework:
+“Frontend framework not fingerprinted”
+
+Payments:
+“No public payment provider detected”
+
+Auth:
+“No public auth provider detected”
+
+Support:
+“No public support platform detected”
+
+5. Publicly Known / Company-Disclosed Context
+Add a separate section for non-scanner context.
+
+Purpose:
+Make high-profile company pages useful even when scanner evidence is limited.
+
+Rules:
+- Clearly label this as public context, not scanner detection.
+- Add citations/links if external sources are used.
+- Do not mix public claims with AIHackr-detected evidence.
+
+Example section title:
+“Public Context”
+
+Example copy:
+“Perplexity publicly positions itself as an AI-powered answer engine. AIHackr’s public scan confirms the site is AI-relevant, but it did not expose direct browser-visible provider calls during this scan.”
+
+If web-sourced claims are available, cite them.
+If no sources are available, keep it generic and avoid specific claims.
+
+6. What We Found
+Show positive findings in plain English.
+
+Example:
+- “Cloudflare edge protection detected”
+- “Google Analytics detected”
+- “No direct browser-visible AI provider calls observed”
+- “No public model identifier exposed”
+- “No AI gateway confirmed from public scan”
+
+7. What We Did Not Find
+Show missing signals clearly.
+
+Example:
+- “No OpenAI browser calls”
+- “No Anthropic browser calls”
+- “No Google Gemini browser calls”
+- “No Mistral/Cohere browser calls”
+- “No AI gateway endpoint observed”
+- “No public model name exposed”
+- “No token-streaming endpoint observed during this scan”
+- “No Vercel AI SDK / LangChain / LlamaIndex frontend signature detected”
+
+8. Why Detection May Be Limited
+Add an explanatory card.
+
+Example:
+“Many mature AI products do not expose model provider calls directly in the browser. They often route prompts through backend APIs, internal model routers, gateways, or authenticated product flows. A public scan can identify visible signals, but may not reveal private server-to-server AI calls.”
+
+This section should appear whenever:
+- provider is unknown
+- AI usage confidence is medium/high
+- scan depth is passive/rendered only
+- Cloudflare or another edge/proxy layer is detected
+
+9. Detection Evidence
+Group evidence by type:
+- AI-specific signals
+- Network requests
+- Headers
+- Scripts
+- HTML patterns
+- DNS/hosting
+- Analytics
+- Commodity tech stack
+
+If only commodity evidence is found, label it clearly:
+“Supporting tech-stack evidence, not AI-provider evidence.”
+
+Do not let Cloudflare and GA4 dominate the page.
+
+10. AI Stack History
+Keep this section, but improve empty states.
+
+Bad:
+“Unknown”
+“Unknown”
+
+Better:
+“Provider not visible in public scan”
+“No model change detected”
+“Insufficient evidence for provider history”
+
+Add timeline copy:
+“AIHackr will track future scans and highlight meaningful changes in provider, gateway, model exposure, AI endpoints, and AI-related product copy.”
+
+If there are no meaningful historical changes, show:
+“No meaningful AI stack changes detected yet.”
+
+11. Recommended Next Actions
+Add a context-aware CTA section.
+
+For AI-likely but provider-hidden pages:
+- Run interactive probe
+- Run authenticated probe
+- Add to Watchlist
+- Compare with competitors
+- Model likely AI cost scenarios in LLM Margin
+
+For provider-detected pages:
+- Compare provider choice against competitors
+- Estimate cost-per-user in LLM Margin
+- Add to Watchlist for provider/model changes
+- Export report
+
+For thin/no-evidence pages:
+- Run deeper scan
+- Add missing product category
+- Compare similar companies
+- Re-scan later
+
+12. Competitor Comparison CTA
+Add a prominent card.
+
+Title:
+“Compare this company against competitors”
+
+Copy:
+“A single scan shows what is visible today. A comparison shows whether this company’s AI stack is more exposed, more protected, cheaper, more advanced, or changing faster than others in its category.”
+
+Button:
+“Compare competitors”
+
+13. Watchlist CTA
+Add a prominent paid CTA.
+
+Title:
+“Monitor this AI stack over time”
+
+Copy:
+“Get notified when AIHackr detects new AI endpoints, provider signals, gateway changes, model exposure, pricing changes, or AI messaging changes.”
+
+Button:
+“Add to Watchlist”
+
+14. LLM Margin CTA
+Add contextual cross-promotion.
+
+If provider/model detected:
+Link:
+https://llmmargin.com/?utm_source=aihackr&utm_medium=stack_profile&utm_campaign=stack_to_margin&provider=[provider]&model=[model]&domain=[domain]
+
+Copy:
+“Estimate the margin impact of this AI stack. Model cost-per-user, gross margin, power-user risk, and breakeven MAU in LLM Margin.”
+
+If provider/model unknown:
+Link:
+https://llmmargin.com/?utm_source=aihackr&utm_medium=stack_profile&utm_campaign=unknown_stack_to_margin&domain=[domain]
+
+Copy:
+“Provider hidden? Model OpenAI, Anthropic, Gemini, and open-source cost scenarios to understand possible AI cost exposure.”
+
+15. Embed Badge
+Do not show “Powered by Unknown.”
+
+Only show an embed badge if:
+- provider is detected, or
+- meaningful AI verdict exists, or
+- the badge copy is useful.
+
+Better badge states:
+- “AI stack monitored by AIHackr”
+- “AI provider not publicly visible”
+- “AI stack detection pending”
+- “AI stack verified by AIHackr” only if high-confidence evidence exists
+
+If no meaningful status exists, hide embed badge.
+
+SEO/indexing rules:
+Do not index thin pages that are mostly blank.
+
+Index a `/stack/[company]` page only if it has at least:
+- company name
+- website
+- category or description
+- last scanned date
+- meaningful verdict
+- at least one evidence item or public context section
+- internal links to related companies/categories
+
+Noindex pages if:
+- no company description
+- no category
+- no evidence
+- no public context
+- all major fields are blank
+- verdict is only “pending detection” with no explanation
+
+Internal linking:
+Add links to:
+- related companies
+- same category pages
+- competitor comparison pages
+- relevant blog posts
+- AI provider pages
+- LLM Margin where appropriate
+
+UX rules:
+- Never show bare dashes as the main content.
+- Empty states must explain what the absence means.
+- Separate scanner evidence from public context.
+- Keep technical evidence available, but wrap it in business interpretation.
+- Make “Run Probe,” “Compare,” and “Watch” the main actions.
+- Commodity stack data should be secondary.
+- The page should feel useful even when the provider is not detected.
+
+Acceptance criteria:
+- `/stack/[company]` pages no longer look empty when detection is limited.
+- Provider unknown states explain why the provider may be hidden.
+- The page separates AIHackr-detected evidence from public/company-disclosed context.
+- Blank values are replaced with meaningful empty-state labels.
+- Thin pages are marked noindex.
+- Useful company profile pages are indexable.
+- “Powered by Unknown” badge is removed or replaced.
+- Watchlist, comparison, probe, and LLM Margin CTAs are present.
+- The page feels like an AI intelligence profile, not a failed scan.
