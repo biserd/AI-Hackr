@@ -1,0 +1,446 @@
+You are improving AIHackr, a SaaS AI-stack intelligence and competitor-monitoring product.
+
+Current problem:
+AIHackr can scan a SaaS website and produce an AI intelligence report, but the product risks feeling like a one-off curiosity tool. Many SaaS apps hide AI calls server-side, behind login, behind Cloudflare, through backend APIs, or inside authenticated product flows. If the scanner only says “No public signal,” users may not feel enough value to pay.
+
+Goal:
+Improve both:
+1. The actual AI scanning and detection process.
+2. The product’s path to PMF by turning AIHackr into competitive intelligence for AI-native SaaS.
+
+Primary positioning:
+AIHackr should become:
+“Competitive intelligence for AI-native SaaS.”
+
+Not:
+“BuiltWith for AI.”
+
+Core product promise:
+“Track competitor AI stacks, AI feature changes, model/provider shifts, AI messaging, and likely AI cost exposure over time.”
+
+Target users:
+Prioritize:
+- AI SaaS founders
+- Product marketers
+- Competitive intelligence teams
+- Agencies/consultants doing SaaS audits
+- AI infrastructure sales teams
+
+The scanner should not only answer:
+“What AI provider does this website use?”
+
+It should answer:
+- Is AI visible?
+- Is AI likely being used even if provider is hidden?
+- What provider, model, SDK, gateway, or infrastructure signals were found?
+- What was not found?
+- How much of the product was actually observable?
+- What does this imply competitively?
+- What should the user do next?
+- Should this competitor be watched over time?
+- What might this AI stack cost at scale?
+
+Build the improved scanning system around multiple scan levels.
+
+Scan levels:
+
+1. Passive Scan
+Fast public scan of:
+- HTML
+- headers
+- scripts
+- DNS
+- static assets
+- public JS bundles
+- source maps if available
+- robots.txt
+- sitemap.xml
+- metadata
+- schema.org
+- public API references
+- known AI SDK fingerprints
+
+2. Rendered Scan
+Use a real browser to:
+- load the page
+- wait for hydration
+- scroll
+- capture runtime network calls
+- detect loaded scripts
+- detect client-side routing
+- observe JavaScript bundle behavior
+- inspect localStorage/sessionStorage keys
+- detect analytics, auth, chat, and AI-related widgets
+
+3. Interactive Probe
+Use an automated browser agent to identify and interact with likely AI surfaces:
+- buttons like “Ask AI,” “Generate,” “Analyze,” “Summarize,” “Coach me,” “Predict,” “Try demo,” “Chat,” “Upload,” “Plan,” “Recommend”
+- textareas and prompt inputs
+- search boxes that may trigger AI
+- demo flows
+- calculators
+- onboarding forms
+- example prompts
+- “try without signup” flows
+
+The probe should perform safe, non-destructive interactions only.
+
+It should capture:
+- network requests after interactions
+- streaming responses
+- WebSocket events
+- Server-Sent Events
+- long-running generation endpoints
+- JSON payloads
+- error messages
+- endpoint names
+- response timing
+- request/response headers
+- visible UI changes like typing indicators or generated content
+
+4. Authenticated Probe
+Paid feature.
+Allow the user to manually authenticate or provide a browser session, then run the same interactive probe behind login.
+
+Do not store passwords.
+Do not perform destructive actions.
+Clearly label authenticated scan evidence as coming from a user-provided session.
+
+5. Watch Mode
+Paid feature.
+Repeatedly scan selected competitors on a schedule and detect changes over time:
+- AI provider changed
+- gateway changed
+- new AI endpoint detected
+- chat/generation surface added
+- pricing page changed
+- AI marketing copy changed
+- model/provider claim changed
+- visible AI SDK added or removed
+- competitor launched a new AI feature
+
+Detection system requirements:
+
+Create a fingerprint database for AI providers, SDKs, gateways, and infrastructure.
+
+Include fingerprints for:
+- OpenAI
+- Anthropic
+- Google Gemini
+- Mistral
+- Cohere
+- Azure OpenAI
+- AWS Bedrock
+- OpenRouter
+- Together AI
+- Groq
+- Replicate
+- Hugging Face
+- Perplexity API
+- Vercel AI SDK
+- LangChain
+- LlamaIndex
+- LiteLLM
+- Helicone
+- Langfuse
+- Portkey
+- Cloudflare AI Gateway
+
+Each fingerprint should support:
+- endpoint domains
+- SDK package names
+- script or bundle strings
+- request path patterns
+- response shape patterns
+- error message patterns
+- header patterns
+- streaming behavior
+- gateway signatures
+- source-map strings
+- confidence weight
+- false-positive risk
+- evidence category
+
+Detect both direct and indirect AI signals.
+
+Direct signals:
+- calls to known AI provider APIs
+- visible SDK imports
+- gateway URLs
+- exposed model names
+- known provider headers
+- known provider error messages
+
+Indirect signals:
+- endpoint paths like /chat, /completion, /generate, /ai, /assistant, /coach, /analyze, /predict, /summarize
+- role/content message shapes
+- token usage fields
+- streaming text/event-stream
+- WebSocket token streams
+- “thinking” or “typing” states
+- regenerate buttons
+- prompt templates
+- system prompt leakage
+- model selection UI
+- long-running generation requests
+- queueing or job polling
+- generated response UI patterns
+
+Add a scoring system.
+
+Scores needed:
+1. AI Usage Confidence
+How likely is it that the product uses AI?
+
+2. Provider Confidence
+How confident are we about the provider?
+
+3. Gateway Confidence
+Can we tell whether the app uses direct provider calls, a gateway, a proxy, or server-side abstraction?
+
+4. Visibility Score
+How much of the product was observable during the scan?
+
+5. Scan Depth Score
+Passive, rendered, interactive, authenticated.
+
+6. Evidence Strength
+How strong is the evidence trail?
+
+Important:
+If provider confidence is low but AI usage confidence is high, the report should say:
+“AI likely used, provider hidden.”
+
+Do not collapse everything into “No public signal.”
+
+Unknown-state logic:
+When no provider is detected, classify the result as one of:
+- No AI evidence found
+- AI likely but provider hidden
+- AI possible but not enough interaction observed
+- AI behind login likely
+- AI hidden behind backend/proxy likely
+- Scan blocked or limited
+- Probe recommended
+
+Report copy should explain unknowns in plain English.
+
+Example:
+“No browser-visible AI provider found. This does not mean the app has no AI. It means we did not observe direct provider calls during this scan. AI may be handled server-side, behind login, through a backend proxy, or only after deeper user interaction.”
+
+Improve the report output.
+
+Every report should include:
+1. AI Stack Verdict
+2. Executive Summary
+3. AI Usage Confidence
+4. Provider Confidence
+5. Visibility Score
+6. What We Found
+7. What We Did Not Find
+8. Detection Evidence grouped by type
+9. Likely Architecture
+10. Recommended Next Actions
+11. Competitor Comparison CTA
+12. Watchlist CTA
+13. LLM Margin CTA
+
+Likely Architecture labels:
+- Browser-visible provider calls
+- Backend-proxied AI
+- Gateway-routed AI
+- Authenticated-only AI
+- Server-side AI likely
+- No AI evidence found
+- Insufficient interaction depth
+
+Recommended actions should be context-aware.
+
+If no provider detected but AI likely:
+- Run AI Probe
+- Scan authenticated session
+- Compare against competitors
+- Add to Watchlist
+- Model cost scenarios in LLM Margin
+
+If provider detected:
+- Compare provider choice against competitors
+- Estimate cost-per-user in LLM Margin
+- Add to Watchlist for migration alerts
+- Export report
+
+If scan blocked:
+- Retry with browser rendering
+- Use authenticated probe
+- Reduce bot-blocking limitations if possible
+- Show which parts of the site were inaccessible
+
+LLM Margin integration:
+Add contextual CTA to https://llmmargin.com.
+
+If provider/model detected:
+Link:
+https://llmmargin.com/?utm_source=aihackr&utm_medium=scan_report&utm_campaign=stack_to_margin&provider=[provider]&model=[model]&domain=[domain]
+
+Copy:
+“Estimate the margin impact of this AI stack. Model cost-per-user, gross margin, power-user risk, and breakeven MAU in LLM Margin.”
+
+If provider unknown:
+Link:
+https://llmmargin.com/?utm_source=aihackr&utm_medium=scan_report&utm_campaign=unknown_stack_to_margin&domain=[domain]
+
+Copy:
+“Provider hidden? Model OpenAI, Anthropic, Gemini, and open-source cost scenarios to understand likely AI cost exposure.”
+
+PMF features to build:
+
+P0:
+- Interactive probe engine
+- Detection fingerprint database
+- AI usage/provider/gateway/visibility scoring
+- Better unknown-state classification
+- Competitor comparison reports
+- Watchlists
+- Change alerts
+- LLM Margin handoff
+
+P1:
+- Authenticated probe
+- Exportable PDF/CSV reports
+- AI battlecard generator
+- Category benchmarking
+- Agency workspaces
+- API access
+
+P2:
+- Browser extension
+- Public badges
+- Public dataset
+- Lead scoring for AI infrastructure vendors
+
+Competitor comparison:
+Allow users to enter 3 to 10 competitor domains.
+Produce a comparison table with:
+- domain
+- AI usage confidence
+- provider
+- model family
+- gateway
+- visible AI surfaces
+- visibility score
+- scan depth
+- evidence strength
+- likely architecture
+- last changed date
+- recommended action
+
+Watchlist:
+Users can add domains to monitor.
+For each watched domain, track:
+- provider changes
+- new AI surfaces
+- removed AI surfaces
+- pricing page changes
+- AI marketing copy changes
+- endpoint changes
+- SDK/gateway changes
+- confidence changes
+
+Send alerts only for meaningful changes.
+
+Alert examples:
+- “Competitor X added a new AI chat flow.”
+- “Competitor Y appears to have moved AI calls behind a backend proxy.”
+- “Competitor Z added OpenRouter/Langfuse/Helicone signals.”
+- “Competitor X changed homepage copy from ‘AI assistant’ to ‘AI agent.’”
+- “Competitor Y changed pricing after launching AI features.”
+
+Analytics and PMF metrics:
+Instrument the product around actual value, not vanity scans.
+
+North Star Metric:
+“Monitored competitors with actionable changes detected.”
+
+Activation event:
+User is activated when they:
+- runs a scan,
+- adds at least 3 competitors,
+- opens a comparison report,
+- and creates a watchlist or alert.
+
+Track:
+- scan to report completion rate
+- report to probe conversion
+- report to competitor comparison conversion
+- comparison to watchlist conversion
+- watchlist alert open rate
+- alert to return visit rate
+- free to paid conversion
+- domains monitored per paid account
+- reports exported per paid account
+- D7/D30 retention by persona
+- LLM Margin CTA click-through rate
+
+Monetization:
+Do not make one-off scans the main paid product.
+Use free scans for acquisition.
+Charge for workflows with recurring value.
+
+Suggested plans:
+
+Free:
+- passive scan
+- basic verdict
+- basic evidence
+- limited public reports
+
+Pro:
+- interactive probe
+- competitor comparison
+- watchlist
+- change alerts
+- historical changes
+- LLM Margin handoff
+
+Team:
+- more monitored domains
+- exports
+- shared workspaces
+- category benchmarks
+- alert routing
+
+Agency:
+- white-label reports
+- bulk scans
+- client workspaces
+- CSV/API export
+
+UX requirements:
+- Unknown results must feel useful.
+- Reports should always explain what was tested and what was not visible.
+- Separate AI intelligence from commodity tech stack.
+- Make “Compare competitors,” “Run AI Probe,” and “Add to Watchlist” the main paid upgrade paths.
+- Use plain-English intelligence language, not just technical labels.
+- Preserve the technical evidence trail for credibility.
+
+Security and ethics:
+- Do not bypass paywalls, CAPTCHAs, or access controls.
+- Do not exploit vulnerabilities.
+- Do not perform destructive actions.
+- Do not submit forms that create accounts, send messages, purchase items, or alter data unless explicitly authorized.
+- Authenticated scans must use user-provided access and clear consent.
+- Store only necessary scan metadata and evidence.
+- Avoid collecting sensitive user data from scanned apps.
+
+Acceptance criteria:
+- Scanner can distinguish passive, rendered, interactive, authenticated, and watch scans.
+- Report no longer says only “No public signal” without interpretation.
+- Report classifies unknowns into useful states.
+- AI usage confidence and provider confidence are separate.
+- Interactive probe can identify likely AI flows and test them safely.
+- Evidence is grouped and weighted.
+- Competitor comparison report works for multiple domains.
+- Watchlist can detect and explain meaningful changes.
+- LLM Margin links are added contextually.
+- Product analytics are instrumented around activation, retention, and paid conversion.
+- The product feels like competitive intelligence for AI-native SaaS, not a one-off scanner.
