@@ -457,11 +457,22 @@ export function useLeaderboard() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((j) => {
         if (cancelled) return;
-        const rows: LeaderboardRow[] = Array.isArray(j)
+        // /api/leaderboard returns { rows: [...] } where each row has
+        // aiProvider nested under `lastScan` (and a top-level `priorAiProvider`
+        // fallback). Flatten so callers can read `row.aiProvider` directly —
+        // otherwise every LiveProviderShare bar renders as 0%.
+        const raw: any[] = Array.isArray(j)
           ? j
           : Array.isArray(j?.rows)
           ? j.rows
           : [];
+        const rows: LeaderboardRow[] = raw.map((r) => ({
+          slug: r.slug,
+          name: r.name,
+          category: r.category ?? null,
+          aiProvider: r.aiProvider ?? r.lastScan?.aiProvider ?? r.priorAiProvider ?? null,
+          aiConfidence: r.aiConfidence ?? r.lastScan?.aiConfidence ?? r.priorAiConfidence ?? null,
+        }));
         setData(rows);
       })
       .catch((e) => !cancelled && setError(String(e)));
