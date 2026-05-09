@@ -224,6 +224,208 @@ function getConfidenceReason(scan: Scan, originHost: { origin: string | null; co
   return reasons.slice(0, 2).join(", ");
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// Intelligence-report helpers
+//
+// The original report read like a raw diagnostic log ("No public signal",
+// "0 services detected", "Unknown"). The helpers below convert the scan into
+// the four human-readable artifacts a paying customer expects from a
+// competitive-intelligence product:
+//
+//   1. A verdict (one-line answer + best next action)
+//   2. An executive summary (one paragraph of plain-English interpretation)
+//   3. A "what we found / what we didn't find" pair of lists
+//   4. A set of context-aware recommended next actions
+//
+// We intentionally branch off two cheap-to-compute signals:
+//   - whether scan.aiProvider is set
+//   - whether the *brand itself* appears AI-positioned (hostname heuristic),
+//     used to distinguish a hidden AI stack from a truly non-AI site
+// ════════════════════════════════════════════════════════════════════════════
+
+type VerdictKind = "detected" | "hidden_likely" | "no_ai";
+
+type VerdictBadge = {
+  label: string;
+  tone: "primary" | "secondary" | "warning" | "neutral";
+};
+
+type Verdict = {
+  kind: VerdictKind;
+  title: string;
+  description: string;
+  bestNextAction: string;
+  badges: VerdictBadge[];
+};
+
+/**
+ * Cheap heuristic for whether the *brand* markets itself as AI-powered.
+ * We don't have raw page text on the client, so we lean on two signals:
+ *   - hostname tokens ("ai", "gpt", "chat", "bot", "copilot", ...)
+ *   - chatUiFound from probe diagnostics
+ * False positives are fine here — the worst case is showing the user a
+ * "server-side AI likely" verdict on a site that has no AI at all, which
+ * is still more useful than the old "No public signal" wall.
+ */
+function appearsAiPositioned(hostname: string, scan: Scan): boolean {
+  const tokens = ["ai", "gpt", "chat", "bot", "copilot", "agent", "llm", "intelli", "neural"];
+  const lowered = hostname.toLowerCase();
+  if (tokens.some((t) => lowered.includes(t))) return true;
+  if (scan.evidence?.probeDiagnostics?.chatUiFound) return true;
+  return false;
+}
+
+function computeVerdict(scan: Scan, hostname: string, isCdn: boolean): Verdict {
+  const badges: VerdictBadge[] = [];
+  if (isCdn) badges.push({ label: `Origin protected by ${scan.hosting}`, tone: "neutral" });
+
+  if (scan.aiProvider) {
+    badges.push({ label: `${scan.aiProvider} detected`, tone: "primary" });
+    if (scan.aiConfidence) badges.push({ label: `${scan.aiConfidence} confidence`, tone: "secondary" });
+    if (scan.aiGateway) badges.push({ label: `Gateway: ${scan.aiGateway}`, tone: "secondary" });
+    return {
+      kind: "detected",
+      title: `AI provider detected: ${scan.aiProvider}`,
+      description: `We observed public signals suggesting this SaaS uses ${scan.aiProvider}, with ${(scan.aiConfidence || "Medium").toLowerCase()} confidence. Review the evidence trail below and compare this stack against competitors.`,
+      bestNextAction: "Compare this SaaS against competitors or estimate model cost impact in LLM Margin.",
+      badges,
+    };
+  }
+
+  const aiPositioned = appearsAiPositioned(hostname, scan);
+  if (aiPositioned) {
+    badges.push({ label: "Browser-visible AI not found", tone: "warning" });
+    badges.push({ label: "Server-side AI likely", tone: "primary" });
+    badges.push({ label: "Behind-login AI possible", tone: "secondary" });
+    badges.push({ label: "Probe recommended", tone: "warning" });
+    return {
+      kind: "hidden_likely",
+      title: "AI likely runs server-side or behind login",
+      description:
+        "We did not observe browser-visible calls to OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, Bedrock, or common AI gateways during this scan. This does not mean the app has no AI. It usually means AI calls are handled server-side, protected behind authentication, proxied through the app backend, or triggered only after deeper user interaction.",
+      bestNextAction: "Run an AI Probe on the app's core AI flow or scan an authenticated session.",
+      badges,
+    };
+  }
+
+  badges.push({ label: "Browser-visible AI not found", tone: "neutral" });
+  badges.push({ label: "Probe recommended", tone: "warning" });
+  return {
+    kind: "no_ai",
+    title: "No browser-visible AI stack detected",
+    description:
+      "We did not find public AI provider, model, gateway, streaming, or chat UI signals during this scan. This site may not use AI, or AI features may be hidden behind login or backend APIs.",
+    bestNextAction: "Run an AI Probe if the product claims to have AI features.",
+    badges,
+  };
+}
+
+function computeExecutiveSummary(scan: Scan, hostname: string, verdict: Verdict): string {
+  const commodity = [scan.hosting, scan.analytics].filter(Boolean).join(" and ");
+  const commodityClause = commodity ? `${commodity} ${commodity.includes(" and ") ? "were" : "was"} detected, but` : "";
+
+  if (verdict.kind === "detected") {
+    return `AIHackr observed public signals on ${hostname} suggesting this SaaS uses ${scan.aiProvider} with ${(scan.aiConfidence || "Medium").toLowerCase()} confidence${scan.aiGateway ? `, routed through ${scan.aiGateway}` : ""}. Review the evidence trail to see exactly which scripts, headers, and network calls were observed, then compare this stack against competitors or estimate cost-per-user impact in LLM Margin.`;
+  }
+  if (verdict.kind === "hidden_likely") {
+    return `AIHackr did not detect browser-visible AI provider calls on ${hostname}, even though the product appears to market AI features. The most likely explanation is that AI calls happen server-side, behind login, or through protected backend APIs. ${commodityClause} no OpenAI, Anthropic, Google, Mistral, gateway, streaming, or chat UI signals were observed. Run an AI Probe on the core AI flow to test deeper interactions.`;
+  }
+  return `AIHackr did not detect browser-visible AI calls on ${hostname}. ${commodityClause} no AI provider, gateway, streaming, or chat UI signals were observed. This product may not use AI, or AI features may be gated behind authentication or invoked only via backend APIs that public scans cannot see.`;
+}
+
+type FindingsLists = { found: string[]; missing: string[] };
+
+function computeFindings(scan: Scan, isCdn: boolean): FindingsLists {
+  const found: string[] = [];
+  const missing: string[] = [];
+
+  // Positive findings — translate scanner output into intelligence-report prose.
+  if (scan.aiProvider) {
+    found.push(`AI provider signals consistent with ${scan.aiProvider}`);
+    if (scan.aiGateway) found.push(`AI gateway routing through ${scan.aiGateway}`);
+    if (scan.aiTransport) found.push(`${scan.aiTransport} streaming transport observed`);
+    if (scan.evidence?.probeDiagnostics?.chatUiFound) found.push("Chat UI detected on the page");
+  } else {
+    found.push("Public AI provider calls were not visible");
+    if (!scan.aiTransport) found.push("No browser-side streaming transport observed");
+    if (!scan.evidence?.probeDiagnostics?.chatUiFound) found.push("No chat UI signature found during scan");
+  }
+  if (scan.framework) found.push(`${scan.framework} frontend framework detected`);
+  if (scan.hosting) found.push(`${scan.hosting} ${isCdn ? "edge protection" : "hosting"} detected`);
+  if (scan.analytics) found.push(`${scan.analytics} analytics detected`);
+  if (scan.payments) found.push(`${scan.payments} payments detected`);
+  if (scan.auth) found.push(`${scan.auth} auth detected`);
+  if (scan.support) found.push(`${scan.support} support tooling detected`);
+
+  // Missing AI signals — only meaningful if no provider was detected; we still
+  // surface a few so the user can see we actually checked for these specific
+  // providers rather than just shrugging.
+  if (!scan.aiProvider) {
+    const checked = [
+      { name: "OpenAI", hit: false },
+      { name: "Anthropic", hit: false },
+      { name: "Google Gemini", hit: false },
+      { name: "Mistral / Cohere", hit: false },
+      { name: "Azure OpenAI / Bedrock", hit: false },
+    ];
+    for (const c of checked) missing.push(`No ${c.name} browser calls`);
+    missing.push("No Vercel AI SDK / LangChain / LlamaIndex frontend signature");
+    if (!scan.aiGateway) missing.push("No AI gateway endpoint observed");
+    if (!scan.aiTransport) missing.push("No SSE / WebSocket streaming signal observed");
+  }
+
+  return { found, missing };
+}
+
+type Recommendation = {
+  title: string;
+  href?: string;
+  external?: boolean;
+  emphasis?: "primary" | "secondary";
+};
+
+function computeRecommendations(verdict: Verdict, scan: Scan, hostname: string): Recommendation[] {
+  const llmMarginUrl = buildLlmMarginUrl(scan, hostname);
+  if (verdict.kind === "detected") {
+    return [
+      { title: "Compare this provider choice against competitors", href: "/leaderboard", emphasis: "primary" },
+      { title: "Estimate cost-per-user in LLM Margin", href: llmMarginUrl, external: true, emphasis: "secondary" },
+      { title: "Add to Watchlist for model/provider migration alerts" },
+      { title: "Export this report for internal competitive analysis" },
+    ];
+  }
+  return [
+    { title: "Run AI Probe on the product's core AI interaction", emphasis: "primary" },
+    { title: "Scan an authenticated session if AI features require login" },
+    { title: "Compare against 3 similar AI products", href: "/stack" },
+    { title: "Model possible provider-cost scenarios in LLM Margin", href: llmMarginUrl, external: true, emphasis: "secondary" },
+    { title: "Add to Watchlist to detect future stack changes" },
+  ];
+}
+
+function buildLlmMarginUrl(scan: Scan, hostname: string): string {
+  const base = "https://llmmargin.com/";
+  const params = new URLSearchParams();
+  params.set("utm_source", "aihackr");
+  params.set("utm_medium", "scan_report");
+  if (scan.aiProvider) {
+    params.set("utm_campaign", "stack_to_margin");
+    params.set("provider", scan.aiProvider);
+    if (scan.inferredModel) params.set("model", scan.inferredModel);
+  } else {
+    params.set("utm_campaign", "unknown_stack_to_margin");
+  }
+  params.set("domain", hostname);
+  return `${base}?${params.toString()}`;
+}
+
+const BADGE_TONE_CLASSES: Record<VerdictBadge["tone"], string> = {
+  primary: "bg-primary/15 text-primary border-primary/30",
+  secondary: "bg-secondary/15 text-secondary border-secondary/30",
+  warning: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30",
+  neutral: "bg-muted text-muted-foreground border-border",
+};
+
 export default function CardPage() {
   const [, cardParams] = useRoute("/card/:id");
   const [, domainParams] = useRoute("/scan/:domain");
@@ -294,8 +496,12 @@ export default function CardPage() {
     setProbeLoading(true);
     const success = await triggerProbeScan(scan.id);
     if (success) {
-      // Start polling by re-fetching
-      fetchScan(scan.id, true);
+      // Start polling by re-fetching using whichever route the user landed on.
+      if (domainParams?.domain) {
+        fetchScan(decodeURIComponent(domainParams.domain), true, true);
+      } else if (cardParams?.id) {
+        fetchScan(cardParams.id, false, true);
+      }
     }
     setProbeLoading(false);
   };
@@ -380,8 +586,20 @@ export default function CardPage() {
     scan.evidence?.networkDomains || [],
     scan.evidence?.patterns
   );
-  const isCdn = scan.hosting && isCdnProvider(scan.hosting);
-  
+  const isCdn = !!(scan.hosting && isCdnProvider(scan.hosting));
+  const watchlistDomain = scan.domain || hostname.replace(/^www\./, "");
+
+  // Intelligence-report derivations (verdict, summary, findings, recs).
+  // These are pure functions of the scan, so we compute them inline rather
+  // than memoizing — a re-render is dominated by framer-motion, not by these.
+  const verdict = computeVerdict(scan, hostname, isCdn);
+  const executiveSummary = computeExecutiveSummary(scan, hostname, verdict);
+  const findings = computeFindings(scan, isCdn);
+  const recommendations = computeRecommendations(verdict, scan, hostname);
+  const llmMarginUrl = buildLlmMarginUrl(scan, hostname);
+  const chatUiFound = !!scan.evidence?.probeDiagnostics?.chatUiFound;
+  const canRunProbe = phases?.probe === "locked" && phases?.render === "complete";
+
   // Format timestamp
   const scanDate = new Date(scan.scannedAt);
   const formattedTime = scanDate.toLocaleString(undefined, {
@@ -421,9 +639,9 @@ export default function CardPage() {
                 <div className="font-semibold">{hostname}</div>
               </div>
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="px-2 py-0.5 rounded bg-muted">{isCdn ? scan.hosting : (scan.framework || "Unknown")}</span>
+                <span className="px-2 py-0.5 rounded bg-muted">{isCdn ? scan.hosting : (scan.framework || "Framework not fingerprinted")}</span>
                 {scan.analytics && <span className="px-2 py-0.5 rounded bg-muted">{scan.analytics}</span>}
-                <span className="px-2 py-0.5 rounded bg-muted">{scan.aiProvider ? scan.aiProvider : "No AI signal"}</span>
+                <span className="px-2 py-0.5 rounded bg-muted">{scan.aiProvider ? scan.aiProvider : "Browser-visible AI not found"}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -493,155 +711,283 @@ export default function CardPage() {
             </a>
           </div>
 
-          {/* Summary Bar */}
-          <div className="p-4 bg-muted/30 border-b border-border">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-              <SummaryItem
-                label="AI Provider"
-                value={scan.aiProvider || "No public signal"}
-                status={probeRan ? "complete" : (scan.aiProvider ? "detected" : "pending")}
-                icon={Bot}
-              />
-              <SummaryItem
-                label="Framework"
-                value={scan.framework || "Unknown"}
-                status={renderRan ? "complete" : (scan.framework ? "detected" : "pending")}
-                icon={Code2}
-              />
-              <SummaryItem
-                label={isCdn ? "Origin (inferred)" : "Hosting"}
-                value={isCdn ? (originHost.origin || "Unknown") : (scan.hosting || "Unknown")}
-                status={isCdn ? (originHost.origin ? "detected" : "pending") : (scan.hosting ? "complete" : "pending")}
-                icon={Server}
-                subtitle={isCdn ? `behind ${scan.hosting}` : undefined}
-                tooltip={isCdn && originHost.evidence ? originHost.evidence : undefined}
-                confidence={isCdn ? originHost.confidence : undefined}
-              />
-              <SummaryItem
-                label="Services"
-                value={`${thirdPartyCount} detected`}
-                status="detected"
-                icon={Globe}
-              />
-              <SummaryItem
-                label="Overall confidence"
-                value={scan.aiConfidence || scan.frameworkConfidence || "Medium"}
-                status="complete"
-                icon={Sparkles}
-                subtitle={getConfidenceReason(scan, originHost)}
-              />
+          {/* ─── 1. AI STACK VERDICT ─────────────────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border bg-gradient-to-br from-primary/10 via-background to-secondary/10">
+            <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              AI Stack Verdict
+            </div>
+            <h2 className="font-display text-2xl md:text-3xl font-bold mb-3 leading-tight" data-testid="text-verdict-title">
+              {verdict.title}
+            </h2>
+            <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed max-w-3xl">
+              {verdict.description}
+            </p>
+            <div className="flex flex-wrap gap-2 mb-5" data-testid="container-verdict-badges">
+              {verdict.badges.map((b, i) => (
+                <span
+                  key={i}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium ${BADGE_TONE_CLASSES[b.tone]}`}
+                >
+                  {b.label}
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-background/70 border border-border backdrop-blur-sm">
+              <div className="flex-1">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+                  Best next action
+                </div>
+                <div className="text-sm font-medium" data-testid="text-best-next-action">
+                  {verdict.bestNextAction}
+                </div>
+              </div>
+              {canRunProbe && verdict.kind !== "detected" ? (
+                <Button
+                  onClick={handleProbeScan}
+                  disabled={probeLoading}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  data-testid="button-verdict-probe"
+                >
+                  {probeLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                  Run AI Probe
+                </Button>
+              ) : verdict.kind === "detected" ? (
+                <Link href="/leaderboard">
+                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-verdict-compare">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Compare competitors
+                  </Button>
+                </Link>
+              ) : null}
             </div>
           </div>
 
-          {/* Stack Grid */}
-          <div className="p-8">
-            <h2 className="font-display text-lg font-semibold mb-6">Tech Stack</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-              {scan.framework && (
-                <TechCard
-                  icon={Code2}
-                  label="Framework"
-                  value={scan.framework}
-                  confidence={scan.frameworkConfidence}
-                />
-              )}
-              {scan.hosting && (
-                <TechCard
-                  icon={isCdnProvider(scan.hosting) ? Cloud : Server}
-                  label={isCdnProvider(scan.hosting) ? "CDN / Edge" : "Hosting"}
-                  value={scan.hosting}
-                  confidence={scan.hostingConfidence}
-                />
-              )}
-              {scan.payments && (
-                <TechCard
-                  icon={CreditCard}
-                  label="Payments"
-                  value={scan.payments}
-                  confidence={scan.paymentsConfidence}
-                />
-              )}
-              {scan.auth && (
-                <TechCard
-                  icon={Lock}
-                  label="Auth"
-                  value={scan.auth}
-                  confidence={scan.authConfidence}
-                />
-              )}
-              {scan.analytics && (
-                <TechCard
-                  icon={BarChart3}
-                  label="Analytics"
-                  value={scan.analytics}
-                  confidence={scan.analyticsConfidence}
-                />
-              )}
-              {scan.support && (
-                <TechCard
-                  icon={Users}
-                  label="Support"
-                  value={scan.support}
-                  confidence={scan.supportConfidence}
-                />
-              )}
+          {/* ─── 2. EXECUTIVE SUMMARY ────────────────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border">
+            <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+              <MessageSquare className="w-3.5 h-3.5 text-primary" />
+              Executive Summary
             </div>
+            <p className="text-sm md:text-base leading-relaxed text-foreground/90" data-testid="text-executive-summary">
+              {executiveSummary}
+            </p>
+          </div>
 
-            {/* AI Stack - Always visible */}
-            <div className={`p-6 rounded-xl mb-6 ${scan.aiProvider ? "bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30" : "bg-muted/30 border border-border"}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <Bot className={`w-6 h-6 ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`} />
-                <span className="font-semibold text-lg">AI Stack</span>
-                {scan.aiProvider ? (
-                  <span className="ml-auto text-xs px-3 py-1 rounded-full bg-secondary/20 text-secondary font-medium">
-                    {scan.aiConfidence || "Medium"} Confidence
-                  </span>
-                ) : probeRan ? (
-                  <span className="ml-auto text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
-                    Probe Complete
-                  </span>
-                ) : null}
+          {/* ─── 3. WHAT WE FOUND / DID NOT FIND ─────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border grid md:grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
+                <div className="w-6 h-6 rounded-full bg-secondary/20 flex items-center justify-center">
+                  <Check className="w-3.5 h-3.5 text-secondary" />
+                </div>
+                What we found
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                <div className="flex justify-between p-2 rounded bg-background/50">
-                  <span className="text-muted-foreground">Provider</span>
-                  <span className={`font-medium ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`}>
-                    {scan.aiProvider || "No public signal"}
-                  </span>
+              <ul className="space-y-2" data-testid="list-found">
+                {findings.found.map((item, i) => (
+                  <li key={i} className="text-sm flex items-start gap-2">
+                    <Check className="w-4 h-4 text-secondary mt-0.5 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                  <span className="text-muted-foreground text-sm leading-none">−</span>
                 </div>
-                <div className="flex justify-between p-2 rounded bg-background/50">
-                  <span className="text-muted-foreground">Gateway</span>
-                  <span className={`font-medium ${scan.aiGateway ? "text-primary" : "text-muted-foreground"}`}>
-                    {scan.aiGateway || "Not observed"}
-                  </span>
-                </div>
-                <div className="flex justify-between p-2 rounded bg-background/50">
-                  <span className="text-muted-foreground">Streaming</span>
-                  <span className="font-medium text-muted-foreground">
-                    {scan.aiTransport || "Not observed"}
-                  </span>
-                </div>
-                <div className="flex justify-between p-2 rounded bg-background/50">
-                  <span className="text-muted-foreground">Chat UI</span>
-                  <span className="font-medium text-muted-foreground">
-                    {scan.evidence?.probeDiagnostics?.chatUiFound ? "Found" : "Not found"}
-                  </span>
-                </div>
+                What we did not find
               </div>
-              {scan.inferredModel && (
-                <div className="flex justify-between p-2 rounded bg-background/50 text-sm mb-4">
-                  <span className="text-muted-foreground">Inferred Model</span>
-                  <span className="font-medium text-primary">{scan.inferredModel}</span>
-                </div>
+              {findings.missing.length > 0 ? (
+                <ul className="space-y-2" data-testid="list-missing">
+                  {findings.missing.map((item, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2 text-muted-foreground">
+                      <span className="text-muted-foreground/70 mt-0.5 shrink-0">−</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  All scanned AI signal categories returned a positive match.
+                </p>
               )}
-              {!scan.aiProvider && (
-                <div className="text-xs text-muted-foreground/80 p-3 rounded bg-background/30 border border-border">
-                  <MessageSquare className="w-3 h-3 inline mr-1" />
-                  This app may call AI server-side only, behind a proxy, or only after login.
-                  {!probeRan && " Run AI Probe for deeper detection."}
-                </div>
+              {findings.missing.length > 0 && (
+                <p className="text-xs text-muted-foreground/80 mt-4 p-3 rounded-lg bg-muted/30 border border-border">
+                  These are absences, not failures. AI may still be running server-side, behind login, or via backend
+                  APIs that public scans cannot see. Run an AI Probe to test deeper interactions.
+                </p>
               )}
             </div>
+          </div>
+
+          {/* ─── 4. AI STACK DETAILS ─────────────────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border">
+            <div className="flex items-center gap-2 mb-4">
+              <Bot className={`w-5 h-5 ${scan.aiProvider ? "text-primary" : "text-muted-foreground"}`} />
+              <h3 className="font-display text-lg font-semibold">AI Stack Details</h3>
+              {scan.aiProvider ? (
+                <span className="ml-auto text-xs px-3 py-1 rounded-full bg-secondary/20 text-secondary font-medium">
+                  {scan.aiConfidence || "Medium"} confidence
+                </span>
+              ) : probeRan ? (
+                <span className="ml-auto text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+                  Probe complete
+                </span>
+              ) : null}
+            </div>
+            <div className={`p-4 md:p-5 rounded-xl ${scan.aiProvider ? "bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20" : "bg-muted/30 border border-border"}`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <DetailRow
+                  label="Provider"
+                  value={scan.aiProvider || "No browser-visible AI provider found"}
+                  highlight={!!scan.aiProvider}
+                  tooltip={!scan.aiProvider ? "AI may still be running server-side, behind login, or via backend APIs. Public scans cannot see private server-to-server calls." : undefined}
+                />
+                <DetailRow
+                  label="Gateway"
+                  value={scan.aiGateway || "No AI gateway endpoint observed"}
+                  highlight={!!scan.aiGateway}
+                />
+                <DetailRow
+                  label="Streaming"
+                  value={scan.aiTransport || "No SSE / WebSocket streaming signal observed"}
+                  highlight={!!scan.aiTransport}
+                />
+                <DetailRow
+                  label="Chat UI"
+                  value={chatUiFound ? "Detected on rendered page" : "No public chat UI detected"}
+                  highlight={chatUiFound}
+                />
+                <DetailRow
+                  label="Frontend framework"
+                  value={scan.framework || "Frontend framework not fingerprinted"}
+                  highlight={!!scan.framework}
+                />
+                <DetailRow
+                  label={isCdn ? "Origin (inferred)" : "Hosting"}
+                  value={isCdn ? (originHost.origin || `Origin protected by ${scan.hosting}`) : (scan.hosting || "Hosting not fingerprinted")}
+                  highlight={isCdn ? !!originHost.origin : !!scan.hosting}
+                  subtitle={isCdn ? `behind ${scan.hosting}` : undefined}
+                />
+                {scan.inferredModel && (
+                  <DetailRow label="Inferred model" value={scan.inferredModel} highlight wide />
+                )}
+                {scan.inferenceHost && (
+                  <DetailRow label="Inference host" value={scan.inferenceHost} highlight />
+                )}
+                {scan.orchestrationFramework && (
+                  <DetailRow label="Orchestration" value={scan.orchestrationFramework} highlight />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── 5. RECOMMENDED NEXT ACTIONS ─────────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border">
+            <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-5 h-5 text-primary" />
+              <h3 className="font-display text-lg font-semibold">Recommended next actions</h3>
+            </div>
+            <ol className="space-y-2" data-testid="list-recommendations">
+              {recommendations.map((rec, i) => {
+                const inner = (
+                  <div className="flex items-center gap-3 p-3 md:p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 hover:border-primary/30 transition-colors group">
+                    <div className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${rec.emphasis === "primary" ? "bg-primary text-primary-foreground" : rec.emphasis === "secondary" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground border border-border"}`}>
+                      {i + 1}
+                    </div>
+                    <span className="text-sm font-medium flex-1">{rec.title}</span>
+                    {rec.href && (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    )}
+                  </div>
+                );
+                if (!rec.href) {
+                  return <li key={i}>{inner}</li>;
+                }
+                if (rec.external) {
+                  return (
+                    <li key={i}>
+                      <a href={rec.href} target="_blank" rel="noopener noreferrer" data-testid={`link-recommendation-${i}`}>
+                        {inner}
+                      </a>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={i}>
+                    <Link href={rec.href} data-testid={`link-recommendation-${i}`}>
+                      {inner}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+
+          {/* ─── 6. COMPETITIVE COMPARISON CTA ───────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border">
+            <div className="rounded-2xl p-6 md:p-7 bg-gradient-to-br from-primary/10 via-primary/5 to-secondary/10 border border-primary/20">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <BarChart3 className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display text-lg md:text-xl font-bold mb-1.5">
+                    Compare this SaaS against competitors
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                    A single scan tells you what we found. A comparison shows whether this company's AI stack is
+                    cheaper, more advanced, more protected, or more exposed than similar products.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href="/leaderboard">
+                      <Button className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-compare-competitors">
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Compare competitors
+                      </Button>
+                    </Link>
+                    <Link href="/stack">
+                      <Button variant="outline" data-testid="button-browse-stack">
+                        Browse tracked SaaS
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── 7. LLM MARGIN CTA ───────────────────────────────────────── */}
+          <div className="p-6 md:p-8 border-b border-border">
+            <div className="rounded-2xl p-6 md:p-7 bg-gradient-to-br from-secondary/10 via-secondary/5 to-primary/10 border border-secondary/20">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary/20 flex items-center justify-center">
+                  <Gauge className="w-6 h-6 text-secondary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display text-lg md:text-xl font-bold mb-1.5">
+                    Estimate AI cost impact
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                    {scan.aiProvider
+                      ? "Detected provider signals can be used to estimate the margin impact of this AI stack. Model cost-per-user, gross margin, and breakeven MAU in LLM Margin."
+                      : "Provider hidden? Model common OpenAI, Anthropic, Gemini, and open-source scenarios in LLM Margin to understand possible cost exposure."}
+                  </p>
+                  <a href={llmMarginUrl} target="_blank" rel="noopener noreferrer" data-testid="link-llm-margin">
+                    <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      {scan.aiProvider ? "Estimate margin impact" : "Model cost scenarios"}
+                    </Button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Probe Scan Metrics (kept where present) ─────────────────── */}
+          <div className="p-6 md:p-8 pt-0">
 
             {/* Probe Scan Metrics */}
             {scan.scanMode === "probe" && (scan.ttft || scan.tps) && (
@@ -679,7 +1025,17 @@ export default function CardPage() {
             {/* Evidence */}
             {scan.evidence && (
               <div className="mt-8 space-y-6">
-                <h3 className="font-display text-lg font-semibold">Detection Evidence</h3>
+                <div>
+                  <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    Detection Evidence
+                  </h3>
+                  {!scan.aiProvider && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      These signals explain why we detected commodity tech, but they do not confirm an underlying AI provider.
+                    </p>
+                  )}
+                </div>
                 
                 {/* Detection Signals */}
                 {scan.evidence.patterns && scan.evidence.patterns.length > 0 && (
@@ -891,16 +1247,69 @@ export default function CardPage() {
             )}
           </div>
 
-          {/* In-Report CTAs */}
-          <div className="px-8 py-6 border-t border-border bg-muted/10">
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Link href="/">
-                <Button variant="outline" size="sm" data-testid="button-compare">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  Compare vs competitor
-                </Button>
-              </Link>
-              <AddToWatchlistButton domain={scan.domain || new URL(scan.url).hostname.replace(/^www\./, "")} url={scan.url} />
+          {/* ─── 9. COMMODITY TECH STACK (demoted to bottom) ─────────────── */}
+          {(scan.framework || scan.hosting || scan.payments || scan.auth || scan.analytics || scan.support) && (
+            <div className="p-6 md:p-8 border-t border-border bg-muted/10">
+              <div className="flex items-center gap-2 mb-1">
+                <Cloud className="w-5 h-5 text-muted-foreground" />
+                <h3 className="font-display text-lg font-semibold">Commodity tech stack</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-5">
+                Supporting tech-stack evidence, not AI-provider evidence. Useful context, but not the headline result.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {scan.framework && (
+                  <TechCard icon={Code2} label="Framework" value={scan.framework} confidence={scan.frameworkConfidence} />
+                )}
+                {scan.hosting && (
+                  <TechCard
+                    icon={isCdnProvider(scan.hosting) ? Cloud : Server}
+                    label={isCdnProvider(scan.hosting) ? "CDN / Edge" : "Hosting"}
+                    value={scan.hosting}
+                    confidence={scan.hostingConfidence}
+                  />
+                )}
+                {scan.payments && (
+                  <TechCard icon={CreditCard} label="Payments" value={scan.payments} confidence={scan.paymentsConfidence} />
+                )}
+                {scan.auth && (
+                  <TechCard icon={Lock} label="Auth" value={scan.auth} confidence={scan.authConfidence} />
+                )}
+                {scan.analytics && (
+                  <TechCard icon={BarChart3} label="Analytics" value={scan.analytics} confidence={scan.analyticsConfidence} />
+                )}
+                {scan.support && (
+                  <TechCard icon={Users} label="Support" value={scan.support} confidence={scan.supportConfidence} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Paid upgrade teasers + watchlist ────────────────────────── */}
+          <div className="px-6 md:px-8 py-6 border-t border-border bg-gradient-to-br from-primary/5 to-secondary/5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div className="font-semibold text-sm mb-1">Get notified when this AI stack changes</div>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Add {hostname} to your Watchlist for re-scans, provider migration alerts, exportable reports, and
+                  authenticated probes.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <AddToWatchlistButton domain={watchlistDomain} url={scan.url} />
+                <Link href="/leaderboard">
+                  <Button variant="outline" size="sm" data-testid="button-bottom-compare">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Compare competitors
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5"><Lock className="w-3 h-3" /> Run authenticated probe</div>
+              <div className="flex items-center gap-1.5"><Eye className="w-3 h-3" /> Monitor this SaaS</div>
+              <div className="flex items-center gap-1.5"><BarChart3 className="w-3 h-3" /> Compare competitors</div>
+              <div className="flex items-center gap-1.5"><ExternalLink className="w-3 h-3" /> Export report</div>
             </div>
           </div>
 
@@ -918,6 +1327,39 @@ export default function CardPage() {
           </div>
         </motion.div>
       </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  highlight,
+  subtitle,
+  tooltip,
+  wide,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  subtitle?: string;
+  tooltip?: string;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`group relative flex items-center justify-between gap-3 p-2.5 rounded-lg bg-background/60 border border-border/50 ${wide ? "md:col-span-2" : ""}`}>
+      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+      <div className="text-right min-w-0">
+        <div className={`text-sm font-medium truncate ${highlight ? "text-primary" : "text-muted-foreground"}`}>
+          {value}
+        </div>
+        {subtitle && <div className="text-[11px] text-muted-foreground/60">{subtitle}</div>}
+      </div>
+      {tooltip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-lg shadow-lg border border-border opacity-0 group-hover:opacity-100 transition-opacity max-w-xs w-max z-10 pointer-events-none">
+          {tooltip}
+        </div>
+      )}
     </div>
   );
 }
