@@ -138,18 +138,53 @@ function Navbar() {
   );
 }
 
-function StickyBar() {
-  const [isVisible, setIsVisible] = useState(false);
+/**
+ * Self-contained scan form. Owns its own `url` state so typing doesn't bubble
+ * a re-render up to the surrounding section (Hero/Footer/StickyBar each have
+ * heavy framer-motion subtrees + animated gradient backdrops, and previously
+ * each keystroke re-rendered the entire section, which felt sluggish).
+ *
+ * Three size variants match the three placements the page already had — we
+ * deliberately mirror the original Tailwind classes so the visual diff is
+ * zero and we don't redesign anything as a side effect of the perf fix.
+ */
+const SCAN_FORM_SIZES = {
+  hero: {
+    wrapper: "relative flex gap-2 p-2 bg-card border border-border rounded-xl",
+    iconLeft: "left-4",
+    iconSize: "w-5 h-5",
+    inputClass: "pl-12 h-14 bg-background border-0 text-lg font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0",
+    buttonClass: "h-14 px-8 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold glow-primary group/btn",
+    buttonLabel: "Scan a Competitor",
+  },
+  footer: {
+    wrapper: "relative flex gap-2 p-2 bg-card border border-border rounded-xl",
+    iconLeft: "left-4",
+    iconSize: "w-5 h-5",
+    inputClass: "pl-12 h-12 bg-background border-0 font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0",
+    buttonClass: "h-12 px-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary",
+    buttonLabel: "Scan a Site",
+  },
+  sticky: {
+    wrapper: "",
+    iconLeft: "left-3",
+    iconSize: "w-4 h-4",
+    inputClass: "pl-10 h-10 bg-background border-0 font-mono text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0",
+    buttonClass: "h-10 px-5 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary text-sm",
+    buttonLabel: "Scan",
+  },
+} as const;
+
+interface ScanFormProps {
+  variant: keyof typeof SCAN_FORM_SIZES;
+  inputTestId: string;
+  buttonTestId: string;
+}
+
+function ScanForm({ variant, inputTestId, buttonTestId }: ScanFormProps) {
   const [url, setUrl] = useState("");
   const { scanUrl, isScanning } = useScan();
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsVisible(window.scrollY > 600);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const cfg = SCAN_FORM_SIZES[variant];
 
   const handleScan = () => {
     scanUrl(url);
@@ -162,6 +197,59 @@ function StickyBar() {
   };
 
   return (
+    <>
+      <div className="flex-1 relative">
+        <Search className={`absolute ${cfg.iconLeft} top-1/2 -translate-y-1/2 ${cfg.iconSize} text-muted-foreground`} />
+        <Input
+          type="url"
+          placeholder="example.com"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isScanning}
+          className={cfg.inputClass}
+          data-testid={inputTestId}
+        />
+      </div>
+      <Button
+        size={variant === "hero" ? "lg" : undefined}
+        onClick={handleScan}
+        disabled={isScanning}
+        className={cfg.buttonClass}
+        data-testid={buttonTestId}
+      >
+        {isScanning ? (
+          variant === "sticky" ? (
+            <Loader2 className="ml-1 w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <Loader2 className={`mr-2 ${cfg.iconSize} animate-spin`} />
+              Scanning...
+            </>
+          )
+        ) : (
+          <>
+            {cfg.buttonLabel}
+            <ArrowRight className={`ml-${variant === "sticky" ? "1" : "2"} ${cfg.iconSize} ${variant === "hero" ? "group-hover/btn:translate-x-1 transition-transform" : ""}`} />
+          </>
+        )}
+      </Button>
+    </>
+  );
+}
+
+function StickyBar() {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsVisible(window.scrollY > 600);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
     <AnimatePresence>
       {isVisible && (
         <motion.div
@@ -172,35 +260,7 @@ function StickyBar() {
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4"
         >
           <div className="flex gap-2 p-2 bg-card/95 border border-border backdrop-blur-xl rounded-2xl shadow-2xl">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="url"
-                placeholder="example.com"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={isScanning}
-                className="pl-10 h-10 bg-background border-0 font-mono text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0"
-                data-testid="input-sticky-url"
-              />
-            </div>
-            <Button 
-              onClick={handleScan}
-              disabled={isScanning}
-              className="h-10 px-5 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary text-sm" 
-              data-testid="button-sticky-scan"
-            >
-              {isScanning ? (
-                <>
-                  <Loader2 className="ml-1 w-4 h-4 animate-spin" />
-                </>
-              ) : (
-                <>
-                  Scan
-                  <ArrowRight className="ml-1 w-4 h-4" />
-                </>
-              )}
-            </Button>
+            <ScanForm variant="sticky" inputTestId="input-sticky-url" buttonTestId="button-sticky-scan" />
             <Link href="/scan/stripe.com">
               <Button variant="ghost" size="sm" className="h-10 text-muted-foreground hover:text-foreground text-xs" data-testid="link-sticky-sample">
                 Sample
@@ -214,20 +274,8 @@ function StickyBar() {
 }
 
 function Hero() {
-  // Section with id="hero" for nav scroll
-  const [url, setUrl] = useState("");
-  const { scanUrl, isScanning } = useScan();
-
-  const handleScan = () => {
-    scanUrl(url);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !isScanning) {
-      handleScan();
-    }
-  };
-
+  // Section with id="hero" for nav scroll. URL state lives inside ScanForm so
+  // typing doesn't re-render Hero's framer-motion subtree on every keystroke.
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
       <div className="absolute inset-0 grid-bg" />
@@ -266,38 +314,7 @@ function Hero() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 via-secondary/50 to-primary/50 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500" />
             <div className="relative flex gap-2 p-2 bg-card border border-border rounded-xl">
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="url"
-                  placeholder="example.com"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isScanning}
-                  className="pl-12 h-14 bg-background border-0 text-lg font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  data-testid="input-url"
-                />
-              </div>
-              <Button 
-                size="lg"
-                onClick={handleScan}
-                disabled={isScanning}
-                className="h-14 px-8 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold glow-primary group/btn"
-                data-testid="button-scan"
-              >
-                {isScanning ? (
-                  <>
-                    <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    Scan a Competitor
-                    <ArrowRight className="ml-2 w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </Button>
+              <ScanForm variant="hero" inputTestId="input-url" buttonTestId="button-scan" />
             </div>
           </div>
         </motion.div>
@@ -1278,13 +1295,8 @@ function Pricing() {
 }
 
 function Footer() {
-  const [url, setUrl] = useState("");
-  const { scanUrl, isScanning } = useScan();
-
-  const handleScan = () => {
-    scanUrl(url);
-  };
-
+  // URL state lives inside ScanForm — keeps keystrokes off the framer-motion
+  // whileInView subtree so typing in the footer CTA stays snappy.
   return (
     <footer className="py-24 relative border-t border-border">
       <div className="absolute inset-0 grid-bg opacity-30" />
@@ -1303,36 +1315,7 @@ function Footer() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 via-secondary/50 to-primary/50 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500" />
             <div className="relative flex gap-2 p-2 bg-card border border-border rounded-xl">
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="url"
-                  placeholder="example.com"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  disabled={isScanning}
-                  className="pl-12 h-12 bg-background border-0 font-mono placeholder:text-muted-foreground/50 focus-visible:ring-0"
-                  data-testid="input-footer-url"
-                />
-              </div>
-              <Button 
-                onClick={handleScan}
-                disabled={isScanning}
-                className="h-12 px-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" 
-                data-testid="button-footer-scan"
-              >
-                {isScanning ? (
-                  <>
-                    <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    Scan a Site
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </>
-                )}
-              </Button>
+              <ScanForm variant="footer" inputTestId="input-footer-url" buttonTestId="button-footer-scan" />
             </div>
           </div>
         </motion.div>
