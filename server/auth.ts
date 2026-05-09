@@ -74,6 +74,29 @@ export function requireAuth(
   next();
 }
 
+// Gate a route to Pro-tier users only. Always run after `requireAuth` (or after
+// authMiddleware if anonymous-with-paywall messaging is wanted). Returns a
+// machine-readable `error: "pro-required"` so the frontend can render an
+// upgrade CTA instead of a generic auth wall.
+export function requirePro(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  if (req.user.planTier !== "pro") {
+    res.status(402).json({
+      error: "pro-required",
+      message: "This feature is available on the Pro plan.",
+    });
+    return;
+  }
+  next();
+}
+
 export async function requestMagicLink(email: string, baseUrl: string): Promise<{ success: boolean; error?: string }> {
   try {
     const normalizedEmail = email.toLowerCase().trim();

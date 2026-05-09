@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { scanUrl, mergeWithBrowserSignals } from "./scanner";
 import { browserScan, interactionProbe, detectAIFromNetwork, detectFrameworkFromHints } from "./probeScanner";
 import { insertScanSchema, insertSubscriptionSchema, type InsertUserSettings, type InsertScan, type Subscription, type User } from "@shared/schema";
-import { authMiddleware, requireAuth, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
+import { authMiddleware, requireAuth, requirePro, requestMagicLink, verifyMagicLink, logout, type AuthenticatedRequest } from "./auth";
 import { sendAdminNewScanNotification } from "./email";
 import { sendSlackTestMessage } from "./slack";
 import { manualScanNow, triggerImmediateScan } from "./background-worker";
@@ -567,8 +567,114 @@ export async function registerRoutes(
     }
   });
 
-  // Trigger probe scan for existing scan
-  app.post("/api/scan/:id/probe", async (req, res) => {
+  // ───────────────────────── Competitor Comparison ─────────────────────────
+  // Take 2-10 domains and run the passive scanner against each in parallel,
+  // then return a side-by-side comparison row per domain. Free tier caps at
+  // 3 domains, Pro at 10. We deliberately reuse `scanUrl` (passive only) so
+  // the endpoint responds in seconds — comparison is meant to be a fast,
+  // repeatable Monday-morning workflow, not a deep probe.
+  app.post("/api/compare", async (req: AuthenticatedRequest, res) => {
+    try {
+      const raw = req.body?.domains;
+      if (!Array.isArray(raw) || raw.length < 2) {
+        return res.status(400).json({ error: "Provide at least 2 domains in `domains`." });
+      }
+
+      const isPro = req.user?.planTier === "pro";
+      const cap = isPro ? 10 : 3;
+      if (raw.length > cap) {
+        return res.status(402).json({
+          error: isPro ? "max-domains" : "free-cap",
+          message: isPro
+            ? "Comparison supports up to 10 domains."
+            : "Free plan compares up to 3 domains. Upgrade to Pro for 10.",
+        });
+      }
+
+      // Normalize + dedupe domains so duplicates from copy-paste don't cost
+      // extra scans, and so we never produce two rows for the same hostname.
+      const seen = new Set<string>();
+      const domains: string[] = [];
+      for (const item of raw) {
+        if (typeof item !== "string") continue;
+        const trimmed = item.trim();
+        if (!trimmed) continue;
+        let host: string;
+        try {
+          host = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`).hostname.replace(/^www\./, "");
+        } catch {
+          continue;
+        }
+        if (seen.has(host)) continue;
+        seen.add(host);
+        domains.push(host);
+      }
+      if (domains.length < 2) {
+        return res.status(400).json({ error: "Need at least 2 valid domains." });
+      }
+
+      // Scan in parallel with a hard per-domain timeout. We allow individual
+      // scans to fail without poisoning the whole comparison — a partial
+      // table with one "scan failed" row is still useful intelligence.
+      const settled = await Promise.allSettled(
+        domains.map((d) =>
+          Promise.race([
+            scanUrl(`https://${d}`),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("scan-timeout")), 20000)),
+          ]),
+        ),
+      );
+
+      const rows = settled.map((s, i) => {
+        const domain = domains[i];
+        if (s.status === "rejected") {
+          return { domain, scanFailed: true, reason: String(s.reason?.message || s.reason) } as const;
+        }
+        const scan = s.value as Awaited<ReturnType<typeof scanUrl>>;
+        // Compute a coarse "AI surfaces visible" string for the comparison
+        // table without forcing the frontend to re-derive it. If we have a
+        // provider, that's the headline. Otherwise note the most likely
+        // hidden-state so the row reads as intelligence, not as a blank.
+        let surfaces = "None observed";
+        if (scan.aiProvider) surfaces = scan.aiProvider;
+        else if (scan.aiGateway) surfaces = `Via ${scan.aiGateway}`;
+        else if (scan.aiTransport) surfaces = `${scan.aiTransport} streaming`;
+        return {
+          domain,
+          scanFailed: false,
+          aiProvider: scan.aiProvider,
+          aiConfidence: scan.aiConfidence,
+          aiGateway: scan.aiGateway,
+          aiTransport: scan.aiTransport,
+          inferenceHost: scan.inferenceHost,
+          modelTier: scan.modelTier,
+          orchestrationFramework: scan.orchestrationFramework,
+          isAgentic: scan.isAgentic,
+          framework: scan.framework,
+          hosting: scan.hosting,
+          analytics: scan.analytics,
+          auth: scan.auth,
+          surfaces,
+        };
+      });
+
+      return res.json({
+        domains,
+        rows,
+        plan: isPro ? "pro" : "free",
+        cap,
+        scannedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Compare error:", error);
+      return res.status(500).json({ error: "Comparison failed" });
+    }
+  });
+
+  // Trigger probe scan for existing scan — Pro-only. The interactive probe
+  // spins up a headless Chromium and hits real network endpoints, so we gate
+  // it behind the paid plan instead of letting any visitor burn worker time.
+  app.post("/api/scan/:id/probe", requireAuth, requirePro, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       const scan = await storage.getScan(id);

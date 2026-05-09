@@ -16,6 +16,7 @@ import AuthCallback from "@/pages/auth-callback";
 import Dashboard from "@/pages/dashboard";
 import WatchlistPage from "@/pages/watchlist";
 import SettingsAlerts from "@/pages/settings-alerts";
+import ComparePage from "@/pages/compare";
 import StackIndex from "@/pages/stack-index";
 import StackDetail from "@/pages/stack-detail";
 import Leaderboard from "@/pages/leaderboard";
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard}/>
       <Route path="/watchlist" component={WatchlistPage}/>
       <Route path="/settings/alerts" component={SettingsAlerts}/>
+      <Route path="/compare" component={ComparePage}/>
       <Route path="/stack" component={StackIndex}/>
       <Route path="/stack/:slug" component={StackDetail}/>
       <Route path="/leaderboard" component={Leaderboard}/>
