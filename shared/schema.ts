@@ -292,6 +292,10 @@ export const scans = pgTable("scans", {
       services: string[];
       domains: string[];
     }>;
+    // Paths visited by the multi-page passive scanner. The first entry is
+    // always the entry URL's path; subsequent entries are high-signal
+    // candidates (/pricing, /login, /signup, etc.) that returned 200.
+    pagesScanned?: string[];
   }>(),
 });
 

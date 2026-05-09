@@ -338,53 +338,158 @@ export function inferAdvancedAIAttributes(
   return { inferenceHost, orchestrationFramework, modelTier, isAgentic };
 }
 
-export async function scanUrl(inputUrl: string) {
-  const url = normalizeUrl(inputUrl);
-  
-  let html = "";
-  let headers: Record<string, string> = {};
-  
-  console.log(`[Scanner] Starting passive scan for: ${url}`);
-  const startTime = Date.now();
-  
+// ─── Multi-page fetch infrastructure ────────────────────────────────────────
+// We learned the hard way (cvcons.com et al) that for AI-builder SaaS the
+// homepage is a hand-rolled marketing page with almost no third-party scripts
+// — the real stack signals (Stripe, auth providers, AI gateways) live on
+// /pricing and /login. So when the user scans a bare homepage we *also*
+// fetch a small fixed list of high-signal candidate paths, in parallel, with
+// a tight per-fetch budget, and merge their HTML + scriptSrcs into one
+// signals blob before detection runs.
+//
+// Bounded by design:
+//   • Only fires when the input URL is a homepage (path = "/" or empty)
+//   • Max SECONDARY_PAGES candidates, all fired in parallel
+//   • 6s timeout per secondary fetch (separate from the 15s primary budget)
+//   • Skips non-200 responses immediately and silently
+//   • Caps merged HTML at 5MB total (same cap as the single-fetch path)
+//
+// We deliberately do NOT walk site-discovered links — that path leads to
+// crawler-style behavior, bot-blocks, and legal/ToS questions. The fixed
+// candidate list keeps us predictable and polite.
+const SECONDARY_CANDIDATE_PATHS = ["/pricing", "/login", "/signup", "/app", "/checkout"];
+const SECONDARY_FETCH_TIMEOUT_MS = 6000;
+const SECONDARY_HTML_CAP_BYTES = 800 * 1024; // per-page cap; total cap enforced separately
+const PRIMARY_FETCH_TIMEOUT_MS = 15000;
+const TOTAL_HTML_CAP_BYTES = 5 * 1024 * 1024;
+
+const SCAN_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+};
+
+type FetchedPage = {
+  url: string; // requested URL
+  finalUrl: string; // post-redirect URL
+  status: number; // 0 if the fetch threw
+  html: string;
+  headers: Record<string, string>;
+  bytes: number;
+};
+
+async function fetchPage(url: string, timeoutMs: number, htmlCap: number): Promise<FetchedPage> {
+  const result: FetchedPage = { url, finalUrl: url, status: 0, html: "", headers: {}, bytes: 0 };
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "no-cache",
-      },
+      headers: SCAN_HEADERS,
       redirect: "follow",
     });
-    
     clearTimeout(timeoutId);
-    
-    console.log(`[Scanner] Received response: ${response.status} from ${response.url}`);
-    
+    result.status = response.status;
+    result.finalUrl = response.url || url;
     response.headers.forEach((value, key) => {
-      headers[key.toLowerCase()] = value;
+      result.headers[key.toLowerCase()] = value;
     });
-    
-    const contentType = headers["content-type"] || "";
+    const contentType = result.headers["content-type"] || "";
     if (contentType.includes("text/html") || contentType.includes("application/xhtml") || !contentType) {
-      html = await response.text();
-      console.log(`[Scanner] Fetched HTML: ${html.length} bytes`);
-      if (html.length > 5 * 1024 * 1024) {
-        html = html.substring(0, 5 * 1024 * 1024);
+      const body = await response.text();
+      result.bytes = body.length;
+      result.html = body.length > htmlCap ? body.substring(0, htmlCap) : body;
+    }
+  } catch (err) {
+    // Swallow — caller decides whether a failed fetch is fatal (primary) or
+    // simply skipped (secondary). We log primary failures one level up.
+  }
+  return result;
+}
+
+export async function scanUrl(inputUrl: string) {
+  const url = normalizeUrl(inputUrl);
+
+  console.log(`[Scanner] Starting passive scan for: ${url}`);
+  const startTime = Date.now();
+
+  // ── 1. Primary fetch (always) ─────────────────────────────────────────
+  const primary = await fetchPage(url, PRIMARY_FETCH_TIMEOUT_MS, TOTAL_HTML_CAP_BYTES);
+  if (primary.status === 0) {
+    console.error(`[Scanner] Primary fetch failed for ${url}`);
+  } else {
+    console.log(`[Scanner] Received response: ${primary.status} from ${primary.finalUrl}`);
+    console.log(`[Scanner] Fetched HTML: ${primary.bytes} bytes`);
+  }
+
+  let html = primary.html;
+  const headers = primary.headers;
+  const pagesScanned: string[] = [];
+
+  // Always record the primary page (using its post-redirect path so the user
+  // sees what was actually scanned, not the input alias).
+  try {
+    const primaryPath = new URL(primary.finalUrl).pathname || "/";
+    pagesScanned.push(primaryPath);
+  } catch {
+    pagesScanned.push("/");
+  }
+
+  // ── 2. Secondary fetches (only when scanning a homepage) ──────────────
+  // We treat any input whose path is "/" or empty as a homepage scan and
+  // opportunistically pull in extra signal-rich pages. For deep-link scans
+  // (e.g., user pasted "example.com/admin") we leave the result alone —
+  // they explicitly asked for that one page.
+  let isHomepageScan = false;
+  let baseUrl: URL | null = null;
+  try {
+    baseUrl = new URL(primary.finalUrl);
+    isHomepageScan = baseUrl.pathname === "/" || baseUrl.pathname === "";
+  } catch {
+    // unparseable — skip secondary fetches
+  }
+
+  if (isHomepageScan && baseUrl && primary.status >= 200 && primary.status < 400) {
+    const candidates = SECONDARY_CANDIDATE_PATHS.map((p) => new URL(p, baseUrl!).href);
+    const secondaryStart = Date.now();
+    const settled = await Promise.allSettled(
+      candidates.map((c) => fetchPage(c, SECONDARY_FETCH_TIMEOUT_MS, SECONDARY_HTML_CAP_BYTES)),
+    );
+    let mergedBytes = primary.html.length;
+    for (let i = 0; i < settled.length; i++) {
+      const s = settled[i];
+      if (s.status !== "fulfilled") continue;
+      const page = s.value;
+      // Skip empties, non-200s, and any redirect that landed back on the
+      // homepage (e.g., /app → / when not signed in). The duplicate would
+      // double-count signals without telling us anything new.
+      if (page.status < 200 || page.status >= 300) continue;
+      if (page.html.length === 0) continue;
+      try {
+        const finalPath = new URL(page.finalUrl).pathname || "/";
+        if (finalPath === "/" || pagesScanned.includes(finalPath)) continue;
+        // Respect the global HTML cap so we never blow past 5MB even on
+        // sites with huge pricing pages.
+        if (mergedBytes + page.html.length > TOTAL_HTML_CAP_BYTES) continue;
+        // We delimit each appended page with a comment so regex matches
+        // can't accidentally span page boundaries (e.g., a script src
+        // straddling two HTML strings).
+        html += `\n<!-- ===== aihackr-merged-page: ${finalPath} ===== -->\n` + page.html;
+        mergedBytes += page.html.length;
+        pagesScanned.push(finalPath);
+      } catch {
+        // unparseable URL — ignore this page
       }
     }
-  } catch (error) {
-    console.error("[Scanner] Fetch error:", error);
+    console.log(
+      `[Scanner] Secondary pages fetched in ${Date.now() - secondaryStart}ms; merged: ${pagesScanned.slice(1).join(", ") || "none"}`,
+    );
   }
-  
+
   const fetchTime = Date.now() - startTime;
-  console.log(`[Scanner] Fetch completed in ${fetchTime}ms`);
+  console.log(`[Scanner] Fetch completed in ${fetchTime}ms (${pagesScanned.length} page${pagesScanned.length === 1 ? "" : "s"})`);
 
   const signals = extractSignals(html, headers, url);
   const techDetections = detectAllTechnologies(signals);
@@ -516,6 +621,10 @@ export async function scanUrl(inputUrl: string) {
       patterns: Array.from(evidencePatterns),
       groupedDetections,
       thirdPartyServices,
+      // Which paths actually contributed signals to this scan. We stash this
+      // in evidence rather than as a top-level field so we don't need a
+      // schema migration — the `evidence` JSON blob is already a flexible bag.
+      pagesScanned,
     },
   };
 }

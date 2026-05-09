@@ -916,6 +916,25 @@ export default function CardPage() {
               {scan.url}
               <ExternalLink className="w-3 h-3" />
             </a>
+
+            {/* Multi-page scan transparency: when the passive scan visited */}
+            {/* more than just "/", show which paths contributed signals so */}
+            {/* the user understands why the report covers what it covers. */}
+            {(() => {
+              const pages = (scan.evidence as { pagesScanned?: string[] } | null)?.pagesScanned;
+              if (!pages || pages.length <= 1) return null;
+              return (
+                <div className="mt-2 text-xs text-muted-foreground" data-testid="text-pages-scanned">
+                  <span className="font-medium">Pages scanned:</span>{" "}
+                  {pages.map((p, i) => (
+                    <span key={p} className="inline-flex items-center">
+                      <code className="px-1.5 py-0.5 rounded bg-muted text-foreground/80">{p}</code>
+                      {i < pages.length - 1 && <span className="mx-1">·</span>}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* ─── 1. AI STACK VERDICT ─────────────────────────────────────── */}
