@@ -1,7 +1,24 @@
-import { Resend } from "resend";
 import type { Subscription, ChangeEvent } from "@shared/schema";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+type OutboundEmail = {
+  from: string;
+  to: string | string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  headers?: Record<string, string>;
+};
+
+async function sendEmail(message: OutboundEmail): Promise<{ error: string | null }> {
+  const response = await fetch("http://email.internal/send", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(message),
+  });
+
+  if (response.ok) return { error: null };
+  return { error: await response.text() };
+}
 
 const FROM_EMAIL = "AIHackr <hello@aihackr.com>";
 const FROM_ALERTS = "AIHackr Alerts <hello@aihackr.com>";
@@ -14,7 +31,7 @@ const APP_URL = process.env.APP_URL || "https://aihackr.com";
 // ─────────────────────────────────────────────────────────
 export async function sendMagicLinkEmail(email: string, magicLink: string): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_EMAIL,
       to: email,
       subject: "Sign in to AIHackr",
@@ -232,7 +249,7 @@ export async function sendStackChangeAlertEmail(opts: StackChangeAlertOptions): 
       </body></html>
     `;
 
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_ALERTS,
       to,
       subject,
@@ -258,7 +275,7 @@ export async function sendSiteUnreachableEmail(
   domain: string
 ): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_ALERTS,
       to,
       subject: `[AIHackr] ${domain} is unreachable`,
@@ -509,7 +526,7 @@ export async function sendWeeklyDigestEmail(opts: WeeklyDigestOptions): Promise<
       </body></html>
     `;
 
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_DIGEST,
       to: opts.to,
       subject,
@@ -545,7 +562,7 @@ export async function sendChangeNotificationEmail(
     if (changes.added.length > 0) changesList.push(`<li><strong>Added:</strong> ${changes.added.join(", ")}</li>`);
     if (changes.removed.length > 0) changesList.push(`<li><strong>Removed:</strong> ${changes.removed.join(", ")}</li>`);
     if (changes.modified.length > 0) changesList.push(`<li><strong>Changed:</strong> ${changes.modified.map((m) => `${m.tech}: ${m.from} → ${m.to}`).join(", ")}</li>`);
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_ALERTS,
       to: email,
       subject: `[AIHackr] Stack changes on ${domain}`,
@@ -567,7 +584,7 @@ export async function sendAdminNewScanNotification(
   userEmail?: string
 ): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `New scan: ${domain}`,
@@ -581,7 +598,7 @@ export async function sendAdminNewScanNotification(
 
 export async function sendAdminMagicLinkNotification(userEmail: string): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmail({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `Magic link requested: ${userEmail}`,

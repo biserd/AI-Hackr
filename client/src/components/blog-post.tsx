@@ -455,7 +455,7 @@ export function useLeaderboard() {
     let cancelled = false;
     fetch("/api/leaderboard")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j) => {
+      .then((j: any) => {
         if (cancelled) return;
         // /api/leaderboard returns { rows: [...] } where each row has
         // aiProvider nested under `lastScan` (and a top-level `priorAiProvider`
@@ -498,7 +498,7 @@ export function useProviders() {
     let cancelled = false;
     fetch("/api/providers")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j) => {
+      .then((j: any) => {
         if (cancelled) return;
         const rows: ProviderRow[] = Array.isArray(j?.providers)
           ? j.providers

@@ -3,7 +3,7 @@ import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { startBackgroundWorker } from "./background-worker";
+import { runBackgroundJobs, startBackgroundWorker } from "./background-worker";
 import { runSeed } from "./seed";
 
 const app = express();
@@ -25,6 +25,17 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// This path is reachable only through the Worker-to-container binding. The
+// public Worker blocks /__internal/* before proxying requests.
+app.post("/__internal/cron", async (_req, res, next) => {
+  try {
+    await runBackgroundJobs();
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -105,7 +116,12 @@ app.use((req, res, next) => {
       } catch (err) {
         console.error("[seed] failed:", err);
       }
-      startBackgroundWorker();
+      // Local development can opt into the old in-process timers. Production
+      // uses Cloudflare Cron Triggers so container sleep/restarts cannot drop
+      // scheduled work.
+      if (process.env.ENABLE_BACKGROUND_LOOPS === "true") {
+        startBackgroundWorker();
+      }
     },
   );
 })();

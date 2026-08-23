@@ -11,7 +11,7 @@ async function fetchCurrentUser(): Promise<User | null> {
   const res = await fetch("/api/auth/me", { credentials: "include" });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error("Failed to fetch user");
-  const data = await res.json();
+  const data = await res.json() as { user: User };
   return data.user;
 }
 

@@ -25,11 +25,11 @@ export function useScan() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as { error?: string };
         throw new Error(error.error || "Scan failed");
       }
 
-      const result = await response.json();
+      const result = await response.json() as { url: string };
       toast.dismiss(toastId);
       toast.success("Scan started! Deeper analysis running in background.");
       // Use domain in URL for cleaner sharing
@@ -53,7 +53,7 @@ export function useScan() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as { error?: string };
         throw new Error(error.error || "Probe scan failed");
       }
 

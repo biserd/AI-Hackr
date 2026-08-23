@@ -1,7 +1,6 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pkg from "pg";
-const { Pool } = pkg;
+import { drizzle } from "drizzle-orm/sqlite-proxy";
 import { eq, ne, desc, and, lt, gt, isNull, isNotNull, sql, inArray, or, gte, lte } from "drizzle-orm";
+import * as schema from "@shared/schema";
 import {
   users,
   sessions,
@@ -31,11 +30,24 @@ import {
   type InsertLeaderboardSnapshot,
 } from "@shared/schema";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+type D1ProxyMethod = "run" | "all" | "values" | "get";
 
-export const db = drizzle(pool);
+async function queryD1(sqlText: string, params: unknown[], method: D1ProxyMethod) {
+  const response = await fetch("http://d1.internal/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sql: sqlText, params, method }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`D1 query failed (${response.status}): ${detail}`);
+  }
+
+  return await response.json() as { rows: unknown[] };
+}
+
+export const db = drizzle(queryD1, { schema });
 
 export interface IStorage {
   // User
@@ -274,7 +286,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async countUserSubscriptions(userId: string): Promise<number> {
-    const result = await db.select({ count: sql<number>`COUNT(*)::int` })
+    const result = await db.select({ count: sql<number>`COUNT(*)` })
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId));
     return result[0]?.count ?? 0;
@@ -604,13 +616,12 @@ export class DatabaseStorage implements IStorage {
     // Find userIds that have at least one subscription but no user_settings row, then
     // insert default rows. We rely on the (unique) PK on user_settings.user_id +
     // ON CONFLICT DO NOTHING for idempotency under concurrent runs.
-    const orphanRows = await db.execute(sql`
+    const rows = await db.all<{ user_id: string }>(sql`
       SELECT DISTINCT s.user_id
       FROM ${subscriptions} s
       LEFT JOIN ${userSettings} us ON us.user_id = s.user_id
       WHERE us.user_id IS NULL
     `);
-    const rows = (orphanRows as unknown as { rows: Array<{ user_id: string }> }).rows ?? [];
     if (rows.length === 0) return 0;
     let inserted = 0;
     for (const r of rows) {
@@ -1073,7 +1084,7 @@ export class DatabaseStorage implements IStorage {
         )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
-      db.select({ count: sql<number>`COUNT(*)::int` }).from(trackedCompanies).where(where),
+      db.select({ count: sql<number>`COUNT(*)` }).from(trackedCompanies).where(where),
     ]);
 
     return { companies, total: Number(totalRow[0]?.count ?? 0) };
@@ -1082,10 +1093,10 @@ export class DatabaseStorage implements IStorage {
   async getTrackedCompanyCounts(): Promise<{ total: number; scanned: number; pending: number; failed: number }> {
     const rows = await db
       .select({
-        total: sql<number>`COUNT(*)::int`,
-        scanned: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NOT NULL THEN 1 ELSE 0 END)::int`,
-        pending: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NULL AND COALESCE(${trackedCompanies.scanStatus}, '') <> 'failed' THEN 1 ELSE 0 END)::int`,
-        failed: sql<number>`SUM(CASE WHEN ${trackedCompanies.scanStatus} = 'failed' THEN 1 ELSE 0 END)::int`,
+        total: sql<number>`COUNT(*)`,
+        scanned: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NOT NULL THEN 1 ELSE 0 END)`,
+        pending: sql<number>`SUM(CASE WHEN ${trackedCompanies.lastScanId} IS NULL AND COALESCE(${trackedCompanies.scanStatus}, '') <> 'failed' THEN 1 ELSE 0 END)`,
+        failed: sql<number>`SUM(CASE WHEN ${trackedCompanies.scanStatus} = 'failed' THEN 1 ELSE 0 END)`,
       })
       .from(trackedCompanies)
       .where(eq(trackedCompanies.status, "live"));
@@ -1100,7 +1111,7 @@ export class DatabaseStorage implements IStorage {
 
   async countAllTrackedCompanies(): Promise<number> {
     const rows = await db
-      .select({ count: sql<number>`COUNT(*)::int` })
+      .select({ count: sql<number>`COUNT(*)` })
       .from(trackedCompanies)
       .where(eq(trackedCompanies.status, "live"));
     return Number(rows[0]?.count ?? 0);

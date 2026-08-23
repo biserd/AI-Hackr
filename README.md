@@ -45,9 +45,11 @@ Each detection includes:
 AIHackr is built with:
 - React 18 + TypeScript
 - Tailwind CSS + shadcn/ui
-- Express.js backend
-- PostgreSQL + Drizzle ORM
-- Playwright for browser scanning
+- Express.js in a Cloudflare Container
+- Cloudflare Workers as the public edge and scheduler
+- Cloudflare D1 + Drizzle ORM
+- Cloudflare Email Sending for transactional email
+- Playwright for browser scanning inside the container
 
 ## FAQ
 
@@ -83,13 +85,27 @@ Most public websites work. Some sites with aggressive bot protection may block o
 
 Scan results are stored to enable shareable links. We don't store any data from the scanned websites themselves — only our analysis results.
 
-## Self-Hosting
+## Cloudflare deployment
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up PostgreSQL and configure `DATABASE_URL`
-4. Run migrations: `npm run db:push`
-5. Start the server: `npm run dev`
+The public Worker owns routing, scheduled work, D1 access, and outbound email.
+It proxies application requests to a single Cloudflare Container running the
+Express/Playwright application. The container reaches D1 and Email Sending only
+through private Worker outbound handlers, so no database URL or email API key is
+stored in the app.
+
+1. Install dependencies with `npm ci` (Node 22 or newer).
+2. Create a D1 database and set its ID in `wrangler.jsonc`.
+3. Apply migrations with `npm run db:migrate:remote`.
+4. Enable Email Sending for `aihackr.com` and keep the `EMAIL` binding's allowed
+   sender aligned with the verified domain.
+5. Deploy with `npm run deploy`. Cloudflare Workers Builds can build the
+   `Dockerfile` remotely when the GitHub repository is connected.
+6. Validate the `workers.dev` staging URL before attaching `aihackr.com` and
+   `www.aihackr.com` as custom domains.
+
+For local schema work, use `npm run db:migrate:local`. Production background
+jobs run from the Worker cron trigger; the container's in-process timers are
+disabled unless `ENABLE_BACKGROUND_LOOPS=true` is explicitly set.
 
 ## License
 

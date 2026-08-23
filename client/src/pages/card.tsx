@@ -281,7 +281,7 @@ export default function CardPage() {
       if (!response.ok) {
         throw new Error("Scan not found");
       }
-      const data = await response.json();
+      const data = await response.json() as Scan;
       setScan(data);
       if (!isPolling) setLoading(false);
     } catch (err) {

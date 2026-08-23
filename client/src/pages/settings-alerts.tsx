@@ -94,7 +94,7 @@ export default function SettingsAlerts() {
         body: JSON.stringify(updates),
         credentials: "include",
       });
-      const body = await res.json();
+      const body = await res.json() as AlertSettings;
       if (!res.ok) throw body;
       return body;
     },

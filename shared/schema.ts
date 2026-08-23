@@ -1,14 +1,35 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
+import {
+  sqliteTable as pgTable,
+  text,
+  integer as sqliteInteger,
+} from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// D1 is SQLite. These small compatibility helpers keep the schema readable
+// while preserving the Date/boolean/JSON types expected throughout the app.
+const varchar = text;
+const integer = sqliteInteger;
+function timestamp<TName extends string>(name: TName) {
+  return sqliteInteger(name, { mode: "timestamp" });
+}
+function boolean<TName extends string>(name: TName) {
+  return sqliteInteger(name, { mode: "boolean" });
+}
+function jsonb<TName extends string>(name: TName) {
+  return text(name, { mode: "json" });
+}
+
+const uuid = () => crypto.randomUUID();
+const now = sql`(unixepoch())`;
+
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
   emailVerified: boolean("email_verified").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
   lastLoginAt: timestamp("last_login_at"),
   notificationsEnabled: boolean("notifications_enabled").default(true),
   // Plan tier: "free" | "pro"
@@ -24,11 +45,11 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 export const sessions = pgTable("sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
   userAgent: text("user_agent"),
   ipAddress: text("ip_address"),
 });
@@ -36,11 +57,11 @@ export const sessions = pgTable("sessions", {
 export type Session = typeof sessions.$inferSelect;
 
 export const magicLinks = pgTable("magic_links", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   email: text("email").notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
   consumedAt: timestamp("consumed_at"),
 });
 
@@ -52,12 +73,12 @@ export type MagicLink = typeof magicLinks.$inferSelect;
  * a user has added to their watchlist.
  */
 export const subscriptions = pgTable("subscriptions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   url: text("url").notNull(),
   domain: text("domain").notNull(),
   displayLabel: text("display_label"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
   lastScannedAt: timestamp("last_scanned_at"),
   lastScanId: varchar("last_scan_id"),
   isActive: boolean("is_active").default(true),
@@ -91,8 +112,8 @@ export const subscriptions = pgTable("subscriptions", {
     modelHints?: string[];
     firstDetectedAt?: string;
     lastSeenAt?: string;
-  }>>().default(sql`'[]'::jsonb`),
-  pendingRemovals: jsonb("pending_removals").$type<Record<string, number>>().default(sql`'{}'::jsonb`),
+  }>>().default([]),
+  pendingRemovals: jsonb("pending_removals").$type<Record<string, number>>().default({}),
 });
 
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).pick({
@@ -113,11 +134,11 @@ export type WatchlistEntry = Subscription;
  * backwards compatibility). One row per detected change.
  */
 export const changeEvents = pgTable("change_events", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
   oldScanId: varchar("old_scan_id"),
   newScanId: varchar("new_scan_id").notNull(),
-  detectedAt: timestamp("detected_at").defaultNow().notNull(),
+  detectedAt: timestamp("detected_at").default(now).notNull(),
   // "provider_added" | "provider_removed" | "confidence_upgraded" | "confidence_downgraded" | "model_hint_changed"
   changeType: text("change_type").notNull(),
   changeSummary: text("change_summary"),
@@ -177,8 +198,8 @@ export const userSettings = pgTable("user_settings", {
   alertsThisWeek: integer("alerts_this_week").default(0).notNull(),
   weekResetAt: timestamp("week_reset_at"),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
+  updatedAt: timestamp("updated_at").default(now).notNull(),
 });
 
 export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
@@ -190,11 +211,11 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 
 export const scans = pgTable("scans", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   url: text("url").notNull(),
   domain: text("domain"),
   userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
-  scannedAt: timestamp("scanned_at").defaultNow().notNull(),
+  scannedAt: timestamp("scanned_at").default(now).notNull(),
   
   // Core stack detection
   framework: text("framework"),
@@ -315,7 +336,7 @@ export type InsertScan = typeof scans.$inferInsert;
 export type Scan = typeof scans.$inferSelect;
 
 export const showHnProducts = pgTable("show_hn_products", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   hnId: text("hn_id").notNull().unique(),
   title: text("title").notNull(),
   author: text("author").notNull(),
@@ -327,14 +348,14 @@ export const showHnProducts = pgTable("show_hn_products", {
   domain: text("domain").notNull(),
   scanId: varchar("scan_id").references(() => scans.id, { onDelete: "set null" }),
   scanStatus: text("scan_status").default("pending"),
-  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+  fetchedAt: timestamp("fetched_at").default(now).notNull(),
 });
 
 export type ShowHnProduct = typeof showHnProducts.$inferSelect;
 
 export const showHnReports = pgTable("show_hn_reports", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
+  generatedAt: timestamp("generated_at").default(now).notNull(),
   productCount: text("product_count").notNull(),
   dateRangeStart: timestamp("date_range_start").notNull(),
   dateRangeEnd: timestamp("date_range_end").notNull(),
@@ -359,7 +380,7 @@ export type ShowHnReport = typeof showHnReports.$inferSelect;
  * onto `lastScanId` for fast leaderboard reads.
  */
 export const trackedCompanies = pgTable("tracked_companies", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   domain: text("domain").notNull(),
@@ -394,7 +415,7 @@ export const trackedCompanies = pgTable("tracked_companies", {
   source: text("source"),
   importedAt: timestamp("imported_at"),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
 });
 
 export const insertTrackedCompanySchema = createInsertSchema(trackedCompanies).omit({
@@ -412,16 +433,16 @@ export type InsertTrackedCompany = z.infer<typeof insertTrackedCompanySchema>;
  * to the correct rollup via `aliases`.
  */
 export const providerRollups = pgTable("provider_rollups", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description").notNull(),
   logoUrl: text("logo_url"),
   // Lowercased strings the scanner may emit that should map to this rollup.
-  aliases: text("aliases").array().default(sql`ARRAY[]::text[]`).notNull(),
+  aliases: jsonb("aliases").$type<string[]>().default([]).notNull(),
   // For ordering on the index page (lower = earlier).
   sortOrder: integer("sort_order").default(100).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").default(now).notNull(),
 });
 
 export const insertProviderRollupSchema = createInsertSchema(providerRollups).omit({
@@ -440,9 +461,9 @@ export type InsertProviderRollup = z.infer<typeof insertProviderRollupSchema>;
  * image can be served without re-joining live data.
  */
 export const leaderboardSnapshots = pgTable("leaderboard_snapshots", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey().$defaultFn(uuid),
   isoWeek: text("iso_week").notNull().unique(),
-  takenAt: timestamp("taken_at").defaultNow().notNull(),
+  takenAt: timestamp("taken_at").default(now).notNull(),
   totalCompanies: integer("total_companies").notNull(),
   topProvider: text("top_provider"),
   changesCount: integer("changes_count").default(0).notNull(),

@@ -139,7 +139,7 @@ export default function StackDetail() {
     mutationFn: async () => {
       const res = await fetch(`/api/stack/${slug}/bump-scan`, { method: "POST" });
       if (!res.ok) throw new Error("Bump failed");
-      return res.json();
+      return await res.json() as { alreadyScanned?: boolean };
     },
     onSuccess: (r) => {
       if (r.alreadyScanned) {

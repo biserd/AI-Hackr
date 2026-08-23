@@ -1193,16 +1193,22 @@ async function runStubDrainCycle(): Promise<void> {
 
 // ─── Public entry point ──────────────────────────────────
 
+/** Run one idempotent scheduler pass. Cloudflare Cron Triggers call this
+ * through the container's private endpoint every ten minutes. */
+export async function runBackgroundJobs(): Promise<void> {
+  await runScanCycle();
+  await runDigestCycle();
+  await runDailyBundleCycle();
+  await runTrackedCompanyScans();
+  await runStubDrainCycle();
+  await runWeeklySnapshotCycle();
+}
+
 export function startBackgroundWorker(): void {
   console.log("[Worker] Background worker starting…");
   // Initial delay to let the server boot
   setTimeout(async () => {
-    await runScanCycle();
-    await runDigestCycle();
-    await runDailyBundleCycle();
-    await runTrackedCompanyScans();
-    await runStubDrainCycle();
-    await runWeeklySnapshotCycle();
+    await runBackgroundJobs();
   }, 60 * 1000);
 
   // Scan loop

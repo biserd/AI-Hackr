@@ -129,8 +129,13 @@ export default function StackIndex() {
         credentials: "include",
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      return res.json();
+      const body = await res.json() as {
+        error?: string;
+        alreadyExists?: boolean;
+        company: TrackedCompany;
+      };
+      if (!res.ok) throw new Error(body.error || "Failed");
+      return body;
     },
     onSuccess: (data) => {
       if (data.alreadyExists) {
