@@ -1,0 +1,15 @@
+# Security and retention
+
+Only public HTTP(S) target pages, standard ports, no userinfo, cookies, target headers, arbitrary code, file URLs or customer webhooks. URLs and every HTTP redirect are checked; all resolved addresses must be public, and the approved address is pinned at socket connection. Private, loopback, metadata, reserved, multicast and mapped IPv6 destinations are blocked. Compressed responses are explicitly refused if a target ignores Accept-Encoding: identity; this conservative first adapter enforces a 5 MiB response bound. Plain HTTP retrieval is not an unrestricted browser.
+
+Web content is untrusted data. It cannot choose tools, alter instructions or billing, forward credentials, change caps or purchase credits. Extraction receives a bounded isolated source prompt with no tools; exact source excerpts and output schema are verified. This supports evidence, not independent truth. Dashboard content is rendered as escaped text/JSON, never injected HTML. No source text executes in the dashboard.
+
+Tenant identity comes from hashed API keys, validated OAuth subject/client bindings, or the server-only existing verified-owner bridge. Requests never accept a tenant ID as authority. Ownership applies to every job/result/quote lookup. API keys are displayed once and expire at 90 days; connections can be revoked. Owner-only key/cap/billing writes are behind existing cookie authentication and exact Origin checks. Resource tokens require signature, issuer, audience, expiry and scopes. Provider tokens may remain cryptographically valid until their short expiry; local connection revocation is immediate for new requests.
+
+HTTP bodies, inputs, schema depth/arrays, tool outputs, job pages/depth/time and credit reservations are bounded. Rate limits return Retry-After. Cache is tenant-scoped; credential-bearing URL keys are rejected. Cached sources preserve original observedAt. Failed fresh work never silently returns stale content. ObservedAt is never a publication date.
+
+The browser adapter remains disabled until the separate sandbox/subresource/WebSocket/egress/resource-limit gate in DEPLOYMENT.md passes. A configuration flag is not evidence of a passed security test. Outbound firewall policy, real PostgreSQL multi-process races, trial-farming controls and full hosted OAuth/client flows still require validation. Do not deploy the stock upstream renderer as a completed secure browser implementation.
+
+Content and cache: 24 hours; terminal job/source references: 30 days; finance records: retained for operator accounting-policy review. User-requested content deletion nulls retained result bodies and tenant caches. No public permanent result URLs are issued. Backups need a published retention window. Current privacy/terms/support/source offers must be reviewed and made accurate before public release.
+
+Report vulnerabilities privately through the repository's configured private reporting channel when available; verify the actual contact before launch. Do not publish secrets or target content in an issue. Dependency audit and secret scanning are part of the handoff; no legal or compliance certification is implied.

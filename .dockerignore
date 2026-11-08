@@ -6,3 +6,9 @@ work
 outputs
 *.log
 .dev.vars*
+**/node_modules
+**/dist
+**/.local
+**/.env
+**/release
+**/reports

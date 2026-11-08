@@ -5,6 +5,8 @@ interface __BaseEnv_Env {
 	DB: D1Database;
 	EMAIL: SendEmail;
 	AIHACKR: DurableObjectNamespace /* AIHackrContainer */;
+	WEB_DATA_STORE: DurableObjectNamespace;
+	WEB_DATA_STORAGE_TOKEN: string;
 }
 declare namespace Cloudflare {
 	interface Env extends __BaseEnv_Env {}

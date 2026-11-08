@@ -1,0 +1,1836 @@
+[
+  {
+    "name": "aihackr_scrape",
+    "description": "Read a known public URL as Markdown, text, bounded HTML or links. Paid fresh usable pages; cache hits free. No model call. Poll the returned job.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "formats": {
+          "default": [
+            "markdown"
+          ],
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text",
+              "html",
+              "links"
+            ]
+          }
+        },
+        "render": {
+          "default": "auto",
+          "type": "string",
+          "enum": [
+            "http",
+            "auto",
+            "browser"
+          ]
+        },
+        "maxAgeSeconds": {
+          "default": 3600,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "maxCredits": {
+          "default": 5,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_search",
+    "description": "Search unknown URLs without scraping the results. Uses prepaid credits; result limit 20. Poll the returned job handle.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2}$"
+        },
+        "maxCredits": {
+          "default": 4,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_extract",
+    "description": "Extract source-supported JSON using a bounded schema from one URL or authorized result. Separate page and extraction charges. Missing evidence returns a partial job. Poll the returned job.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "instruction": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "formats": {
+          "default": [
+            "markdown"
+          ],
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text",
+              "html",
+              "links"
+            ]
+          }
+        },
+        "render": {
+          "default": "auto",
+          "type": "string",
+          "enum": [
+            "http",
+            "auto",
+            "browser"
+          ]
+        },
+        "maxAgeSeconds": {
+          "default": 3600,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "maxCredits": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_map",
+    "description": "Discover same-origin links from one page. Charges the discovery fetch; does not claim exhaustive site coverage. Poll the returned job.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "limit": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includePaths": {
+          "default": [],
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "format": "starts_with",
+            "pattern": "^\\/.*"
+          }
+        },
+        "excludePaths": {
+          "default": [],
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "format": "starts_with",
+            "pattern": "^\\/.*"
+          }
+        },
+        "maxCredits": {
+          "default": 5,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_crawl",
+    "description": "Start a bounded same-origin crawl. Max 100 pages and depth 3, prepaid ceiling covers all children. Poll with backoff and page results.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "maxPages": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "maxDepth": {
+          "default": 2,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "includePaths": {
+          "default": [],
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "format": "starts_with",
+            "pattern": "^\\/.*"
+          }
+        },
+        "excludePaths": {
+          "default": [],
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "format": "starts_with",
+            "pattern": "^\\/.*"
+          }
+        },
+        "formats": {
+          "default": [
+            "markdown"
+          ],
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text",
+              "html",
+              "links"
+            ]
+          }
+        },
+        "render": {
+          "default": "auto",
+          "type": "string",
+          "enum": [
+            "http",
+            "auto",
+            "browser"
+          ]
+        },
+        "maxAgeSeconds": {
+          "default": 3600,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "maxCredits": {
+          "default": 100,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_research",
+    "description": "Start bounded research: at most two searches and six public pages, optional schema extraction. Preserves partial sources; uses explicit prepaid cap. Poll with backoff.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "startingUrls": {
+          "default": [],
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          }
+        },
+        "schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "maxSearches": {
+          "default": 2,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "maxPages": {
+          "default": 6,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "maxCredits": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quoteId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "objective"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_capabilities",
+    "description": "Free discovery: inspect available providers, prices, hard limits, cache freshness and retention before choosing work.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "apiVersion": {
+              "type": "string"
+            },
+            "priceVersion": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "fixture",
+                "live"
+              ]
+            },
+            "available": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              }
+            },
+            "limits": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "retention": {
+              "type": "object",
+              "properties": {
+                "contentHours": {
+                  "type": "number"
+                },
+                "metadataDays": {
+                  "type": "number"
+                },
+                "idempotencyDays": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "contentHours",
+                "metadataDays",
+                "idempotencyDays"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "apiVersion",
+            "priceVersion",
+            "mode",
+            "available",
+            "limits",
+            "retention"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_quote",
+    "description": "Free quote for exact bounded arguments. Does not retrieve content or reserve credits; valid five minutes.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "scrape",
+            "search",
+            "extract",
+            "map",
+            "crawl",
+            "research"
+          ]
+        },
+        "input": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "operation",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "quoteId": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "normalizedArgs": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "minCredits": {
+              "type": "number"
+            },
+            "maxCredits": {
+              "type": "number"
+            },
+            "expiresAt": {
+              "type": "string"
+            },
+            "priceVersion": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quoteId",
+            "operation",
+            "normalizedArgs",
+            "minCredits",
+            "maxCredits",
+            "expiresAt",
+            "priceVersion"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_job",
+    "description": "Inspect job status for free or request cancellation. Cancellation changes account state and lets already-started units settle. Tenant-owned handles only.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "action": {
+          "default": "status",
+          "type": "string",
+          "enum": [
+            "status",
+            "cancel"
+          ]
+        }
+      },
+      "required": [
+        "jobId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "completed",
+                "partial",
+                "failed",
+                "canceled"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "resultIds": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stopReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryAfterSeconds": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "operation",
+            "usage",
+            "resultIds",
+            "stopReason",
+            "retryAfterSeconds"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_get_result",
+    "description": "Read retained authorized result content for free. Follow nextCursor to expand content; default output is compact. Expired content is unavailable.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "pageSize": {
+          "default": 8000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8000
+        }
+      },
+      "required": [
+        "resultId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "resultId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "partial"
+              ]
+            },
+            "data": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sourceId": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "finalUrl": {
+                    "type": "string"
+                  },
+                  "observedAt": {
+                    "type": "string"
+                  },
+                  "method": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "url",
+                  "finalUrl",
+                  "observedAt",
+                  "method"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "cache": {
+              "type": "object",
+              "properties": {
+                "hit": {
+                  "type": "boolean"
+                },
+                "ageSeconds": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "hit",
+                "ageSeconds"
+              ],
+              "additionalProperties": false
+            },
+            "usage": {
+              "type": "object",
+              "properties": {
+                "creditsCharged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "priceVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "creditsCharged",
+                "priceVersion"
+              ],
+              "additionalProperties": {}
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "complete": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "complete",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "nextCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "expiresAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "resultId",
+            "status",
+            "data",
+            "sources",
+            "cache",
+            "usage",
+            "coverage",
+            "warnings",
+            "truncated",
+            "nextCursor",
+            "expiresAt"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "aihackr_usage",
+    "description": "Inspect your balance, reservations, posted charges and spending limits for free. Cannot purchase credits or change limits.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "anyOf": [
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "balance": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "reserved": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "spendable": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "limits": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              }
+            },
+            "ledger": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "balance",
+            "reserved",
+            "spendable",
+            "limits",
+            "ledger"
+          ],
+          "additionalProperties": {}
+        },
+        {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "requestId": {
+                  "type": "string"
+                },
+                "creditsCharged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "retryable",
+                "requestId",
+                "creditsCharged"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+]

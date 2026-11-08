@@ -1,0 +1,1 @@
+{"name":"aihackr-web-data-local-test","main":"web-data-test-worker.ts","compatibility_date":"2026-08-23","compatibility_flags":["nodejs_compat"],"durable_objects":{"bindings":[{"name":"WEB_DATA_STORE","class_name":"WebDataStore"}]},"migrations":[{"tag":"v1","new_sqlite_classes":["WebDataStore"]}],"workers_dev":false}
