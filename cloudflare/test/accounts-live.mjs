@@ -11,6 +11,9 @@ assert.equal((await post('/auth/verify',{code:'00000000'})).status,401);
 assert.equal((await post('/auth/start',{email:'invalid@example.com'},'https://attacker.example')).status,403);
 const html=await (await fetch(origin)).text();assert(!html.includes('class="badge"'));assert(!html.includes('Connect workspace'));assert(html.includes('Create your account.'));assert(html.includes('API keys'));
 assert.equal((await fetch(origin+'/account.mjs')).status,200);
+for(const path of ['/','/docs','/docs/','/dashboard','/dashboard/']){const response=await fetch(origin+path,{redirect:'manual'});assert.equal(response.status,200,path+' must resolve without an HTML canonicalization loop');assert.equal(response.headers.get('location'),null);assert.match(response.headers.get('content-security-policy'),/default-src 'self'/);}
+for(const path of ['/api/jobs','/api/usage'])assert.equal((await fetch(origin+path)).status,401);
+const plans=await(await fetch(origin+'/api/plans')).json();assert.equal(plans.plans.length,3);assert.equal(plans.taxCollection,false);
 report.checks.customerAccountGuards={passed:true};report.customerAccountGuardsVerifiedAt=new Date().toISOString();
 await writeFile(reportFile,JSON.stringify(report,null,2)+'\n');
-console.log('PASS customer auth errors, CSRF guards, private endpoints, signup UI and logo cleanup.');
+console.log('PASS customer auth/CSRF guards, private endpoints, public plans and HTML routes without redirect loops.');

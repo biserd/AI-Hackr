@@ -88,6 +88,7 @@ export default {
         return await customerGateway(request,env);
       }
       if(['/','/app.mjs','/account.mjs','/style.css','/dashboard','/dashboard/','/dashboard.mjs','/dashboard.css','/aihackr-plugin.zip','/docs','/docs/'].includes(url.pathname)&&['GET','HEAD'].includes(request.method)){
+        if(url.pathname==='/')url.pathname='/index.html';
         if(url.pathname==='/docs'||url.pathname==='/docs/')url.pathname='/docs.html';
         if(url.pathname==='/dashboard'||url.pathname==='/dashboard/')url.pathname='/dashboard.html';
         const asset=await env.ASSETS.fetch(new Request(url,request));const headers=new Headers(asset.headers);
