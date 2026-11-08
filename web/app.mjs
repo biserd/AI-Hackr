@@ -8,6 +8,13 @@ const config = {
   search: { title: 'Search the web', run: 'Search web', options: { limit: 5 }, note: 'Web search is not enabled in this deployment.' },
   extract: { title: 'Extract structured data', run: 'Extract data', options: { prompt: 'Extract the name and description of this website.' }, note: 'Extract structured data using Browser Run and Workers AI. This operation uses AI inference.' },
 };
+function normalizeTarget(value) {
+  const raw=value.trim();
+  const candidate=raw.startsWith('//')?'https:'+raw:/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)?raw:'https://'+raw;
+  let url;try{url=new URL(candidate);}catch{throw new Error('Enter a valid website, such as example.com or https://example.com.');}
+  if(!['https:','http:'].includes(url.protocol)||url.username||url.password||!url.hostname)throw new Error('Use an HTTP or HTTPS website URL without a username or password.');
+  return url.href;
+}
 function updateRun() { $('run-request').disabled = !state.ready || state.busy || (['search', 'extract'].includes(state.operation) && !state.cap?.available[state.operation]); $('run-request').textContent=account.session?config[state.operation].run+' →':'Sign in to try it →'; }
 window.addEventListener('aihackr-account',()=>{state.accountEpoch++;state.busy=false;state.response=null;state.job=null;state.next=null;$('result-content').textContent='';$('result-content').hidden=true;$('result-meta').hidden=true;$('error-banner').hidden=true;$('empty-result').hidden=false;$('copy-result').disabled=true;updateRun();updateJobActions();});
 document.querySelectorAll('[data-operation]').forEach(button => button.onclick = () => {
@@ -16,7 +23,8 @@ document.querySelectorAll('[data-operation]').forEach(button => button.onclick =
   $('operation-label').textContent = operation.title; $('route-label').textContent = 'POST /v2/' + state.operation;
   $('run-request').replaceChildren(document.createTextNode(operation.run + ' →'));
   $('options').value = JSON.stringify(operation.options, null, 2); $('operation-note').textContent = operation.note;
-  $('target').type = state.operation === 'search' ? 'text' : 'url'; $('target').placeholder = state.operation === 'search' ? 'What are you researching?' : 'https://example.com';
+  $('target').placeholder = state.operation === 'search' ? 'What are you researching?' : 'example.com or https://example.com';
+  $('target').inputMode = state.operation === 'search' ? 'text' : 'url'; $('target-help').hidden = state.operation === 'search';
   $('target-label').textContent = state.operation === 'search' ? 'Search query' : 'Public URL';
   $('limit-label').hidden = !['crawl', 'map'].includes(state.operation); $('format').disabled = !['scrape', 'crawl'].includes(state.operation); updateRun();
 });
@@ -39,8 +47,11 @@ async function nativeRequest(path, body, method = body ? 'POST' : 'GET') {
   return data;
 }
 $('request-form').onsubmit = async event => {
-  event.preventDefault(); if (!account.session) { openSignIn(); return; }
+  event.preventDefault();
   $('error-banner').hidden = true;
+  try{if(state.operation!=='search')$('target').value=normalizeTarget($('target').value);}
+  catch(error){$('error-banner').textContent=error.message;$('error-banner').hidden=false;return;}
+  if (!account.session) { openSignIn(); return; }
   let body;
   try {
     const options = JSON.parse($('options').value || '{}'); if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('Request options must be a JSON object.');
