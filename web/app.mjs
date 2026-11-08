@@ -1,6 +1,7 @@
 import {account,openSignIn,refreshAccount} from './account.mjs';
 const $ = id => document.getElementById(id);
 const state = { accountEpoch:0, operation: 'scrape', response: null, view: 'content', ready: false, cap: null, busy: false, job: null, next: null };
+const toolViews = new Map();
 const config = {
   scrape: { title: 'Scrape a webpage', run: 'Scrape page', options: {}, note: 'Render a public page with Cloudflare Browser Run. One browser operation per request.' },
   crawl: { title: 'Crawl a website', run: 'Start crawl', options: { render: true, depth: 2 }, note: 'Start a managed Cloudflare crawl. Public pages only; robots rules and your page limit apply.' },
@@ -15,26 +16,39 @@ function normalizeTarget(value) {
   if(!['https:','http:'].includes(url.protocol)||url.username||url.password||!url.hostname)throw new Error('Use an HTTP or HTTPS website URL without a username or password.');
   return url.href;
 }
-function updateRun() { $('run-request').disabled = !state.ready || state.busy || (['search', 'extract'].includes(state.operation) && !state.cap?.available[state.operation]); $('run-request').textContent=account.session?config[state.operation].run+' →':'Sign in to try it →'; }
-window.addEventListener('aihackr-account',()=>{state.accountEpoch++;state.busy=false;state.response=null;state.job=null;state.next=null;$('result-content').textContent='';$('result-content').hidden=true;$('result-meta').hidden=true;$('error-banner').hidden=true;$('empty-result').hidden=false;$('copy-result').disabled=true;updateRun();updateJobActions();});
+function updateRun() {
+  $('run-request').disabled = !state.ready || state.busy || (['search', 'extract'].includes(state.operation) && !state.cap?.available[state.operation]);
+  $('run-request').textContent=account.session?config[state.operation].run+' →':'Sign in to try it →';
+  document.querySelectorAll('[data-operation]').forEach(tab=>{tab.disabled=state.busy||tab.dataset.operation==='search'&&!state.cap?.available.search;});
+}
+window.addEventListener('aihackr-account',()=>{toolViews.clear();state.accountEpoch++;state.busy=false;state.response=null;state.job=null;state.next=null;$('result-content').textContent='';$('result-content').hidden=true;$('result-meta').hidden=true;$('error-banner').hidden=true;$('empty-result').hidden=false;$('copy-result').disabled=true;updateRun();updateJobActions();});
 document.querySelectorAll('[data-operation]').forEach(button => button.onclick = () => {
+  if(state.busy||state.operation===button.dataset.operation)return;
+  toolViews.set(state.operation,{response:state.response,job:state.job,next:state.next,view:state.view,meta:$('result-meta').textContent,metaHidden:$('result-meta').hidden,error:$('error-banner').textContent,errorHidden:$('error-banner').hidden,options:$('options').value,limit:$('page-limit').value,format:$('format').value,target:$('target').value});
   state.operation = button.dataset.operation; const operation = config[state.operation];
+  const saved=toolViews.get(state.operation);
+  state.response=saved?.response??null;state.job=saved?.job??null;state.next=saved?.next??null;state.view=saved?.view??'content';
+  $('result-meta').textContent=saved?.meta??'';$('result-meta').hidden=saved?.metaHidden??true;
+  $('error-banner').textContent=saved?.error??'';$('error-banner').hidden=saved?.errorHidden??true;
   document.querySelectorAll('[data-operation]').forEach(tab => { const selected = tab === button; tab.classList.toggle('active', selected); tab.setAttribute('aria-selected', String(selected)); });
   $('operation-label').textContent = operation.title; $('route-label').textContent = 'POST /v2/' + state.operation;
   $('run-request').replaceChildren(document.createTextNode(operation.run + ' →'));
-  $('options').value = JSON.stringify(operation.options, null, 2); $('operation-note').textContent = operation.note;
+  $('options').value = saved?.options??JSON.stringify(operation.options, null, 2); $('operation-note').textContent = operation.note;
+  $('page-limit').value=saved?.limit??(state.operation==='map'?'20':'5');$('format').value=saved?.format??'markdown';
+  if(saved)$('target').value=saved.target;
   $('target').placeholder = state.operation === 'search' ? 'What are you researching?' : 'example.com or https://example.com';
   $('target').inputMode = state.operation === 'search' ? 'text' : 'url'; $('target-help').hidden = state.operation === 'search';
   $('target-label').textContent = state.operation === 'search' ? 'Search query' : 'Public URL';
-  $('limit-label').hidden = !['crawl', 'map'].includes(state.operation); $('format').disabled = !['scrape', 'crawl'].includes(state.operation); updateRun();
+  $('limit-title').textContent=state.operation==='map'?'Maximum links':'Maximum pages';
+  $('limit-label').hidden = !['crawl', 'map'].includes(state.operation); $('format').disabled = !['scrape', 'crawl'].includes(state.operation);showResult();updateJobActions();updateRun();
 });
 function showResult() {
-  if (!state.response) return;
+  $('view-content').classList.toggle('active', state.view === 'content'); $('view-json').classList.toggle('active', state.view === 'json');
+  if (!state.response) {$('result-content').textContent='';$('result-content').hidden=true;$('empty-result').hidden=false;$('copy-result').disabled=true;return;}
   const data = state.response.data ?? state.response;
   const content = (Array.isArray(data) ? data.map(record => [record.url, record.markdown ?? record.html ?? record.outcome ?? record.status].filter(Boolean).join('\n')).join('\n\n───\n\n') : null) ?? data.markdown ?? data.html ?? (Array.isArray(data.links) ? data.links.map(link => typeof link === 'string' ? link : link.url).join('\n') : null);
   $('result-content').textContent = state.view === 'content' && content ? content : JSON.stringify(state.response, null, 2);
   $('result-content').hidden = false; $('empty-result').hidden = true; $('copy-result').disabled = false;
-  $('view-content').classList.toggle('active', state.view === 'content'); $('view-json').classList.toggle('active', state.view === 'json');
 }
 $('view-content').onclick = () => { state.view = 'content'; showResult(); };
 $('view-json').onclick = () => { state.view = 'json'; showResult(); };

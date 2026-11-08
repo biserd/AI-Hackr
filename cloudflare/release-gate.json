@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-08T22:31:13.384Z",
+  "checkedAt": "2026-11-08T22:46:32.273Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "24574d71-5f6a-4acd-b496-f92a66fa2a8c",
+  "retainedCrawlId": "fda71e5d-5303-4264-ba90-958c2e0ac39f",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -43,13 +43,13 @@
     "get_crawl_result",
     "cancel_crawl"
   ],
-  "customerAccountGuardsVerifiedAt": "2026-11-08T22:32:34.301Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-08T22:47:18.723Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-08T22:33:10.318Z",
+  "redeployVerifiedAt": "2026-11-08T22:48:40.568Z",
   "customerPortal": {
     "checkedAt": "2026-11-08T22:14:14.442Z",
     "passed": true,
-    "sourceDigest": "4b658e6941569bdfcab497bea7f2cd0a8decde44c1e6e26ebcf208812d3ecd97",
+    "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
     "emailDelivered": true,
     "emailCodeLogin": true,
     "privateCustomerScrape": true,
@@ -77,9 +77,9 @@
     "signedOutResponsesHidden": true,
     "logoutVerifiedAt": "2026-11-08T22:16:48.945Z",
     "inheritedAccountVerification": {
-      "commit": "a0708e5f7445dbc4c9ab8feb15a2b9c215b66ccb",
-      "sourceDigest": "27acff2c7cfd30f51d297870fc557c307911813cf6aca037650165aa9941b2df",
-      "reason": "Only web/app.mjs and web/index.html changed; account, gateway, engine, config and dependencies are byte-identical to the verified release."
+      "commit": "5747a365fc04a38e5a9bf463c4c263549acd0e64",
+      "sourceDigest": "4b658e6941569bdfcab497bea7f2cd0a8decde44c1e6e26ebcf208812d3ecd97",
+      "reason": "Only playground JS/HTML changed; account, gateway, engine, configuration and dependencies are unchanged."
     },
     "urlInputVerification": {
       "checkedAt": "2026-11-08T22:33:10.492Z",
@@ -96,10 +96,47 @@
       "explicitHttpPreserved": true,
       "whitespaceAndPathPreserved": true,
       "unsupportedSchemeRejected": true
+    },
+    "toolSwitchingVerification": {
+      "checkedAt": "2026-11-08T22:49:37.163Z",
+      "browser": true,
+      "localUiFixture": {
+        "engineResponsesMocked": true,
+        "priorToolResultsHidden": true,
+        "crawlControlsOnlyOnCrawl": true,
+        "resultsRestoredPerTool": true,
+        "limitsRestoredIndependently": true,
+        "tabsDisabledDuringRequest": true
+      },
+      "liveStagingControls": {
+        "mapDefaultLinks": 20,
+        "crawlDefaultPages": 5,
+        "emptyContentViewCorrect": true,
+        "staleCrawlControlsHidden": true
+      }
+    },
+    "requestedLiveSiteChecks": {
+      "site": "https://llmmargin.com/",
+      "crawl": {
+        "status": "completed",
+        "pages": 3,
+        "seconds": 18.5
+      },
+      "map": {
+        "success": true,
+        "sameOriginLinks": 17,
+        "seconds": 2.5
+      },
+      "extract": {
+        "success": true,
+        "name": "LLM Margin",
+        "descriptionReturned": true,
+        "seconds": 3.3
+      }
     }
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "4b658e6941569bdfcab497bea7f2cd0a8decde44c1e6e26ebcf208812d3ecd97",
+  "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
   "portalVerified": true,
-  "stagingVersion": "224ba418-0e5d-46fe-a280-11cc277e2986"
+  "stagingVersion": "8e298cee-4a50-4b55-b62b-116bbe232c17"
 }
