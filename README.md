@@ -109,6 +109,8 @@ disabled unless `ENABLE_BACKGROUND_LOOPS=true` is explicitly set.
 
 ## License
 
+The additive [agent web-data service](services/web-data/README.md) is available in development at `/web-data`. Existing scanner functionality and production deployment remain in place. Read the service status and release gates before enabling providers. The new service is AGPL-3.0-or-later, separately from the scanner's existing MIT terms.
+
 MIT License — feel free to use, modify, and distribute.
 
 ---

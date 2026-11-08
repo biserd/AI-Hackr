@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import WebData from "@/pages/web-data";
 import CardPage from "@/pages/card";
 import About from "@/pages/about";
 import Terms from "@/pages/terms";
@@ -41,6 +42,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home}/>
+      <Route path="/web-data" component={WebData}/>
       <Route path="/card/:id" component={CardPage}/>
       <Route path="/scan/:domain" component={CardPage}/>
       <Route path="/about" component={About}/>

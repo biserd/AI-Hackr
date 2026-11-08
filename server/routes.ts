@@ -12,6 +12,7 @@ import { showHnProducts, showHnReports, scans } from "@shared/schema";
 import { db } from "./storage";
 import { sql, desc as descOrder } from "drizzle-orm";
 import { z } from "zod";
+import { registerWebData } from "./web-data";
 
 // In-memory queue for background scans
 const backgroundScanQueue: Map<string, { phase: "render" | "probe"; url: string }> = new Map();
@@ -134,6 +135,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Apply auth middleware to all routes
   app.use(authMiddleware);
+  registerWebData(app);
 
   // === AUTH ROUTES ===
   

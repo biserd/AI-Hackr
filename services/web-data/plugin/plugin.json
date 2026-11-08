@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aihackr",
+  "version": "0.1.0",
+  "description": "Bounded public-web data for agents with explicit prepaid spending limits.",
+  "author": { "name": "AIHackr", "url": "https://aihackr.com" },
+  "homepage": "https://aihackr.com/web-data",
+  "repository": "https://github.com/biserd/AI-Hackr",
+  "license": "AGPL-3.0-or-later",
+  "keywords": ["web", "research", "scrape", "search"],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "AIHackr",
+        "shortDescription": "Public web data with explicit spending limits",
+        "developerName": "AIHackr",
+        "category": "Productivity",
+        "websiteURL": "https://aihackr.com/web-data",
+        "privacyPolicyURL": "https://aihackr.com/privacy",
+        "termsOfServiceURL": "https://aihackr.com/terms",
+        "brandColor": "#26342B",
+        "defaultPrompt": [
+          "Read a public page with AIHackr within my credit limit."
+        ]
+      }
+    }
+  }
+}

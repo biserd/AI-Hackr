@@ -112,6 +112,7 @@ function Navbar() {
             </Button>
           </Link>
           <ThemeToggle />
+          <Link href="/web-data"><Button variant="ghost" size="sm" data-testid="link-web-data">Web data API</Button></Link>
           {!isLoading && (
             user ? (
               <Link href="/dashboard">
