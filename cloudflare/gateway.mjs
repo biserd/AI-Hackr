@@ -2,9 +2,9 @@ import { bearer, boundedJson, credentialMatches, errorResponse, integer, json, o
 import { engineName } from './browser-service.mjs';
 
 export function capabilities(env) {
-  return {release:'cloudflare-browser-run-0.3.0',engine:engineName,api:'/v2',mcp:'/mcp',
-    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:false},
-    access:'One operator workspace; public signup and customer billing are not enabled.',
+  return {release:'cloudflare-browser-run-0.4.0',engine:engineName,api:'/v2',mcp:'/mcp',
+    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:false,signup:true,emailSignIn:true,customerApiKeys:true},
+    access:'Email sign-in; private customer workspaces with a 20-page free trial. Paid billing is not enabled.',
     limits:{crawlPages:100,crawlDepth:5,activeCrawls:2,dailyPageAllowance:Number(env.DAILY_PAGE_LIMIT??1000),retentionDays:7},
     compatibility:'Documented Firecrawl-shaped REST subset; engine and MCP tools are Cloudflare Browser Run, not Firecrawl.',
     source:'https://github.com/biserd/AI-Hackr',
@@ -16,9 +16,9 @@ export async function authorized(request,env) {
   const incoming=new URL(request.url); const header=request.headers.get('origin');
   if(header && header!==incoming.origin) reject('ORIGIN_RESTRICTED','Use this workspace origin.',403);
 }
-export async function routeGateway(request,env,service,{mcp}={}) {
+export async function routeGateway(request,env,service,{mcp,authenticated=false}={}) {
   try {
-    await authorized(request,env);
+    if(!authenticated)await authorized(request,env);
     const url=new URL(request.url), path=url.pathname;
     if(path==='/api/session' && request.method==='GET')return json({authenticated:true,workspace:'Operator workspace',...capabilities(env)});
     if(path==='/mcp') {

@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-08T21:23:51.566Z",
+  "checkedAt": "2026-11-08T22:11:34.820Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -23,10 +23,13 @@
     },
     "officialOssMcp": {
       "passed": true
+    },
+    "customerAccountGuards": {
+      "passed": true
     }
   },
   "passed": true,
-  "retainedCrawlId": "a27beabe-8ad7-4c31-8384-db63c2ada4fb",
+  "retainedCrawlId": "8f3388f3-b426-4996-b8d0-e3fd57bd3084",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -40,10 +43,42 @@
     "get_crawl_result",
     "cancel_crawl"
   ],
+  "customerAccountGuardsVerifiedAt": "2026-11-08T22:15:51.395Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-08T21:27:16.991Z",
+  "redeployVerifiedAt": "2026-11-08T22:15:49.693Z",
+  "customerPortal": {
+    "checkedAt": "2026-11-08T22:14:14.442Z",
+    "passed": true,
+    "sourceDigest": "27acff2c7cfd30f51d297870fc557c307911813cf6aca037650165aa9941b2df",
+    "emailDelivered": true,
+    "emailCodeLogin": true,
+    "privateCustomerScrape": true,
+    "privateCustomerTwoPageCrawl": true,
+    "usage": {
+      "trialLimit": 20,
+      "reserved": 3,
+      "remaining": 17
+    },
+    "apiKeySettingsVisible": true,
+    "sessionAndUsagePersistedAcrossWorkerRedeploy": true,
+    "typography": {
+      "bodyPx": 17,
+      "labelPx": 15,
+      "inputPx": 16
+    },
+    "desktopOverflow": false,
+    "mobileViewportWidth": 390,
+    "mobileOverflow": false,
+    "screenshots": [
+      "AIHackr_SaaS_Staging_Desktop.png",
+      "AIHackr_SaaS_Staging_Mobile.png"
+    ],
+    "note": "Real email login completed by the owner; browser UI verified through CUA. Key ownership, revocation and tenant isolation additionally tested in the shared account/customer routing tests.",
+    "signedOutResponsesHidden": true,
+    "logoutVerifiedAt": "2026-11-08T22:16:48.945Z"
+  },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "7e9b9f3db2e64599fce574764a21560df046d3af21717bf5f399ca8fdc162260",
+  "sourceDigest": "27acff2c7cfd30f51d297870fc557c307911813cf6aca037650165aa9941b2df",
   "portalVerified": true,
-  "stagingVersion": "b207ba47-610a-4a22-80ff-9400e49d5d13"
+  "stagingVersion": "87438d66-72e0-4549-b650-0a63b1428b07"
 }

@@ -6,6 +6,7 @@ const receipt=JSON.parse(await readFile(new URL('../release-gate.json',import.me
 if(!receipt.passed||receipt.engine!=='cloudflare-browser-run'||!receipt.stagingOrigin)throw new Error('Production cutover requires recorded passing live Cloudflare integration checks.');
 for(const name of ['authenticationAndPrivateTargets','realBrowserMarkdownAndJavaScript','sameOriginLinkDiscovery','managedCrawlAndDurableResults','structuredExtraction','managedCrawlPaginationAndCancellation','officialOssMcp'])if(!receipt.checks?.[name]?.passed)throw new Error('A required live release check is missing: '+name);
 if(!receipt.persistenceAcrossWorkerRedeploy)throw new Error('Completed crawl recovery after Worker replacement has not been verified.');
+if(!receipt.checks.customerAccountGuards?.passed||!receipt.customerPortal?.passed||receipt.customerPortal.sourceDigest!==receipt.sourceDigest)throw new Error('Customer account and portal verification are required.');
 if(receipt.sourceDigest!==await sourceDigest())throw new Error('Source changed after the passing live release gate. Revalidate staging before production deployment.');
 const response=await fetch(new URL('/health/ready',receipt.stagingOrigin),{signal:AbortSignal.timeout(10000)});
 if(!response.ok||!(await response.json()).ready)throw new Error('Cloudflare staging is not ready; production cutover refused.');

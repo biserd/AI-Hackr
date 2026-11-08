@@ -7,7 +7,9 @@
     "nodejs_compat"
   ],
   "workers_dev": true,
-  "triggers": { "crons": [] },
+  "triggers": {
+    "crons": []
+  },
   "account_id": "73d71a2bef58f7469ecb48e2b8e84c0e",
   "routes": [
     {
@@ -54,6 +56,10 @@
       {
         "name": "BROWSER_WORKSPACE",
         "class_name": "BrowserWorkspace"
+      },
+      {
+        "name": "ACCOUNT_DIRECTORY",
+        "class_name": "AccountDirectory"
       }
     ]
   },
@@ -75,12 +81,20 @@
       "new_sqlite_classes": [
         "BrowserWorkspace"
       ]
+    },
+    {
+      "tag": "v4-customer-accounts",
+      "new_sqlite_classes": [
+        "AccountDirectory"
+      ]
     }
   ],
   "env": {
     "staging": {
       "name": "aihackr-browser-run-stage",
-      "browser": { "binding": "BROWSER" },
+      "browser": {
+        "binding": "BROWSER"
+      },
       "routes": [],
       "vars": {
         "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
@@ -99,9 +113,29 @@
           {
             "name": "BROWSER_WORKSPACE",
             "class_name": "BrowserWorkspace"
+          },
+          {
+            "name": "ACCOUNT_DIRECTORY",
+            "class_name": "AccountDirectory"
           }
         ]
-      }
+      },
+      "send_email": [
+        {
+          "name": "EMAIL",
+          "allowed_sender_addresses": [
+            "hello@aihackr.com"
+          ]
+        }
+      ]
     }
-  }
+  },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "hello@aihackr.com"
+      ]
+    }
+  ]
 }
