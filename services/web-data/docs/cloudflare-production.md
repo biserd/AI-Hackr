@@ -1,6 +1,6 @@
 # Existing Cloudflare production integration
 
-The container uses a multi-stage build to keep development dependencies and npm cache/build layers outside the runtime image, within the existing 4 GB application image limit. The Playwright runtime base and current instance size are retained.
+The container uses a multi-stage Node 24 Debian build to keep development dependencies and npm cache/build layers outside the runtime image, within the existing 4 GB application image limit. The existing scanner imports Chromium only. The runtime installs Chromium and its system dependencies using the locked Playwright package; Firefox and WebKit are omitted. The Docker build launches Chromium and checks JavaScript execution before deployment. The current instance size is retained. See [Playwright's custom-image guidance](https://playwright.dev/docs/docker#build-your-own-image).
 
 Production uses AIHackr's existing `aihackr` Worker and `AIHackrContainer`, existing D1 scanner database, existing email binding, and cron. No separate host or PostgreSQL service is provisioned. `WebDataStore` is an additive SQLite-backed Durable Object in the same Worker.
 
