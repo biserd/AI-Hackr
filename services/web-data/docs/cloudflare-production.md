@@ -1,5 +1,7 @@
 # Existing Cloudflare production integration
 
+The container uses a multi-stage build to keep development dependencies and npm cache/build layers outside the runtime image, within the existing 4 GB application image limit. The Playwright runtime base and current instance size are retained.
+
 Production uses AIHackr's existing `aihackr` Worker and `AIHackrContainer`, existing D1 scanner database, existing email binding, and cron. No separate host or PostgreSQL service is provisioned. `WebDataStore` is an additive SQLite-backed Durable Object in the same Worker.
 
 The original application and the web-data API run as supervised sibling processes in the existing container. The public app forwards `/v1`, `/mcp`, protected-resource metadata, sandbox webhooks, compatibility and health routes to the private companion process. The verified-email dashboard bridge retains owner identity. Production endpoints are `https://aihackr.com/web-data` and `https://aihackr.com/mcp`.
