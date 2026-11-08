@@ -42,8 +42,10 @@ test('workspace authentication cannot be bypassed by missing key or foreign Orig
 test('managed crawl enforces server bounds and retains completed results across new service instances',async()=>{
   const{service,requests,store}=setup();
   const created=await service.createCrawl({url:'https://example.com',limit:2,render:false});
+  const pending=await store.get('job:'+created.id);pending.expiresAt=Date.now()+1000;await store.put('job:'+created.id,pending);
   const sent=JSON.parse(requests[0].init.body);assert.equal(sent.limit,2);assert.equal(sent.options.includeExternalLinks,false);assert.equal(sent.maxAge,0);assert.equal(requests[0].init.redirect,'manual');
   const result=await service.getCrawl(created.id);assert.equal(result.status,'completed');assert.equal(result.data.length,2);
+  assert(Date.parse(result.expiresAt)>Date.now()+6*86400000,'Completed results need the full retention period, even after a long-running job.');
   const restored=new BrowserService(env,store,{fetcher:()=>assert.fail('Completed retained results must not require provider availability'),validateUrl:publicUrl});
   assert.equal((await restored.getCrawl(created.id)).data[1].markdown,'# Second');
   await assert.rejects(()=>restored.getCrawl('unknown-job-1234567890'),{code:'NOT_FOUND'});
