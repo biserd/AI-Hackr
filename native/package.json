@@ -1,0 +1,17 @@
+{
+  "name": "aihackr-firecrawl-native",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/start.mjs",
+    "test": "node --test test/gateway.test.mjs",
+    "test:stack": "node test/stack.mjs",
+    "setup": "node scripts/setup.mjs",
+    "verify:source": "node scripts/verify-source.mjs"
+  },
+  "dependencies": { "firecrawl-mcp": "3.36.1", "ipaddr.js": "2.2.0" },
+  "devDependencies": { "firecrawl": "4.52.0", "@modelcontextprotocol/sdk": "1.32.2", "yaml": "2.9.0" }
+}

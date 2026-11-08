@@ -1,0 +1,17 @@
+{
+  "firecrawl": {
+    "repository": "https://github.com/firecrawl/firecrawl",
+    "release": "v2.11.162",
+    "commit": "7666c1f9ae8720a6bba271e0f60b6a217f8a5210",
+    "path": "vendor/firecrawl",
+    "basis": "Release pinned in the official self-hosting guide, inspected 2026-11-08",
+    "modifications": []
+  },
+  "mcp": {
+    "package": "firecrawl-mcp",
+    "version": "3.36.1",
+    "repository": "https://github.com/firecrawl/firecrawl-mcp-server",
+    "commit": "6bd077c69a0143f03de93687f5f8bb8477944845",
+    "integration": "Official exported createFirecrawlMcpServer embedding API; native tools and schemas, filtered to self-hosted capabilities"
+  }
+}
