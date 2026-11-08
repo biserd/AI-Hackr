@@ -1,4 +1,5 @@
 import robotsParser from 'robots-parser';
+import {directoryCall} from './accounts.mjs';
 import { ServiceError, reject, integer, validatePublicUrl, boundedText, onlyKeys } from './policy.mjs';
 
 const userAgent = 'AIHackr/0.3 (+https://aihackr.com/docs)';
@@ -21,6 +22,7 @@ export class BrowserService {
       budget.pages += pages; rate.requests++;
       await txn.put({ budget, rate });
     });
+    if(this.env.ACCOUNT_DIRECTORY&&pages)await directoryCall(this.env,'reserve',pages,this.env.CUSTOMER_ID??null);
   }
   async provider(action, method = 'POST', body, query = '') {
     let response;

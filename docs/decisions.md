@@ -13,3 +13,12 @@ Completed crawl results use Durable Object storage rather than R2 for this bound
 This release remains the previously agreed operator-workspace baseline. Public signup, independent customer tenants, payment collection and OAuth linking are not advertised or implemented as part of this infrastructure cutover. No reuse of the outdated scanner or its custom data/queue/MCP implementation is introduced.
 
 Production deployment requires live staging verification, persistence across redeploy, a matching source digest and configured encrypted secrets. A deployment heartbeat is not evidence of successful retrieval. Preserve existing Durable Object identities as inert compatibility exports; do not delete stored production data during this rollout.
+
+
+## November 8, 2026: Customer SaaS accounts
+
+The owner clarified that the product must be a SaaS and asked to remove the OSS logo badges and increase typography. Replace the public operator-key connection form with email-code signup/sign-in. Reuse the verified Cloudflare Email Service sender and add an AccountDirectory Durable Object; no external identity or hosting provider is introduced. The code uses existing Web Crypto primitives with no new runtime dependencies.
+
+A verified email owns an immutable account UUID, an isolated BrowserWorkspace, hashed revocable API keys and expiring hashed session records. Browser mutations require an exact same-origin header, sessions use Secure/HttpOnly/SameSite=Strict cookies, and challenges bind an eight-digit code to an opaque HttpOnly cookie, expire after ten minutes and lock after five incorrect attempts. Auth errors are serialized through the DO RPC boundary and reconstructed as typed service errors. Public signup requires no payment or terms acceptance. Customer quotas and global reservations are stored atomically, not inferred from keys or browser state.
+
+Start with a 20-page lifetime trial per account, a 20-page daily cap, and the existing shared 1,000-page daily service reservation ceiling. Per-email/IP/global auth throttles and account creation limits bound email and browser spending. Aliases and distributed signups can still consume the shared service allowance; this is not a full fraud prevention system or a dollar spending cap. Paid billing, OAuth linking, search, customer data export/deletion and larger-scale operations remain future scope. Existing operator bearer access and stored data remain isolated and usable for operations. The former operator-workspace-only release decision is superseded for customer onboarding.

@@ -10,12 +10,13 @@ This replaces the previously prepared native Firecrawl/Docker design following t
 | --- | --- |
 | Portal and documentation | Reused fresh static portal in `web/` |
 | HTTPS, routing, authentication | Cloudflare Worker and adapted shared gateway |
+| Customer accounts | Email-code sign-in through the existing Cloudflare Email Service; hashed sessions and keys in AccountDirectory |
 | Rendering, conversion, extraction | Browser Run Quick Actions through the Worker browser binding |
 | Asynchronous crawling | Browser Run managed `/crawl` API, using a scoped operator credential |
 | Workspace limits, job ownership and retained results | New SQLite-backed `BrowserWorkspace` Durable Object |
 | MCP | Unmodified tool-registration source from `cloudflare/mcp-server-cloudflare`, pinned to `a21972e219289337731a066befb5c66886b9ce7b`; patched official MCP SDK/Agents dependencies |
 
-The account is fixed server-side. Caller credentials never become Cloudflare account credentials. REST and MCP invoke the same target validation, robots policy, quotas and job store. Old Durable Object exports are inert compatibility classes so migration does not delete previously stored resources.
+The Cloudflare provider account is fixed server-side. Each verified customer receives a separate BrowserWorkspace Durable Object. Browser sessions use Secure, HttpOnly, SameSite=Strict cookies. Optional developer API keys are hashed at rest, shown once and revocable. Caller credentials never become Cloudflare account credentials. REST and MCP invoke the same target validation, robots policy, quotas and job store. Old Durable Object exports are inert compatibility classes so migration does not delete previously stored resources.
 
 ## Setup and validation
 
@@ -44,11 +45,15 @@ The live verification exercises real browser JavaScript, links, managed crawling
 
 See `/docs` and `/api/capabilities`. `/v2` provides a documented Firecrawl-shaped migration subset, not full Firecrawl SDK/API compatibility. MCP uses official Cloudflare tool names, not Firecrawl tool names.
 
-One operator workspace. Scrape Markdown/HTML/links, discover same-origin links on one page, extract structured JSON, and start/status/cancel a bounded managed crawl. Defaults are 20 pages and depth 2; maximum is 100 pages and depth 5. There are two active crawl slots, three concurrent gateway requests, 30 admitted engine operations per minute and 1,000 reserved pages per day. A crawl reserves its requested maximum even when fewer pages complete; this is an allowance, not customer billing. Browser use and optional inference incur Cloudflare usage charges.
+Public email-code signup and sign-in create isolated customer workspaces. Each customer receives a 20-page lifetime free trial, with a 20-page daily maximum. The existing operator API key remains usable for bounded operations without exposing operator data to customers. A shared directory atomically enforces a 1,000-page daily service allowance across customers and operator requests. Trials survive sign-in, key rotation and deployment. Paid plans are not yet available.
+
+Scrape Markdown/HTML/links, discover same-origin links, extract JSON and start/status/cancel managed crawls. Crawl defaults are 20 pages and depth 2, with maximum 100 pages/depth 5, subject to the account allowance. Each workspace has two active crawl slots, three concurrent requests and 30 engine operations per minute. Crawls reserve the requested maximum even if fewer pages finish or the provider fails. Local daily reservations may also be consumed when a shared allowance rejects a request. Reservations are not customer billing. Browser use, email and extraction incur applicable Cloudflare usage charges.
+
+Sign-in codes expire in 10 minutes, are single-use and lock after five invalid attempts. Sign-in requests have per-IP, per-email and global limits; signup is limited to three accounts per IP and 50 globally in a rolling day. Sessions expire after seven days. Email uses the existing hello@aihackr.com sender through the EMAIL binding. The portal no longer accepts an operator key; sign in and manage developer credentials under API keys. No passwords or provider credentials are stored in browser JavaScript. There is no checkout or paid subscription.
 
 Completed crawl records are retained in Durable Object storage for seven days. Retrieval is paginated in groups of ten. Content is limited to 60,000 characters per page/format with explicit truncation. Cached completed records remain readable without the managed provider. Raw provider job identifiers are never accepted as workspace-owned jobs.
 
-Search, batch scraping, customer signup, tenant billing and OAuth linking are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
+Search, batch scraping, paid tenant billing and OAuth linking are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
 
 ## Source and licenses
 
