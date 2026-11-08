@@ -1,42 +1,55 @@
-# AIHackr — native Firecrawl OSS
+# AIHackr — Cloudflare Browser Run
 
-AIHackr is being rebuilt on Firecrawl's own open-source stack: API, engines, format conversion, crawling, job workers, Playwright renderer, Redis, RabbitMQ and NuQ PostgreSQL. The official Firecrawl SDK and MCP tools connect directly to native `/v2` endpoints.
+Public-web data for developers and agents, hosted entirely on Cloudflare. The new portal and gateway use managed Browser Run for page retrieval, JavaScript rendering, structured extraction and asynchronous crawls. MCP embeds the official Cloudflare Browser Run tool implementations and schemas.
 
-The previous scanner, provider intelligence pages, watchlists, custom scraping engine, custom queue and bespoke MCP tools are removed from this branch. The new portal and gateway import none of that application. Previous releases remain in Git for rollback; existing production databases are not deleted.
-
-**Status:** replacement under validation in [PR #4](https://github.com/biserd/AI-Hackr/pull/4). This branch has not replaced the live prototype. Full-stack tests and an identified persistent Docker host are required before cutover.
+This replaces the previously prepared native Firecrawl/Docker design following the owner's explicit selection of Browser Run. No external Docker host, PostgreSQL, Redis, RabbitMQ or Firecrawl Cloud API is required. The outdated scanner application is retired. Earlier implementations remain in Git history; existing stored production resources are not deleted.
 
 ## Architecture
 
 | Layer | Implementation |
-|---|---|
-| Public domain, frontend, TLS and routing | Existing Cloudflare Worker with fresh static portal |
-| Thin access gateway | New Node service; one operator workspace API key |
-| Core collection, conversion, queues and workers | Unmodified Firecrawl `v2.11.162`, pinned commit `7666c1f9ae8720a6bba271e0f60b6a217f8a5210` |
-| Browser | Upstream Playwright service and its locked Chromium version |
-| Persistence / messaging | Native NuQ PostgreSQL, Redis and RabbitMQ, with durable Docker volumes |
-| MCP | Official `firecrawl-mcp@3.36.1` tool implementations, schemas and transport |
+| --- | --- |
+| Portal and documentation | Reused fresh static portal in `web/` |
+| HTTPS, routing, authentication | Cloudflare Worker and adapted shared gateway |
+| Rendering, conversion, extraction | Browser Run Quick Actions through the Worker browser binding |
+| Asynchronous crawling | Browser Run managed `/crawl` API, using a scoped operator credential |
+| Workspace limits, job ownership and retained results | New SQLite-backed `BrowserWorkspace` Durable Object |
+| MCP | Unmodified tool-registration source from `cloudflare/mcp-server-cloudflare`, pinned to `a21972e219289337731a066befb5c66886b9ce7b`; patched official MCP SDK/Agents dependencies |
 
-Cloudflare D1/Queues/KV are not drop-in PostgreSQL/RabbitMQ/Redis implementations. Hyperdrive connects to an existing database; it does not host PostgreSQL. Keeping Firecrawl native requires persistent backend infrastructure rather than rewriting it for those APIs.
+The account is fixed server-side. Caller credentials never become Cloudflare account credentials. REST and MCP invoke the same target validation, robots policy, quotas and job store. Old Durable Object exports are inert compatibility classes so migration does not delete previously stored resources.
 
-## Run and verify
+## Setup and validation
+
+Use Node 24 and the exact lockfiles:
 
 ```sh
-git submodule update --init --recursive
-cd native
 npm ci --ignore-scripts
-npm run verify:source
-node scripts/prepare-build.mjs
-npm run setup
-docker compose up --build -d --wait --wait-timeout 360
+npm run build
 npm test
-npm run test:stack
+npm --prefix cloudflare audit --omit=dev
+node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --dry-run
 ```
 
-Only the gateway is exposed, on loopback port 8080. All upstream APIs and dependency ports are private. See [native/README.md](native/README.md) for setup, persistence, tests, providers and deployment gates. [Provenance](native/upstream.lock.json) records exact source/package pins; upstream source and licenses are retained in [vendor/firecrawl](vendor/firecrawl).
+Set encrypted Worker secrets `AIHACKR_API_KEY` (a random workspace key of at least 32 characters) and `CLOUDFLARE_BROWSER_TOKEN` (Browser Run: Edit, scoped to the operator's account). The `BROWSER` binding handles page Quick Actions without an API token; the managed crawl API requires the scoped token. Never persist a Wrangler OAuth refresh token in the service or put provider credentials in Git/client code.
 
-## Deploy
+Staging is `aihackr-browser-run-stage.biser-d.workers.dev`, configured by the `staging` Wrangler environment. Production is the existing `aihackr` Worker on `aihackr.com` and `www.aihackr.com`.
 
-Configure a persistent Docker host and an authenticated Cloudflare Tunnel to the native gateway. Set `NATIVE_BACKEND_ORIGIN` in `wrangler.jsonc` to that verified HTTPS origin, then run `npm run build && npm run deploy`. Deployment refuses an empty/unconfigured origin, preventing an accidental cutover to a nonfunctional backend. The old Durable Object class identities remain as inert compatibility exports to preserve stored data during migration; they do not serve the new product.
+```sh
+node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --env staging
+AIHACKR_ORIGIN=https://your-stage.example AIHACKR_API_KEY=your-private-key node cloudflare/test/live.mjs
+```
 
-This native baseline supports one operator workspace. Public signup, prepaid tenant billing and OAuth are not implemented in the replacement. It is not a paid multi-tenant beta or a claim of Firecrawl Cloud feature parity. Search and extraction require separately configured providers. Full browser isolation and backup/restore validation remain release gates.
+The live verification exercises real browser JavaScript, links, managed crawling, retained records, JSON extraction and the official MCP implementation. Mocked local tests do not substitute for it. Redeploy staging and re-read a completed crawl to verify persistence across Worker replacement. The production deploy script requires a passing release gate matching the current source digest and a ready staging deployment.
+
+## API and supported scope
+
+See `/docs` and `/api/capabilities`. `/v2` provides a documented Firecrawl-shaped migration subset, not full Firecrawl SDK/API compatibility. MCP uses official Cloudflare tool names, not Firecrawl tool names.
+
+One operator workspace. Scrape Markdown/HTML/links, discover same-origin links on one page, extract structured JSON, and start/status/cancel a bounded managed crawl. Defaults are 20 pages and depth 2; maximum is 100 pages and depth 5. There are two active crawl slots, three concurrent gateway requests, 30 admitted engine operations per minute and 1,000 reserved pages per day. A crawl reserves its requested maximum even when fewer pages complete; this is an allowance, not customer billing. Browser use and optional inference incur Cloudflare usage charges.
+
+Completed crawl records are retained in Durable Object storage for seven days. Retrieval is paginated in groups of ten. Content is limited to 60,000 characters per page/format with explicit truncation. Cached completed records remain readable without the managed provider. Raw provider job identifiers are never accepted as workspace-owned jobs.
+
+Search, batch scraping, customer signup, tenant billing and OAuth linking are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
+
+## Source and licenses
+
+AIHackr's wrapper remains AGPL-3.0-or-later. The official Cloudflare MCP tool source is Apache-2.0; its license and source digest are retained under `cloudflare/vendor/` and `cloudflare/upstream.lock.json`. The official file is unchanged; import aliases adapt its client and workspace context. Authentication/account selection and exposed tool filtering are AIHackr adaptations. See `THIRD_PARTY_NOTICES.md` and `docs/decisions.md`.

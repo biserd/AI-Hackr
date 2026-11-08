@@ -1,0 +1,30 @@
+name: Cloudflare Browser Run
+on:
+  push:
+    branches: [codex/firecrawl-native, main]
+  pull_request:
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  gateway-and-mcp:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: '24', cache: npm, cache-dependency-path: cloudflare/package-lock.json }
+      - name: Install pinned runtime dependencies
+        run: npm --prefix cloudflare ci --ignore-scripts
+      - name: Verify official tool source and gateway invariants
+        run: |
+          npm --prefix cloudflare run verify:source
+          npm test
+          npm --prefix cloudflare audit --omit=dev --audit-level=high
+          node --input-type=module -e 'import assert from "node:assert/strict"; import {readFile} from "node:fs/promises"; import {sourceDigest} from "./cloudflare/scripts/source-digest.mjs"; const gate=JSON.parse(await readFile("cloudflare/release-gate.json","utf8")); assert.equal(await sourceDigest(),gate.sourceDigest);'
+      - name: Build portal and compile Worker with official MCP tools
+        run: |
+          node cloudflare/scripts/build.mjs
+          node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --dry-run --outdir cloudflare/.build

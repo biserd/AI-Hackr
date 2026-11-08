@@ -1,3 +1,0 @@
-[submodule "vendor/firecrawl"]
-	path = vendor/firecrawl
-	url = https://github.com/firecrawl/firecrawl.git
