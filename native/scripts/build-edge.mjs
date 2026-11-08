@@ -1,0 +1,12 @@
+import { cp, mkdir, rm, lstat } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { resolve, sep } from 'node:path';
+const root = fileURLToPath(new URL('../../', import.meta.url));
+const destination = resolve(root, 'dist');
+if (!destination.startsWith(resolve(root) + sep)) throw new Error('Build destination escaped repository.');
+const previous = await lstat(destination).catch(() => null);
+if (previous?.isSymbolicLink()) throw new Error('Refusing to replace a linked build directory.');
+await rm(destination, { recursive: true, force: true });
+await mkdir(destination, { recursive: true });
+await cp(new URL('../public/', import.meta.url), resolve(destination, 'public'), { recursive: true });
+console.log('Built the fresh Firecrawl-native frontend; no legacy application assets included.');

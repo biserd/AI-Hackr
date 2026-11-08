@@ -1,69 +1,24 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "aihackr",
-  "main": "worker/index.ts",
-  "compatibility_date": "2026-08-23",
-  "compatibility_flags": ["nodejs_compat"],
+  "main": "native/edge-worker.mjs",
+  "compatibility_date": "2026-11-08",
   "workers_dev": true,
   "routes": [
-    {
-      "pattern": "aihackr.com",
-      "custom_domain": true
-    },
-    {
-      "pattern": "www.aihackr.com",
-      "custom_domain": true
-    }
+    { "pattern": "aihackr.com", "custom_domain": true },
+    { "pattern": "www.aihackr.com", "custom_domain": true }
   ],
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "aihackr-production",
-      "database_id": "ccc01fbb-25b6-49a4-860f-4ddf22984515",
-      "migrations_dir": "migrations"
-    }
-  ],
-  "send_email": [
-    {
-      "name": "EMAIL",
-      "allowed_sender_addresses": ["hello@aihackr.com"]
-    }
-  ],
-  "containers": [
-    {
-      "class_name": "AIHackrContainer",
-      "image": "./Dockerfile",
-      "instance_type": "basic",
-      "max_instances": 1
-    }
-  ],
+  "assets": { "directory": "./dist/public", "binding": "ASSETS", "run_worker_first": true },
+  "vars": { "NATIVE_BACKEND_ORIGIN": "" },
+  "observability": { "logs": { "enabled": true, "invocation_logs": false } },
   "durable_objects": {
     "bindings": [
-      {
-        "name": "AIHACKR",
-        "class_name": "AIHackrContainer"
-      },
-      {
-        "name": "WEB_DATA_STORE",
-        "class_name": "WebDataStore"
-      }
+      { "name": "AIHACKR", "class_name": "AIHackrContainer" },
+      { "name": "WEB_DATA_STORE", "class_name": "WebDataStore" }
     ]
   },
   "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["AIHackrContainer"]
-    },
-    {
-      "tag": "v2-web-data-store",
-      "new_sqlite_classes": ["WebDataStore"]
-    }
-  ],
-  "triggers": {
-    "crons": ["*/10 * * * *"]
-  }
+    { "tag": "v1", "new_sqlite_classes": ["AIHackrContainer"] },
+    { "tag": "v2-web-data-store", "new_sqlite_classes": ["WebDataStore"] }
+  ]
 }

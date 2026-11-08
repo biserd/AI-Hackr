@@ -1,118 +1,42 @@
-# AIHackr
+# AIHackr — native Firecrawl OSS
 
-**AI provider intelligence for SaaS** — the only tool that tells you which AI/LLM provider any SaaS is actually running, with confidence levels and the evidence trail.
+AIHackr is being rebuilt on Firecrawl's own open-source stack: API, engines, format conversion, crawling, job workers, Playwright renderer, Redis, RabbitMQ and NuQ PostgreSQL. The official Firecrawl SDK and MCP tools connect directly to native `/v2` endpoints.
 
-## What is AIHackr?
+The previous scanner, provider intelligence pages, watchlists, custom scraping engine, custom queue and bespoke MCP tools are removed from this branch. The new portal and gateway import none of that application. Previous releases remain in Git for rollback; existing production databases are not deleted.
 
-AIHackr fingerprints the AI stack behind any SaaS in seconds. Paste a URL and get back an **AI Intelligence Report**: the AI provider, the inferred model family, the gateway, and how they're calling it (direct API, gateway, or proxy) — plus the surrounding tech stack.
+**Status:** replacement under validation in [PR #4](https://github.com/biserd/AI-Hackr/pull/4). This branch has not replaced the live prototype. Full-stack tests and an identified persistent Docker host are required before cutover.
 
-We're positioned distinctly from BuiltWith and Wappalyzer. They map general tech stacks. We're the wedge tool for AI provider intelligence.
+## Architecture
 
-### What We Detect
+| Layer | Implementation |
+|---|---|
+| Public domain, frontend, TLS and routing | Existing Cloudflare Worker with fresh static portal |
+| Thin access gateway | New Node service; one operator workspace API key |
+| Core collection, conversion, queues and workers | Unmodified Firecrawl `v2.11.162`, pinned commit `7666c1f9ae8720a6bba271e0f60b6a217f8a5210` |
+| Browser | Upstream Playwright service and its locked Chromium version |
+| Persistence / messaging | Native NuQ PostgreSQL, Redis and RabbitMQ, with durable Docker volumes |
+| MCP | Official `firecrawl-mcp@3.36.1` tool implementations, schemas and transport |
 
-- **AI Providers**: OpenAI, Anthropic, Google, Mistral, Cohere, Azure OpenAI, AWS Bedrock, Groq, and more — with direct-API vs gateway distinction
-- **Frameworks**: Next.js, React, Vue, Angular, Svelte, and more
-- **Hosting**: Vercel, Netlify, AWS, Cloudflare, Replit, Railway, Heroku
-- **Payments**: Stripe, Paddle, and other payment processors
-- **Authentication**: Auth0, Clerk, Firebase Auth, Supabase Auth
-- **Analytics**: Google Analytics, Mixpanel, Segment, Amplitude
-- **Support**: Intercom, Crisp, Zendesk, and other chat widgets
+Cloudflare D1/Queues/KV are not drop-in PostgreSQL/RabbitMQ/Redis implementations. Hyperdrive connects to an existing database; it does not host PostgreSQL. Keeping Firecrawl native requires persistent backend infrastructure rather than rewriting it for those APIs.
 
-### How It Works
+## Run and verify
 
-1. **Paste a URL** — Enter any website address
-2. **Passive Scan** — We analyze HTML, headers, scripts, and DNS records (instant)
-3. **Render Scan** — We load the page in a browser to capture network activity (automatic)
-4. **Probe Scan** — Optional deep scan that interacts with the page to detect AI features
+```sh
+git submodule update --init --recursive
+cd native
+npm ci --ignore-scripts
+npm run verify:source
+node scripts/prepare-build.mjs
+npm run setup
+docker compose up --build -d --wait --wait-timeout 360
+npm test
+npm run test:stack
+```
 
-Each detection includes:
-- **Confidence levels** (High, Medium, Low)
-- **Evidence trails** showing exactly what we found
-- **Shareable AI Intelligence Reports** for social media
+Only the gateway is exposed, on loopback port 8080. All upstream APIs and dependency ports are private. See [native/README.md](native/README.md) for setup, persistence, tests, providers and deployment gates. [Provenance](native/upstream.lock.json) records exact source/package pins; upstream source and licenses are retained in [vendor/firecrawl](vendor/firecrawl).
 
-## Features
+## Deploy
 
-- **AI Provider Fingerprinting**: Identify which LLM provider a SaaS is using and how
-- **Confidence Scores With Evidence Trails**: Every detection ships with the signals that triggered it — no black box
-- **Migration Monitoring** *(Pro)*: Watch any SaaS and get alerted when their AI stack changes
-- **Progressive Scanning**: Get instant results while deeper analysis runs in the background
-- **Origin Host Inference**: Detect the actual hosting provider behind CDNs
-- **Third-Party Service Grouping**: Organized view of all external services
-- **Shareable Reports**: Clean URLs like `/scan/stripe.com` for easy sharing
+Configure a persistent Docker host and an authenticated Cloudflare Tunnel to the native gateway. Set `NATIVE_BACKEND_ORIGIN` in `wrangler.jsonc` to that verified HTTPS origin, then run `npm run build && npm run deploy`. Deployment refuses an empty/unconfigured origin, preventing an accidental cutover to a nonfunctional backend. The old Durable Object class identities remain as inert compatibility exports to preserve stored data during migration; they do not serve the new product.
 
-## Tech Stack
-
-AIHackr is built with:
-- React 18 + TypeScript
-- Tailwind CSS + shadcn/ui
-- Express.js in a Cloudflare Container
-- Cloudflare Workers as the public edge and scheduler
-- Cloudflare D1 + Drizzle ORM
-- Cloudflare Email Sending for transactional email
-- Playwright for browser scanning inside the container
-
-## FAQ
-
-### Is this legal?
-
-Yes. AIHackr only analyzes publicly accessible information — the same data your browser sees when visiting a website. We don't access private data, bypass authentication, or exploit vulnerabilities.
-
-### How accurate is the detection?
-
-Our passive scans achieve ~94% accuracy on frameworks, hosting, and major integrations. AI provider detection depends on public signals — we only report what we can verify, with confidence levels for each claim.
-
-### Why wasn't AI detected on a site I know uses AI?
-
-AI calls may be:
-- Server-side only (not visible in browser network)
-- Routed through custom proxies that strip identifying headers
-- Only triggered after user authentication
-- Using internal/custom models
-
-That's why we show confidence levels — if we're not sure, we tell you.
-
-### What's the difference between scan types?
-
-- **Passive**: Analyzes static HTML and headers (instant, always runs)
-- **Render**: Loads the page in a real browser to capture JavaScript-initiated requests (automatic)
-- **Probe**: Interacts with the page (clicks buttons, fills forms) to trigger AI features (optional, user-initiated)
-
-### Can I scan any website?
-
-Most public websites work. Some sites with aggressive bot protection may block our scans. Sites requiring authentication cannot have their authenticated features scanned.
-
-### Is my data private?
-
-Scan results are stored to enable shareable links. We don't store any data from the scanned websites themselves — only our analysis results.
-
-## Cloudflare deployment
-
-The public Worker owns routing, scheduled work, D1 access, and outbound email.
-It proxies application requests to a single Cloudflare Container running the
-Express/Playwright application. The container reaches D1 and Email Sending only
-through private Worker outbound handlers, so no database URL or email API key is
-stored in the app.
-
-1. Install dependencies with `npm ci` (Node 22 or newer).
-2. Create a D1 database and set its ID in `wrangler.jsonc`.
-3. Apply migrations with `npm run db:migrate:remote`.
-4. Enable Email Sending for `aihackr.com` and keep the `EMAIL` binding's allowed
-   sender aligned with the verified domain.
-5. Deploy with `npm run deploy`. Cloudflare Workers Builds can build the
-   `Dockerfile` remotely when the GitHub repository is connected.
-6. Validate the `workers.dev` staging URL before attaching `aihackr.com` and
-   `www.aihackr.com` as custom domains.
-
-For local schema work, use `npm run db:migrate:local`. Production background
-jobs run from the Worker cron trigger; the container's in-process timers are
-disabled unless `ENABLE_BACKGROUND_LOOPS=true` is explicitly set.
-
-## License
-
-The additive [agent web-data service](services/web-data/README.md) is available in development at `/web-data`. Existing scanner functionality and production deployment remain in place. Read the service status and release gates before enabling providers. The new service is AGPL-3.0-or-later, separately from the scanner's existing MIT terms.
-
-MIT License — feel free to use, modify, and distribute.
-
----
-
-Built with curiosity about what powers the AI behind the web.
+This native baseline supports one operator workspace. Public signup, prepaid tenant billing and OAuth are not implemented in the replacement. It is not a paid multi-tenant beta or a claim of Firecrawl Cloud feature parity. Search and extraction require separately configured providers. Full browser isolation and backup/restore validation remain release gates.

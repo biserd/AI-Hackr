@@ -1,6 +1,6 @@
 # AIHackr on native Firecrawl OSS
 
-This replaces the earlier AIHackr scanner-based prototype. The active application in this directory does not import its frontend, authentication, scanner, provider directory, database, queue, HTTP scraper or MCP tools. The old application remains in Git only until the new backend passes its deployment gate and the domain is switched. Do not confuse a prepared replacement with a completed production cutover.
+This replaces the earlier AIHackr scanner-based prototype. The application does not import its frontend, authentication, scanner, provider directory, database, queue, HTTP scraper or MCP tools. Those sources are removed from this branch and retained in Git history for rollback. The live deployment remains on the previous release until the new backend passes its deployment gate and the domain is switched. Do not confuse a prepared replacement with a completed production cutover.
 
 ## What runs upstream code
 

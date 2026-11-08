@@ -5,6 +5,7 @@ COPY native/package.json native/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY native/src ./src
 COPY native/public ./public
+COPY native/LICENSE ./LICENSE
 USER node
 EXPOSE 8080
 CMD ["node", "src/start.mjs"]

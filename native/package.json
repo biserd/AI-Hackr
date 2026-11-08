@@ -7,7 +7,7 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node src/start.mjs",
-    "test": "node --test --test-concurrency=1 test/gateway.test.mjs test/mcp.test.mjs",
+    "test": "node --test --test-concurrency=1 test/gateway.test.mjs test/mcp.test.mjs test/edge.test.mjs",
     "test:stack": "node test/stack.mjs",
     "setup": "node scripts/setup.mjs",
     "verify:source": "node scripts/verify-source.mjs"
