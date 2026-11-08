@@ -25,7 +25,7 @@ jobs:
           npm test
           node scripts/prepare-build.mjs
           node scripts/setup.mjs
-          printf '%s\n' 'FORCED_ENGINE_DOMAINS={"example.com":"fetch","aihackr-native-fixtures.biser-d.workers.dev":"playwright"}' >> .env
+          printf '%s\n' 'FORCED_ENGINE_DOMAINS={"example.com":"fetch","workers.dev":"playwright"}' >> .env
           docker compose config --quiet
       - name: Build and start actual Firecrawl stack
         working-directory: native

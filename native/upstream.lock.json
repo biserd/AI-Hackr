@@ -12,6 +12,7 @@
     "version": "3.36.1",
     "repository": "https://github.com/firecrawl/firecrawl-mcp-server",
     "commit": "6bd077c69a0143f03de93687f5f8bb8477944845",
-    "integration": "Official exported createFirecrawlMcpServer embedding API; native tools and schemas, filtered to self-hosted capabilities"
+    "integration": "Official exported createFirecrawlMcpServer embedding API; native tools and schemas, filtered to self-hosted capabilities",
+    "dependencyOverride": "firecrawl SDK 4.52.0 replaces 4.51.0 to remove the vulnerable Zod 3 dependency; MCP implementation is unchanged"
   }
 }
