@@ -1,10 +1,14 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
+  "$schema": "./cloudflare/node_modules/wrangler/config-schema.json",
   "name": "aihackr",
-  "main": "worker/index.ts",
-  "compatibility_date": "2026-08-23",
-  "compatibility_flags": ["nodejs_compat"],
+  "main": "cloudflare/worker.mjs",
+  "compatibility_date": "2026-11-08",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
+  "triggers": { "crons": [] },
+  "account_id": "73d71a2bef58f7469ecb48e2b8e84c0e",
   "routes": [
     {
       "pattern": "aihackr.com",
@@ -15,32 +19,28 @@
       "custom_domain": true
     }
   ],
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "aihackr-production",
-      "database_id": "ccc01fbb-25b6-49a4-860f-4ddf22984515",
-      "migrations_dir": "migrations"
+  "browser": {
+    "binding": "BROWSER"
+  },
+  "vars": {
+    "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
+    "DAILY_PAGE_LIMIT": "1000"
+  },
+  "alias": {
+    "@repo/mcp-common/src/cloudflare-api": "./cloudflare/mcp-client.mjs",
+    "@repo/mcp-common/src/request-context": "./cloudflare/mcp-context.mjs"
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
     }
-  ],
-  "send_email": [
-    {
-      "name": "EMAIL",
-      "allowed_sender_addresses": ["hello@aihackr.com"]
-    }
-  ],
-  "containers": [
-    {
-      "class_name": "AIHackrContainer",
-      "image": "./Dockerfile",
-      "instance_type": "basic",
-      "max_instances": 1
-    }
-  ],
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -50,20 +50,58 @@
       {
         "name": "WEB_DATA_STORE",
         "class_name": "WebDataStore"
+      },
+      {
+        "name": "BROWSER_WORKSPACE",
+        "class_name": "BrowserWorkspace"
       }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["AIHackrContainer"]
+      "new_sqlite_classes": [
+        "AIHackrContainer"
+      ]
     },
     {
       "tag": "v2-web-data-store",
-      "new_sqlite_classes": ["WebDataStore"]
+      "new_sqlite_classes": [
+        "WebDataStore"
+      ]
+    },
+    {
+      "tag": "v3-browser-run-workspace",
+      "new_sqlite_classes": [
+        "BrowserWorkspace"
+      ]
     }
   ],
-  "triggers": {
-    "crons": ["*/10 * * * *"]
+  "env": {
+    "staging": {
+      "name": "aihackr-browser-run-stage",
+      "browser": { "binding": "BROWSER" },
+      "routes": [],
+      "vars": {
+        "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
+        "DAILY_PAGE_LIMIT": "1000"
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "AIHACKR",
+            "class_name": "AIHackrContainer"
+          },
+          {
+            "name": "WEB_DATA_STORE",
+            "class_name": "WebDataStore"
+          },
+          {
+            "name": "BROWSER_WORKSPACE",
+            "class_name": "BrowserWorkspace"
+          }
+        ]
+      }
+    }
   }
 }

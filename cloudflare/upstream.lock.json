@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/cloudflare/mcp-server-cloudflare",
+  "commit": "a21972e219289337731a066befb5c66886b9ce7b",
+  "appVersion": "0.5.0",
+  "license": "Apache-2.0",
+  "file": "apps/browser-rendering/src/tools/browser.tools.ts",
+  "sha256": "d4e57ee3b0cac0596cc0565caa6dca54efa7e6862231212f7ed2e6fec441af57",
+  "modifications": "None to tool registration source. AIHackr adapts account selection, authentication and API client through import aliases; filters unexposed tools.",
+  "dependencies": "Official tool source preserved; patched SDK server 2.4.0, Agents 0.33.0, Zod 4.6.7 and SDK v1 client 1.32.2 replace the upstream app dependency set."
+}

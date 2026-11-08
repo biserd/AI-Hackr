@@ -1,0 +1,14 @@
+import {spawn} from 'node:child_process';
+import {readFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {sourceDigest} from './source-digest.mjs';
+const receipt=JSON.parse(await readFile(new URL('../release-gate.json',import.meta.url),'utf8'));
+if(!receipt.passed||receipt.engine!=='cloudflare-browser-run'||!receipt.stagingOrigin)throw new Error('Production cutover requires recorded passing live Cloudflare integration checks.');
+for(const name of ['authenticationAndPrivateTargets','realBrowserMarkdownAndJavaScript','sameOriginLinkDiscovery','managedCrawlAndDurableResults','structuredExtraction','managedCrawlPaginationAndCancellation','officialOssMcp'])if(!receipt.checks?.[name]?.passed)throw new Error('A required live release check is missing: '+name);
+if(!receipt.persistenceAcrossWorkerRedeploy)throw new Error('Completed crawl recovery after Worker replacement has not been verified.');
+if(receipt.sourceDigest!==await sourceDigest())throw new Error('Source changed after the passing live release gate. Revalidate staging before production deployment.');
+const response=await fetch(new URL('/health/ready',receipt.stagingOrigin),{signal:AbortSignal.timeout(10000)});
+if(!response.ok||!(await response.json()).ready)throw new Error('Cloudflare staging is not ready; production cutover refused.');
+const root=fileURLToPath(new URL('../../',import.meta.url));
+const child=spawn(process.execPath,[fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js',import.meta.url)),'deploy','--env',''],{cwd:root,stdio:'inherit'});
+child.on('exit',code=>process.exitCode=code??1);

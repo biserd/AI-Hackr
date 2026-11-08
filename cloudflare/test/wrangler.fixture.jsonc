@@ -1,0 +1,8 @@
+{
+  "name": "aihackr-native-fixtures",
+  "main": "fixture-worker.mjs",
+  "compatibility_date": "2026-11-08",
+  "workers_dev": true,
+  "routes": [{ "pattern": "fixtures.aihackr.com", "custom_domain": true }],
+  "observability": { "enabled": false }
+}
