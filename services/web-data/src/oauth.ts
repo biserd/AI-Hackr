@@ -1,6 +1,6 @@
 import * as oidc from "openid-client";
-import { AppError, id, type Principal } from "./contracts.js";
-import { allScopes, keyHash, type Store } from "./store.js";
+import { AppError, type Principal } from "./contracts.js";
+import { keyHash, type Store } from "./store.js";
 import { target } from "./security.js";
 export type OAuthConfig = {
   issuer: string;
@@ -102,34 +102,12 @@ export class OAuth {
         "A verified provider identity is required.",
         401,
       );
-    await this.store.db.tx(async (q) => {
-      const prior = (
-        await q.query(
-          "SELECT * FROM wd_oauth_bindings WHERE issuer=$1 AND subject=$2 AND client=$3",
-          [this.config.issuer, claims.sub, this.config.agentClientId],
-        )
-      ).rows[0];
-      if (prior && prior.tenant !== row.tenant)
-        throw new AppError(
-          "IDEMPOTENCY_CONFLICT",
-          "Unlink the prior workspace before linking this identity to another.",
-          409,
-        );
-      if (!prior) {
-        const connection = id("oauth");
-        await q.query(
-          "INSERT INTO wd_connections(tenant,id,scopes) VALUES($1,$2,$3)",
-          [row.tenant, connection, JSON.stringify(allScopes)],
-        );
-        await q.query("INSERT INTO wd_oauth_bindings VALUES($1,$2,$3,$4,$5)", [
-          this.config.issuer,
-          claims.sub,
-          this.config.agentClientId,
-          row.tenant,
-          connection,
-        ]);
-      }
-    });
+    await this.store.linkOAuth(
+      this.config.issuer,
+      claims.sub,
+      this.config.agentClientId,
+      row.tenant,
+    );
     return `${this.config.dashboardOrigin}/web-data?oauth=linked`;
   }
   async principal(

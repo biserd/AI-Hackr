@@ -388,13 +388,13 @@ export function createApp(
       if (!p.owner)
         throw new AppError("SCOPE_REQUIRED", "Dashboard owner required.", 403);
       await service.store.result(p, req.params.id);
-      await service.store.db.tx(async (q) => {
-        await q.query(
-          "UPDATE wd_results SET body=NULL WHERE tenant=$1 AND id=$2",
-          [p.tenant, req.params.id],
-        );
-        await q.query("DELETE FROM wd_cache WHERE tenant=$1", [p.tenant]);
-      });
+      await service.store.batch([
+        {
+          sql: "UPDATE wd_results SET body=NULL WHERE tenant=$1 AND id=$2",
+          params: [p.tenant, req.params.id],
+        },
+        { sql: "DELETE FROM wd_cache WHERE tenant=$1", params: [p.tenant] },
+      ]);
       return { deleted: true };
     }),
   );

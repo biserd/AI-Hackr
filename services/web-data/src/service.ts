@@ -331,21 +331,21 @@ export class Service {
           warnings: ["Unsupported required values were not invented."],
         });
       if (e instanceof AppError && e.details.providerCostMicroUsd)
-        await this.store.db.tx(async (q) => {
-          await q.query(
-            "UPDATE wd_jobs SET cost_micro_usd=cost_micro_usd+$2 WHERE id=$1 AND lease_token=$3 AND state=$4",
-            [
+        await this.store.batch([
+          {
+            sql: "UPDATE wd_jobs SET cost_micro_usd=cost_micro_usd+$2 WHERE id=$1 AND lease_token=$3 AND state=$4",
+            params: [
               job.id,
               Math.min(estimate, Number(e.details.providerCostMicroUsd)),
               job.lease_token,
               "running",
             ],
-          );
-          await q.query(
-            "INSERT INTO wd_events(job,tenant,kind,data) VALUES($1,$2,'failed_extraction_cost',$3)",
-            [job.id, job.tenant, JSON.stringify(e.details)],
-          );
-        });
+          },
+          {
+            sql: "INSERT INTO wd_events(job,tenant,kind,data) VALUES($1,$2,'failed_extraction_cost',$3)",
+            params: [job.id, job.tenant, JSON.stringify(e.details)],
+          },
+        ]);
       throw e;
     }
   }

@@ -1,5 +1,7 @@
 # Implementation and release status — 8 November 2026
 
+**Existing-infrastructure production update:** The owner subsequently authorized merge and live deployment. The implementation now supports the same Cloudflare Worker/container, existing D1 scanner, and an authenticated SQLite Durable Object for web-data state. This replaces the separate-host/PostgreSQL requirement for that deployment path. Real workerd tests cover durable transactions and remote orchestration. See `cloudflare-production.md`; the original milestone inventory below remains a record of broader paid-beta gaps, not the current deployment receipt.
+
 This branch is a working **development implementation**, not the completed paid-beta specification.
 
 | Milestone | Implemented / verified locally | Outstanding |

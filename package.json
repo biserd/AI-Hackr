@@ -6,7 +6,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5000",
     "dev": "tsx server/index.ts",
-    "build": "tsx script/build.ts",
+    "build": "npm run build:web-data && tsx script/build.ts",
     "start": "node dist/index.cjs",
     "check": "tsc --noEmit",
     "deploy": "wrangler deploy --containers-rollout=immediate",
@@ -15,7 +15,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply aihackr-production --local",
     "db:migrate:remote": "wrangler d1 migrations apply aihackr-production --remote",
-    "db:export:replit": "node scripts/export-replit-to-d1.mjs"
+    "db:export:replit": "node scripts/export-replit-to-d1.mjs",
+    "build:web-data": "npm --prefix services/web-data ci --include=dev --ignore-scripts && npm --prefix services/web-data run build",
+    "test:cloudflare": "wrangler deploy --dry-run --config worker/wrangler.test.jsonc --outdir .wrangler/web-data-test --metafile .wrangler/web-data-test/bundle-meta.json && tsx --test worker/web-data.test.ts"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",

@@ -65,6 +65,7 @@ export class Billing {
     return { url: session.url, testMode: true };
   }
   async event(event: Stripe.Event) {
+    if (this.store.remote) return this.store.remote("billing.event", [event]);
     if (event.livemode)
       throw new AppError(
         "TARGET_RESTRICTED",

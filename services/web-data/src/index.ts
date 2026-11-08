@@ -7,22 +7,30 @@ import { createApp } from "./http.js";
 import { Billing } from "./billing.js";
 import { Extraction } from "./extraction.js";
 import { OAuth } from "./oauth.js";
+import { cloudflareStore } from "./cloudflare-store.js";
 const fixture = process.env.DEV_FIXTURES === "true";
+const cloudflare = process.env.WEB_DATA_STORAGE === "cloudflare";
 if (fixture && process.env.NODE_ENV === "production")
   throw new Error("Fixture credentials are forbidden in production.");
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === "production")
+if (
+  !cloudflare &&
+  !process.env.DATABASE_URL &&
+  process.env.NODE_ENV === "production"
+)
   throw new Error("Production requires PostgreSQL DATABASE_URL.");
-if (!fixture && !process.env.DATABASE_URL)
+if (!cloudflare && !fixture && !process.env.DATABASE_URL)
   throw new Error(
     "Set DEV_FIXTURES=true for local mode, or supply DATABASE_URL.",
   );
 if (fixture) await mkdir(".local", { recursive: true });
-const db = await Database.open(
-  process.env.DATABASE_URL,
-  fixture ? ".local/postgres" : undefined,
-);
+const db = cloudflare
+  ? cloudflareStore().db
+  : await Database.open(
+      process.env.DATABASE_URL,
+      fixture ? ".local/postgres" : undefined,
+    );
 await db.migrate();
-const store = new Store(db);
+const store = cloudflare ? cloudflareStore() : new Store(db);
 const providers = new Providers({
   fixture,
   httpEnabled: process.env.LIVE_HTTP_ENABLED === "true",
@@ -97,19 +105,26 @@ if (fixture) {
   );
 }
 let stopped = false,
-  busy = false;
-const timer = setInterval(async () => {
-  if (stopped || busy) return;
-  busy = true;
-  try {
-    await store.reconcile();
-    await service.processOne();
-  } catch {
-    console.error("Worker iteration failed; see job trace.");
-  } finally {
-    busy = false;
-  }
-}, 250);
+  busy = false,
+  lastReconcile = 0;
+const timer = setInterval(
+  async () => {
+    if (stopped || busy) return;
+    busy = true;
+    try {
+      if (Date.now() - lastReconcile > 60000) {
+        await store.reconcile();
+        lastReconcile = Date.now();
+      }
+      await service.processOne();
+    } catch {
+      console.error("Worker iteration failed; see job trace.");
+    } finally {
+      busy = false;
+    }
+  },
+  cloudflare ? 1000 : 250,
+);
 const server = app.listen(
   Number(process.env.PORT ?? 4100),
   process.env.BIND_HOST ?? "127.0.0.1",

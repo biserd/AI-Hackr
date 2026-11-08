@@ -46,6 +46,10 @@
       {
         "name": "AIHACKR",
         "class_name": "AIHackrContainer"
+      },
+      {
+        "name": "WEB_DATA_STORE",
+        "class_name": "WebDataStore"
       }
     ]
   },
@@ -53,6 +57,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["AIHackrContainer"]
+    },
+    {
+      "tag": "v2-web-data-store",
+      "new_sqlite_classes": ["WebDataStore"]
     }
   ],
   "triggers": {

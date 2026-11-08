@@ -1,5 +1,7 @@
 # AIHackr Web Data — development implementation
 
+The existing-infrastructure production path is documented in [docs/cloudflare-production.md](docs/cloudflare-production.md): same Cloudflare Worker/container and D1 scanner, with an authenticated SQLite Durable Object for durable web-data state. Standalone PostgreSQL/local instructions follow below.
+
 An additive service beside the existing AIHackr scanner. REST, MCP and the verified-owner dashboard use the same service, SQL ledger and retained result handles. No production deployment or paid-beta readiness is implied.
 
 ## Run locally

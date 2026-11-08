@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
-import { Database, type Query } from "./db.js";
+import type { Database, Query } from "./db.js";
 import {
   AppError,
   billableArgs,
@@ -8,6 +8,7 @@ import {
   id,
   priceVersion,
   prices,
+  limits,
   type Args,
   type Operation,
   type Principal,
@@ -18,7 +19,50 @@ export const keyHash = (s: string) =>
 const date = (s: unknown) => new Date(s as string).getTime();
 const terminal = ["completed", "partial", "failed", "canceled"];
 export class Store {
+  remote?: (method: string, args: unknown[]) => Promise<any>;
   constructor(public db: Database) {}
+  async batch(statements: { sql: string; params?: any[] }[]) {
+    return this.db.tx(async (q) => {
+      const results = [];
+      for (const s of statements) results.push(await q.query(s.sql, s.params));
+      return results;
+    });
+  }
+  async linkOAuth(
+    issuer: string,
+    subject: string,
+    client: string,
+    tenant: string,
+  ) {
+    return this.db.tx(async (q) => {
+      const prior = (
+        await q.query(
+          "SELECT * FROM wd_oauth_bindings WHERE issuer=$1 AND subject=$2 AND client=$3",
+          [issuer, subject, client],
+        )
+      ).rows[0];
+      if (prior && prior.tenant !== tenant)
+        throw new AppError(
+          "IDEMPOTENCY_CONFLICT",
+          "Unlink the prior workspace before linking this identity to another.",
+          409,
+        );
+      if (!prior) {
+        const connection = id("oauth");
+        await q.query(
+          "INSERT INTO wd_connections(tenant,id,scopes) VALUES($1,$2,$3)",
+          [tenant, connection, JSON.stringify(allScopes)],
+        );
+        await q.query("INSERT INTO wd_oauth_bindings VALUES($1,$2,$3,$4,$5)", [
+          issuer,
+          subject,
+          client,
+          tenant,
+          connection,
+        ]);
+      }
+    });
+  }
   async provision(tenant: string) {
     return this.db.tx(async (q) => {
       const r = await q.query(
@@ -295,6 +339,12 @@ export class Store {
     body: any,
     metrics: Args = {},
   ) {
+    if (Buffer.byteLength(JSON.stringify(body)) > limits.resultStorageBytes)
+      throw new AppError(
+        "UNSUPPORTED_CONTENT",
+        "Retained result exceeds the storage size limit.",
+        422,
+      );
     return this.db.tx(async (q) => {
       const j = (
         await q.query("SELECT * FROM wd_jobs WHERE id=$1 FOR UPDATE", [job.id])
@@ -514,6 +564,12 @@ export class Store {
     });
   }
   async cachePut(p: Principal, key: string, body: any) {
+    if (Buffer.byteLength(JSON.stringify(body)) > limits.resultStorageBytes)
+      throw new AppError(
+        "UNSUPPORTED_CONTENT",
+        "Page exceeds the retained content limit.",
+        422,
+      );
     await this.db.tx((q) =>
       q.query(
         "INSERT INTO wd_cache VALUES($1,$2,$3,$4,now()+interval '24 hours') ON CONFLICT(tenant,key) DO UPDATE SET body=EXCLUDED.body,observed_at=EXCLUDED.observed_at,expires_at=EXCLUDED.expires_at",

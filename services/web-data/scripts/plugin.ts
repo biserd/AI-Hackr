@@ -54,7 +54,7 @@ for (const [name, bytes] of Object.entries(entries)) {
     throw new Error("Credential-like content in plugin.");
 }
 const url = mcp.mcpServers.aihackr.url;
-if (url !== "https://api.aihackr.com/mcp")
+if (url !== "https://aihackr.com/mcp")
   throw new Error("Unexpected production origin.");
 if (process.argv[2] === "build") {
   await mkdir("release", { recursive: true });

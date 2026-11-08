@@ -3,7 +3,7 @@
   "mcpServers": {
     "aihackr": {
       "type": "streamable-http",
-      "url": "https://api.aihackr.com/mcp"
+      "url": "https://aihackr.com/mcp"
     }
   }
 }

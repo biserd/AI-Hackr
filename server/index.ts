@@ -5,6 +5,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runBackgroundJobs, startBackgroundWorker } from "./background-worker";
 import { runSeed } from "./seed";
+import {registerWebDataPublic} from './web-data-public';
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,6 +26,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+registerWebDataPublic(app);
 
 // This path is reachable only through the Worker-to-container binding. The
 // public Worker blocks /__internal/* before proxying requests.

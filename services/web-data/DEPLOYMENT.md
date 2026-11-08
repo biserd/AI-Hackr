@@ -1,5 +1,7 @@
 # Deployment runbook — not yet rehearsed
 
+For the owner's selected existing-infrastructure deployment, use [docs/cloudflare-production.md](docs/cloudflare-production.md). The standalone PostgreSQL/Compose alternative below is retained for other hosts.
+
 Deploy this service separately from the existing Cloudflare scanner. Preserve its Worker/D1 routes. Docker/Compose is supplied for a container host; Docker was unavailable in this workspace, so container build/run, real PostgreSQL failover and restore rehearsal are **unrun**.
 
 1. Use Node 24 LTS and the committed package-lock. `npm ci`, all checks, `npm run build`.

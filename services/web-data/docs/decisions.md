@@ -1,5 +1,7 @@
 # Decisions and deviations
 
+**Production update:** At the owner's explicit request to use existing infrastructure, the deployed configuration uses the existing Worker/container plus a SQLite-backed Durable Object instead of a new PostgreSQL host. See `cloudflare-production.md`. The PostgreSQL backend remains available for standalone deployments and deterministic CI; earlier architecture notes below describe that path.
+
 1. Preserve existing React/Vite/Express, verified identity and scanner. The empty-repository Next.js/Fastify/pnpm defaults do not justify replacing an existing product. The additive service has its own committed npm lockfile and PostgreSQL boundary.
 2. Use a PostgreSQL durable queue and transactional outbox instead of BullMQ for AIHackr jobs. Reserve/create/outbox are atomic; leased SKIP LOCKED claims consume durable rows directly, eliminating an external queue-publish gap. This does not replace upstream Firecrawl queues. Multi-process PostgreSQL load/recovery remains a deployment test.
 3. PGlite is local/CI only, running actual PostgreSQL SQL with serialized local transactions. It does not prove multi-process lock behavior. Production requires PostgreSQL.

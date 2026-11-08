@@ -334,8 +334,8 @@ export default function WebData() {
                   permissions, and spending controls.
                 </p>
                 <div className="wd-code">
-                  <span>REMOTE MCP · PROPOSED PRODUCTION ORIGIN</span>
-                  <code>https://api.aihackr.com/mcp</code>
+                  <span>REMOTE MCP</span>
+                  <code>https://aihackr.com/mcp</code>
                 </div>
                 <button
                   className="wd-light-button"

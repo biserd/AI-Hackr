@@ -15,6 +15,7 @@ export const prices = {
   cache: 0,
 } as const;
 export const limits = {
+  resultStorageBytes:1024*1024,
   fetchSeconds: 20,
   browserSeconds: 45,
   redirects: 5,
