@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aihackr",
+  "version": "0.5.0",
+  "description": "Turn public webpages into Markdown, HTML, links and structured data using your private AIHackr workspace.",
+  "author": {"name": "AIHackr", "url": "https://aihackr.com"},
+  "homepage": "https://aihackr.com",
+  "repository": "https://github.com/biserd/AI-Hackr",
+  "license": "AGPL-3.0-or-later",
+  "keywords": ["web-data", "scraping", "crawl", "cloudflare", "mcp"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "AIHackr",
+        "shortDescription": "Web data for your apps and agents",
+        "longDescription": "Scrape public webpages, discover page links, crawl sites and extract structured data. Uses your AIHackr account, private results and shared credits. OAuth account linking is planned; this development package requires an API-key-capable client.",
+        "developerName": "AIHackr",
+        "websiteURL": "https://aihackr.com",
+        "brandColor": "#D94C1C",
+        "defaultPrompt": ["Use AIHackr to turn a public webpage into Markdown.", "Use AIHackr to extract structured information from a public URL."]
+      }
+    }
+  }
+}

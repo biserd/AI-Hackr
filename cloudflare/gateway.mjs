@@ -2,9 +2,9 @@ import { bearer, boundedJson, credentialMatches, errorResponse, integer, json, o
 import { engineName } from './browser-service.mjs';
 
 export function capabilities(env) {
-  return {release:'cloudflare-browser-run-0.4.0',engine:engineName,api:'/v2',mcp:'/mcp',
-    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:false,signup:true,emailSignIn:true,customerApiKeys:true},
-    access:'Email sign-in; private customer workspaces with a 20-page free trial. Paid billing is not enabled.',
+  return {release:'cloudflare-browser-run-0.5.0',engine:engineName,api:'/v2',mcp:'/mcp',
+    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRICES&&env.STRIPE_PORTAL_CONFIGURATION),signup:true,emailSignIn:true,customerApiKeys:true},
+    access:'Email sign-in; private customer workspaces, 20 free credits and monthly paid plans. Shared credit accounting for REST and MCP.',
     limits:{crawlPages:100,crawlDepth:5,activeCrawls:2,dailyPageAllowance:Number(env.DAILY_PAGE_LIMIT??1000),retentionDays:7},
     compatibility:'Documented Firecrawl-shaped REST subset; engine and MCP tools are Cloudflare Browser Run, not Firecrawl.',
     source:'https://github.com/biserd/AI-Hackr',
@@ -45,7 +45,7 @@ export async function routeGateway(request,env,service,{mcp,authenticated=false}
       const formats=body.formats??['markdown'];
       if(!Array.isArray(formats)||formats.length!==1||!['markdown','html','links'].includes(formats[0]))reject('UNSUPPORTED_OPTION','Choose one format: markdown, html or links.');
       const format=formats[0];const action={markdown:'markdown',html:'content',links:'links'}[format];
-      const {formats:_,...params}=body;const result=await service.page(action,params);
+      const {formats:_,...params}=body;const result=await service.page(action,params,{operation:'scrape'});
       return json({success:true,data:{[format]:result.result,metadata:{sourceURL:body.url,url:result.meta?.finalUrl??body.url,title:result.meta?.title,statusCode:result.meta?.status??200,observedAt:new Date().toISOString(),engine:engineName}},engine:engineName});
     }
     if(path==='/v2/map') {

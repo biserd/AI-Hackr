@@ -8,6 +8,8 @@ for(const name of ['authenticationAndPrivateTargets','realBrowserMarkdownAndJava
 if(!receipt.persistenceAcrossWorkerRedeploy)throw new Error('Completed crawl recovery after Worker replacement has not been verified.');
 if(!receipt.checks.customerAccountGuards?.passed||!receipt.customerPortal?.passed||receipt.customerPortal.sourceDigest!==receipt.sourceDigest)throw new Error('Customer account and portal verification are required.');
 if(receipt.sourceDigest!==await sourceDigest())throw new Error('Source changed after the passing live release gate. Revalidate staging before production deployment.');
+if(!receipt.billing?.passed||receipt.billing.livemode!==false||receipt.billing.sourceDigest!==receipt.sourceDigest)throw new Error('Stripe sandbox and customer-credit integration proof is required before production.');
+for(const name of ['checkout','paidInvoice','duplicateEvents','portal','creditSettlement','webhookSignature'])if(!receipt.billing.checks?.[name]?.passed)throw new Error('Missing required billing verification: '+name);
 const response=await fetch(new URL('/health/ready',receipt.stagingOrigin),{signal:AbortSignal.timeout(10000)});
 if(!response.ok||!(await response.json()).ready)throw new Error('Cloudflare staging is not ready; production cutover refused.');
 const root=fileURLToPath(new URL('../../',import.meta.url));
