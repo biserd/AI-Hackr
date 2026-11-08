@@ -151,6 +151,7 @@ export class BrowserService {
         records=records.map(record=>this.compactRecord(record));
         for (let i=0;i<records.length;i++) await this.storage.put(`record:${id}:${i}`,records[i]);
         job.recordCount=records.length; job.cached=true;
+        job.retainedAt=Date.now(); job.expiresAt=job.retainedAt+7*86400000;
       }
       await this.storage.put('job:'+id,job);
       if (!job.cached) return this.crawlEnvelope(job,records.map(record=>this.compactRecord(record)),null);

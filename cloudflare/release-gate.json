@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-08T21:03:45.918Z",
+  "checkedAt": "2026-11-08T21:23:51.566Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -26,7 +26,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "1fb3a720-1dc1-4a1b-b2aa-50946f827637",
+  "retainedCrawlId": "a27beabe-8ad7-4c31-8384-db63c2ada4fb",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -41,9 +41,9 @@
     "cancel_crawl"
   ],
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-08T21:06:30.117Z",
+  "redeployVerifiedAt": "2026-11-08T21:27:16.991Z",
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "59c6bb33f8e672c79dab04b3b1489d67d590dac9eecbdfdfe641cf087dc6e0f0",
+  "sourceDigest": "7e9b9f3db2e64599fce574764a21560df046d3af21717bf5f399ca8fdc162260",
   "portalVerified": true,
-  "stagingVersion": "6fa706a2-80c2-45f1-a91e-a57f93fe5acc"
+  "stagingVersion": "b207ba47-610a-4a22-80ff-9400e49d5d13"
 }
