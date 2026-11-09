@@ -1,3 +1,4 @@
+import {packagePlugin} from './plugin-package.mjs';
 import { cp, mkdir, rm, lstat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, sep } from 'node:path';
@@ -9,4 +10,5 @@ if (previous?.isSymbolicLink()) throw new Error('Refusing to replace a linked bu
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 await cp(new URL('../../web/', import.meta.url), resolve(destination, 'public'), { recursive: true });
+await packagePlugin(resolve(destination,'public','aihackr-plugin.zip'));
 console.log('Built the Cloudflare Browser Run portal and docs.');

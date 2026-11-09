@@ -53,7 +53,13 @@ Sign-in codes expire in 10 minutes, are single-use and lock after five invalid a
 
 Completed crawl records are retained in Durable Object storage for seven days. Retrieval is paginated in groups of ten. Content is limited to 60,000 characters per page/format with explicit truncation. Cached completed records remain readable without the managed provider. Raw provider job identifiers are never accepted as workspace-owned jobs.
 
-Search, batch scraping, paid tenant billing and OAuth linking are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
+Search, batch scraping and paid tenant billing are not enabled. OAuth account linking is available for MCP clients, with scoped permissions and customer-controlled revocation. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
+
+## OAuth and ChatGPT/MCP linking
+
+Connect an OAuth-capable client to https://aihackr.com/mcp and sign in with your existing email account. PKCE, discovery, ChatGPT CIMD, compatible-client DCR, rotating refresh tokens and immediate disconnect are handled by the official Cloudflare OAuth provider and existing AccountDirectory. Manage connections at https://aihackr.com/connections. OAuth tokens are limited to MCP; REST API keys and website sessions keep their existing roles.
+
+See [OAuth operations](cloudflare/OAUTH.md) for endpoints, scopes, storage semantics and test evidence. The portable development package is under `integrations/aihackr-plugin/` and downloadable as /aihackr-plugin.zip. Public directory submission is separate from implementing OAuth. The paid-plan draft remains independent and still needs Stripe activation.
 
 ## Source and licenses
 

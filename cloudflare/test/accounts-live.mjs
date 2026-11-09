@@ -11,6 +11,8 @@ assert.equal((await post('/auth/verify',{code:'00000000'})).status,401);
 assert.equal((await post('/auth/start',{email:'invalid@example.com'},'https://attacker.example')).status,403);
 const html=await (await fetch(origin)).text();assert(!html.includes('class="badge"'));assert(!html.includes('Connect workspace'));assert(html.includes('Create your account.'));assert(html.includes('API keys'));
 assert.equal((await fetch(origin+'/account.mjs')).status,200);
+for(const path of ['/docs','/connections','/oauth.mjs','/connections.mjs','/oauth.css','/aihackr-plugin.zip'])assert.equal((await fetch(origin+path,{redirect:'manual'})).status,200);
+assert.equal((await fetch(origin+'/oauth/connections')).status,401);
 report.checks.customerAccountGuards={passed:true};report.customerAccountGuardsVerifiedAt=new Date().toISOString();
 await writeFile(reportFile,JSON.stringify(report,null,2)+'\n');
 console.log('PASS customer auth errors, CSRF guards, private endpoints, signup UI and logo cleanup.');

@@ -1,4 +1,5 @@
 import {ServiceError,bearer,boundedJson,credentialMatches,json,onlyKeys,reject} from './policy.mjs';
+import {oauthResource} from './oauth-config.mjs';
 
 export const SESSION_COOKIE='__Host-aihackr_session';
 export const CHALLENGE_COOKIE='__Host-aihackr_challenge';
@@ -95,8 +96,13 @@ export class AccountService {
 }
 
 export async function authenticate(request,env){
-  sameOrigin(request);const token=bearer(request.headers);
-  if(token&&await credentialMatches(token,env.AIHACKR_API_KEY))return {operator:true,kind:'operator'};
+  const token=bearer(request.headers);
+  if(token&&await credentialMatches(token,env.AIHACKR_API_KEY)){sameOrigin(request);return {operator:true,kind:'operator'};}
+  if(token?.includes(':')){
+    if(new URL(request.url).href.split('?')[0]!==oauthResource(env))reject('AUTH_REQUIRED','This OAuth token is only valid at the AIHackr MCP endpoint.',401);
+    const identity=await directoryCall(env,'oauthValidate',token,oauthResource(env));if(!identity)reject('AUTH_REQUIRED','The connection expired or was disconnected. Reconnect your AIHackr account.',401);const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin&&origin!==identity.oauthOrigin)reject('ORIGIN_RESTRICTED','This origin does not belong to the connected application.',403);return identity;
+  }
+  sameOrigin(request);
   const kind=token?'key':'session',value=token??cookie(request,SESSION_COOKIE);
   const user=value?await directoryCall(env,'authenticate',value,kind):null;
   if(!user)reject('AUTH_REQUIRED','Sign in to your AIHackr account or provide a valid API key.',401);
