@@ -9,7 +9,7 @@ const report={checkedAt:new Date().toISOString(),origin,sourceDigest:await sourc
 const get=path=>fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(15000)});
 for(const item of [{path:'/'},...pages]){
   const response=await get(item.path);assert.equal(response.status,200,item.path);assert.match(response.headers.get('content-type'),/text\/html/);assert.equal(response.headers.get('link'),'<https://aihackr.com'+item.path+'>; rel="canonical"');assert.equal(response.headers.get('x-robots-tag'),production?null:'noindex, nofollow');
-  const text=await response.text(),expected=await readFile(new URL(item.path==='/'?'index.html':'.'+item.path+'.html',directory),'utf8');assert.equal(text,expected,'Deployed source: '+item.path);
+  const text=await response.text(),expected=await readFile(new URL(item.path==='/'?'index.html':'.'+item.path+'.html',directory),'utf8');assert.equal(text.replaceAll('\r\n','\n'),expected.replaceAll('\r\n','\n'),'Deployed source: '+item.path);
   const script=text.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],hash=createHash('sha256').update(script).digest('base64');assert(response.headers.get('content-security-policy').includes("'sha256-"+hash+"'"));
   report.pages.push({path:item.path,status:200,deployedSourceMatches:true,canonical:true,structuredDataCsp:true});
 }

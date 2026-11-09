@@ -47,9 +47,9 @@
   "persistenceAcrossWorkerRedeploy": true,
   "redeployVerifiedAt": "2026-11-09T02:06:55.673Z",
   "site": {
-    "checkedAt": "2026-11-09T02:06:11.368Z",
+    "checkedAt": "2026-11-09T02:11:17.711Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "f623a1706dbd49e30cd3ff2a30f43a157c6bc21b5498a013223cc3a9601dd5fc",
+    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -237,9 +237,9 @@
     ]
   },
   "customerPortal": {
-    "checkedAt": "2026-11-09T02:06:56.149Z",
+    "checkedAt": "2026-11-09T02:11:54.581Z",
     "passed": true,
-    "sourceDigest": "f623a1706dbd49e30cd3ff2a30f43a157c6bc21b5498a013223cc3a9601dd5fc",
+    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
     "scope": "Marketing/public routing release: unchanged authenticated account/engine implementation with inherited owner verification and current regression checks.",
     "inheritedAccountProof": {
       "commit": "f2a11549c80036955a1af027eaa6f382f115be34",
@@ -312,7 +312,7 @@
     ]
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "f623a1706dbd49e30cd3ff2a30f43a157c6bc21b5498a013223cc3a9601dd5fc",
+  "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
   "portalVerified": true,
   "stagingVersion": "733ca1f4-80ec-446a-9b88-a7e9ddb6bbd1"
 }
