@@ -27,4 +27,5 @@ jobs:
       - name: Build portal and compile Worker with official MCP tools
         run: |
           node cloudflare/scripts/build.mjs
+          node cloudflare/scripts/verify-site.mjs
           node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --dry-run --outdir cloudflare/.build

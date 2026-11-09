@@ -7,7 +7,7 @@ const allowed = new Set(['get_url_html_content','get_url_markdown','get_url_json
 export const officialTools = [...allowed];
 export async function handleMcp(request, env, ctx, service) {
   const handler = createMcpHandler(() => {
-    const server = new McpServer({name:'AIHackr Browser Run',version:'0.4.0'},{instructions:'Public-page tools powered by Cloudflare Browser Run and its official open-source MCP tool implementations. Calls use the authenticated customer workspace. Crawl defaults to 20 pages and at most 100 pages / depth 5; free-trial allowances may be lower. Page results may be truncated; inspect truncation warnings. Search, paid billing and OAuth are not enabled. Use the AIHackr REST API to paginate larger crawl results.'});
+    const server = new McpServer({name:'AIHackr Browser Run',version:'0.4.1'},{instructions:'Public-page tools powered by Cloudflare Browser Run and its official open-source MCP tool implementations. Calls use the authenticated customer workspace. Crawl defaults to 20 pages and at most 100 pages / depth 5; free-trial allowances may be lower. Page results may be truncated; inspect truncation warnings. Search, paid billing and OAuth are not enabled. Use the AIHackr REST API to paginate larger crawl results.'});
     registerBrowserTools({
       props:{accessToken:'workspace-internal'},
       accountTool(name, config, callback) {

@@ -4,7 +4,7 @@ export class ServiceError extends Error {
   constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
 }
 export const reject = (code, message, status = 400) => { throw new ServiceError(code, message, status); };
-export const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers } });
+export const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex', ...headers } });
 export function errorResponse(error) {
   if (!(error instanceof ServiceError)) console.error(JSON.stringify({event:'browser_request_failed',name:error.name,message:String(error.message).replace(/https?:\S+|Bearer \S+/g,'[redacted]').slice(0,250)}));
   return json({ success: false, error: { code: error.code ?? 'ENGINE_UNAVAILABLE', message: error instanceof ServiceError ? error.message : 'The browser service could not complete this request.' } }, error.status ?? 503, error.status===429?{'Retry-After':'10'}:{});
