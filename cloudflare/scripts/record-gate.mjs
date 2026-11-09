@@ -5,7 +5,9 @@ if(!report.passed||!report.persistenceAcrossWorkerRedeploy)throw new Error('Live
 if(!process.env.AIHACKR_STAGING_VERSION)throw new Error('Set AIHACKR_STAGING_VERSION to the verified staging deployment version.');
 const customer=JSON.parse(await readFile(new URL('../reports/customer-staging.json',import.meta.url),'utf8'));
 const digest=await sourceDigest();
+const site=JSON.parse(await readFile(new URL('../reports/site-staging.json',import.meta.url),'utf8'));
+if(!site.passed||site.origin!==report.origin||site.sourceDigest!==digest)throw new Error('Current-source live public site and SEO checks are required.');
 if(!report.checks.customerAccountGuards?.passed||!customer.passed||customer.sourceDigest!==digest)throw new Error('Customer login, usage, responsive portal and persistence must be verified for the current source.');
-const receipt={...report,customerPortal:customer,stagingOrigin:report.origin,sourceDigest:digest,portalVerified:true,stagingVersion:process.env.AIHACKR_STAGING_VERSION};
+const receipt={...report,site,customerPortal:customer,stagingOrigin:report.origin,sourceDigest:digest,portalVerified:true,stagingVersion:process.env.AIHACKR_STAGING_VERSION};
 await writeFile(new URL('../release-gate.json',import.meta.url),JSON.stringify(receipt,null,2)+'\n');
 console.log('Recorded the passing Cloudflare live release gate for source '+receipt.sourceDigest+'.');

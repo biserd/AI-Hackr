@@ -58,3 +58,11 @@ Search, batch scraping, paid tenant billing and OAuth linking are not enabled. T
 ## Source and licenses
 
 AIHackr's wrapper remains AGPL-3.0-or-later. The official Cloudflare MCP tool source is Apache-2.0; its license and source digest are retained under `cloudflare/vendor/` and `cloudflare/upstream.lock.json`. The official file is unchanged; import aliases adapt its client and workspace context. Authentication/account selection and exposed tool filtering are AIHackr adaptations. See `THIRD_PARTY_NOTICES.md` and `docs/decisions.md`.
+
+## Documentation, blog and marketing
+
+Public pages are statically generated from `content/manifest.mjs`, `content/pages.mjs` and `content/posts.mjs`. The existing portal is retained in `web/index.html`; the build adds shared navigation, structured metadata and footer. Edit the content sources, not `dist/`. Run `node cloudflare/scripts/build.mjs` and `node cloudflare/scripts/verify-site.mjs` before deployment.
+
+The release includes ten documentation guides, four original blog tutorials, three use-case landing pages, a transparent free-trial availability page and a media kit. `/sitemap.xml`, `/robots.txt`, `/rss.xml` and `/docs-search.json` are generated. The search is browser-local after one static index fetch; no search service or analytics provider is added.
+
+Public HTML has unique titles/descriptions, production canonicals, Open Graph/Twitter metadata, Organization/WebSite/page/Breadcrumb structured data and BlogPosting markup for articles. JSON-LD hashes are included in the page CSP. Staging returns noindex headers and a blocking robots file. Unknown website paths return an actual 404. Marketing copy describes current production capabilities; change it when paid billing/OAuth become live. The marketing kit contains drafts only, with no campaign sends or analytics provisioning.
