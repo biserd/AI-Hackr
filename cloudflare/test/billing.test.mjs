@@ -1,3 +1,4 @@
+import {POLICY_VERSION} from '../policies.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Stripe from 'stripe';
@@ -35,14 +36,32 @@ test('financial risk resolves charge to invoice to subscription and holds credit
   const s=await setup();await s.billing.invoice('in_first');const event={id:'evt_refund',type:'charge.refunded',created:s.start,data:{object:{id:'ch_fixture'}}};await s.billing.event(event);await s.billing.event(event);assert.equal((await s.account.creditSummary('u')).available,0);assert.equal((await s.account.creditSummary('u')).billing.hold,true);await assert.rejects(()=>s.account.creditReserve('u','new',1),{code:'BILLING_REVIEW'});
 });
 test('checkout uses allowlisted server prices, fixed returns, dynamic methods, no tax and one pending attempt',async()=>{
-  const s=await setup();await s.billing.checkout({id:'u',email:'test@example.com'},'starter','https://aihackr.com');const p=s.params().checkoutParams;assert.deepEqual(p.line_items,[{price:'price_starter',quantity:1}]);assert.equal(p.automatic_tax.enabled,false);assert.equal(p.payment_method_types,undefined);assert.match(p.integration_identifier,/aihackr_launch_[a-z]{8}$/);assert.equal(p.success_url,'https://aihackr.com/dashboard?checkout=success');await assert.rejects(()=>s.billing.checkout({id:'u'},'builder','https://aihackr.com'),{code:'CHECKOUT_PENDING'});await assert.rejects(()=>s.billing.checkout({id:'u'},'price_other','https://aihackr.com'),{code:'INVALID_INPUT'});
-  s.client.subscriptions.list=async()=>({data:[s.sub],has_more:false});await s.billing.checkout({id:'u'},'builder','https://aihackr.com');assert.equal(s.params().portalParams.customer,'cus_aihackr');assert.equal(s.params().portalParams.configuration,'bpc_fixture');
+  const s=await setup();await s.billing.checkout({id:'u',email:'test@example.com'},'starter','https://aihackr.com',POLICY_VERSION);const p=s.params().checkoutParams;assert.deepEqual(p.line_items,[{price:'price_starter',quantity:1}]);assert.equal(p.automatic_tax.enabled,false);assert.equal(p.payment_method_types,undefined);assert.match(p.integration_identifier,/aihackr_launch_[a-z]{8}$/);assert.equal(p.success_url,'https://aihackr.com/dashboard?checkout=success');await assert.rejects(()=>s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION),{code:'CHECKOUT_PENDING'});await assert.rejects(()=>s.billing.checkout({id:'u'},'price_other','https://aihackr.com',POLICY_VERSION),{code:'INVALID_INPUT'});
+  s.client.subscriptions.list=async()=>({data:[s.sub],has_more:false});await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);assert.equal(s.params().portalParams.customer,'cus_aihackr');assert.equal(s.params().portalParams.configuration,'bpc_fixture');
 });
 test('webhook verification rejects unsigned and tampered input and accepts a valid Stripe signature',async()=>{
   const s=await setup(),payload=JSON.stringify({id:'evt_ignored',type:'not.subscribed',livemode:false,data:{object:{}}}),client=new Stripe(s.env.STRIPE_SECRET_KEY,{httpClient:Stripe.createFetchHttpClient()}),signature=await client.webhooks.generateTestHeaderStringAsync({payload,secret:s.env.STRIPE_WEBHOOK_SECRET,cryptoProvider:Stripe.createSubtleCryptoProvider()});
   const request=(body,sig)=>new Request('https://aihackr.com/stripe/webhook',{method:'POST',headers:{'stripe-signature':sig??''},body});await assert.rejects(()=>billingWebhook(request(payload),s.env),{code:'INVALID_SIGNATURE'});await assert.rejects(()=>billingWebhook(request(payload+' ',signature),s.env),{code:'INVALID_SIGNATURE'});assert.equal((await billingWebhook(request(payload,signature),s.env)).status,200);
 });
 test('unpaid checkout can be closed before choosing a new plan; wrong catalog configuration fails closed',async()=>{
-  const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com');await s.billing.closeCheckout({id:'u'});await s.billing.checkout({id:'u'},'builder','https://aihackr.com');assert.equal(s.params().checkoutParams.line_items[0].price,'price_builder');
-  s.client.prices.retrieve=async()=>({active:true,currency:'usd',unit_amount:499,recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{metadata:{app:'another-app'}}});await assert.rejects(()=>s.billing.checkout({id:'u'},'scale','https://aihackr.com'),{code:'BILLING_CONFIGURATION'});
+  const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);await s.billing.closeCheckout({id:'u'});await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);assert.equal(s.params().checkoutParams.line_items[0].price,'price_builder');
+  s.client.prices.retrieve=async()=>({active:true,currency:'usd',unit_amount:499,recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{metadata:{app:'another-app'}}});await assert.rejects(()=>s.billing.checkout({id:'u'},'scale','https://aihackr.com',POLICY_VERSION),{code:'BILLING_CONFIGURATION'});
+});
+
+test('new checkout requires current policy acceptance and records a server timestamp',async()=>{
+  const s=await setup();await assert.rejects(()=>s.billing.checkout({id:'u'},'starter','https://aihackr.com'),{code:'POLICY_ACCEPTANCE_REQUIRED'});assert.equal(s.params().checkoutParams,undefined);await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);const consent=await s.account.storage.get('billing-consent:u');assert.equal(consent.version,POLICY_VERSION);assert(consent.acceptedAt>0);assert.equal(s.params().checkoutParams.metadata.terms_version,POLICY_VERSION);assert.equal(s.params().checkoutParams.subscription_data.billing_mode.type,'flexible');
+});
+
+test('completed or expired Checkout does not prevent a later subscription; foreign sessions fail closed',async()=>{
+  for(const status of ['complete','expired']){
+    const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);
+    const previous=await s.account.checkoutPending('u');
+    s.client.checkout.sessions.retrieve=async()=>({customer:'cus_aihackr',status});
+    await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);
+    assert.notEqual((await s.account.checkoutPending('u')).id,previous.id);
+    assert.equal(s.params().checkoutParams.line_items[0].price,'price_builder');
+  }
+  const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);
+  s.client.checkout.sessions.retrieve=async()=>({customer:'cus_other',status:'expired'});
+  await assert.rejects(()=>s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION),{code:'BILLING_CONFLICT'});
 });

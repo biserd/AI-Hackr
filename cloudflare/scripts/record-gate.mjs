@@ -9,6 +9,8 @@ const billing=JSON.parse(await readFile(new URL('../reports/billing-staging.json
 if(!billing.passed||billing.livemode!==false||billing.origin!==report.origin||billing.sourceDigest!==digest)throw new Error('Current-source Stripe sandbox and customer-credit integration proof is required.');
 for(const name of ['checkout','paidInvoice','duplicateEvents','portal','creditSettlement','webhookSignature'])if(!billing.checks?.[name]?.passed)throw new Error('Missing billing check: '+name);
 if(!report.checks.customerAccountGuards?.passed||!customer.passed||customer.sourceDigest!==digest)throw new Error('Customer login, usage, responsive portal and persistence must be verified for the current source.');
-const receipt={...report,billing,customerPortal:customer,stagingOrigin:report.origin,sourceDigest:digest,portalVerified:true,stagingVersion:process.env.AIHACKR_STAGING_VERSION};
+const site=JSON.parse(await readFile(new URL('../reports/site-staging.json',import.meta.url),'utf8'));
+if(!site.passed||site.origin!==report.origin||site.sourceDigest!==digest)throw new Error('Current-source public site and SEO verification is required.');
+const receipt={...report,billing,site,customerPortal:customer,stagingOrigin:report.origin,sourceDigest:digest,portalVerified:true,stagingVersion:process.env.AIHACKR_STAGING_VERSION};
 await writeFile(new URL('../release-gate.json',import.meta.url),JSON.stringify(receipt,null,2)+'\n');
 console.log('Recorded the passing Cloudflare live release gate for source '+receipt.sourceDigest+'.');

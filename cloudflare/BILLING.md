@@ -29,7 +29,15 @@ Live webhook: `https://aihackr.com/stripe/webhook`. Staging: the same path on th
 
 Handlers verify the raw-body signature and mode. They resolve canonical Stripe objects through the dedicated Customer ID mapping and allowlisted prices; metadata is not an ownership authority. Invoice IDs are durable grant keys. Risk events traverse Charge → PaymentIntent → InvoicePayment → Invoice → Subscription and freeze new work for review. No automatic refund or financial transfer is initiated.
 
-Checkout redirects never grant credits. The authenticated refresh route can reconcile recent paid invoices after a delayed webhook. An existing subscription routes to the portal; one pending Checkout attempt is reused for 32 minutes. Stripe Checkout expires after 31 minutes. A different plan during that window returns `CHECKOUT_PENDING` rather than creating duplicate payable sessions.
+Checkout redirects never grant credits. The authenticated refresh route can reconcile recent paid invoices after a delayed webhook. An existing subscription routes to the portal; one pending Checkout attempt is reused for 32 minutes. Stripe Checkout expires after 31 minutes. A different plan while an existing Checkout is open returns `CHECKOUT_PENDING` rather than creating duplicate payable sessions. Canonical completed or expired sessions are cleared before creating a later checkout, including when a former customer subscribes again after cancellation.
+
+New subscriptions require the current policy version from an explicit dashboard checkbox. The server records the acceptance version and time before creating Checkout, attaches that version to the session/subscription metadata, and includes terms and refund links in the per-session submit message. Managing an existing subscription does not require checking the purchase consent box again. Account-wide Stripe business settings remain untouched.
+
+## Customer policies
+
+Static, indexable pages at `/privacy`, `/terms`, `/refunds`, `/acceptable-use`, `/cookies` and `/support` are included in the sitemap, navigation and dashboard footer. `cloudflare/policies.mjs` owns the operator contact details and policy version; `content/customer-policies.mjs` owns the public text. The operator is Big Apple Digital LLC. Support uses the existing business mailbox `hello@bigappledigital.nyc`.
+
+The notices distinguish seven-day retrieved-content retention from longer-lived account, consent, ledger and billing-reference records. Account deletion/export requests are manual support requests. Cancellation stops subscription renewal and does not delete the account. No advertising analytics, automatic refunds, guaranteed SLA or automatic tax collection are represented. Staging shows a sandbox banner when a test-mode runtime key is installed; simulated transactions create no real purchase obligation.
 
 ## Ledger and migration
 

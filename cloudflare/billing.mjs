@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import {directoryCall} from './accounts.mjs';
 import {PLANS,planFor} from './plans.mjs';
 import {boundedJson,boundedText,json,onlyKeys,reject} from './policy.mjs';
+import {POLICY_VERSION} from './policies.mjs';
 
 export const BILLING_EVENTS=['checkout.session.completed','checkout.session.async_payment_succeeded','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted','invoice.paid','invoice.payment_failed','charge.refunded','charge.dispute.created','radar.early_fraud_warning.created'];
 const id=value=>typeof value==='string'?value:value?.id;
@@ -53,16 +54,20 @@ export class BillingService{
     const invoices=await this.client.invoices.list({customer,status:'paid',limit:12});
     for(const invoice of invoices.data)await this.invoice(invoice.id);
   }
-  async checkout(user,planId,origin){
+  async checkout(user,planId,origin,acceptedTermsVersion){
     if(!this.config.ready)reject('BILLING_UNAVAILABLE','Billing setup is not complete yet.',503);
     const plan=planFor(planId);if(!plan)reject('INVALID_INPUT','Choose an AIHackr plan.');
     await this.validatePrice(plan);
     const customer=await this.customer(user),subscriptions=await this.client.subscriptions.list({customer,status:'all',limit:100});
     if(subscriptions.has_more)reject('BILLING_REVIEW','Contact support to review your billing account.',409);
     if(subscriptions.data.some(s=>!['canceled','incomplete_expired'].includes(s.status)))return this.portal(user,origin);
+    if(acceptedTermsVersion!==POLICY_VERSION)reject('POLICY_ACCEPTANCE_REQUIRED','Review and accept the current Terms and Cancellation & Refund Policy before subscribing.',400);
+    await directoryCall(this.env,'recordBillingConsent',user.id,POLICY_VERSION);
+    const previous=await directoryCall(this.env,'checkoutPending',user.id);
+    if(previous?.session){const session=await this.client.checkout.sessions.retrieve(previous.session);if(id(session.customer)!==customer)reject('BILLING_CONFLICT','Checkout ownership mismatch.',403);if(['expired','complete'].includes(session.status))await directoryCall(this.env,'checkoutPending',user.id,previous.id,null);}
     const attempt=await directoryCall(this.env,'checkoutAttempt',user.id,planId);
     const suffix=attempt.suffix??attempt.id.replace(/[^a-z]/g,'').padEnd(8,'a').slice(0,8);
-    const session=await this.client.checkout.sessions.create({mode:'subscription',customer,line_items:[{price:this.config.prices[planId],quantity:1}],client_reference_id:user.id,metadata:{app:'aihackr',user_id:user.id},subscription_data:{metadata:{app:'aihackr',user_id:user.id}},automatic_tax:{enabled:false},integration_identifier:'aihackr_launch_'+suffix,success_url:origin+'/dashboard?checkout=success',cancel_url:origin+'/dashboard?checkout=cancelled',expires_at:Math.floor(attempt.createdAt/1000)+1860},{idempotencyKey:'aihackr-checkout-'+attempt.id});
+    const session=await this.client.checkout.sessions.create({mode:'subscription',customer,line_items:[{price:this.config.prices[planId],quantity:1}],client_reference_id:user.id,metadata:{app:'aihackr',user_id:user.id,terms_version:POLICY_VERSION},subscription_data:{billing_mode:{type:'flexible'},metadata:{app:'aihackr',user_id:user.id,terms_version:POLICY_VERSION}},custom_text:{submit:{message:'Your AIHackr subscription renews monthly until cancelled. [Terms]('+origin+'/terms) and [Cancellation & Refund Policy]('+origin+'/refunds) apply. No automatic overage charges.'}},automatic_tax:{enabled:false},integration_identifier:'aihackr_launch_'+suffix,success_url:origin+'/dashboard?checkout=success',cancel_url:origin+'/dashboard?checkout=cancelled',expires_at:Math.floor(attempt.createdAt/1000)+1860},{idempotencyKey:'aihackr-checkout-'+attempt.id});
     await directoryCall(this.env,'checkoutPending',user.id,attempt.id,session.id);
     return {url:session.url};
   }
@@ -105,7 +110,7 @@ export async function billingRoute(request,env,identity){
   const service=new BillingService(env),url=new URL(request.url);
   if(request.method!=='POST')reject('NOT_FOUND','Unknown billing route.',404);
   await directoryCall(env,'billingThrottle',identity.id);
-  if(url.pathname==='/api/billing/checkout'){const body=await boundedJson(request,2048);onlyKeys(body,['plan']);return json(await service.checkout(identity,body.plan,url.origin));}
+  if(url.pathname==='/api/billing/checkout'){const body=await boundedJson(request,2048);onlyKeys(body,['plan','acceptedTermsVersion']);return json(await service.checkout(identity,body.plan,url.origin,body.acceptedTermsVersion));}
   if(url.pathname==='/api/billing/portal')return json(await service.portal(identity,url.origin));
   if(url.pathname==='/api/billing/refresh'){await service.refresh(identity);return json(await directoryCall(env,'creditSummary',identity.id));}
   if(url.pathname==='/api/billing/close-checkout')return json(await service.closeCheckout(identity));

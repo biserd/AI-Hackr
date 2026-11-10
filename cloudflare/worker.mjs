@@ -1,3 +1,4 @@
+import {publicSite} from './public-site.mjs';
 import {DurableObject,WorkerEntrypoint} from 'cloudflare:workers';
 import {BrowserService,engineName} from './browser-service.mjs';
 import {capabilities,routeGateway} from './gateway.mjs';
@@ -10,7 +11,6 @@ import {digest} from './accounts.mjs';
 import {billingWebhook,billingConfig} from './billing.mjs';
 import {PLANS} from './plans.mjs';
 
-const csp="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export class BrowserWorkspace extends DurableObject {
   constructor(ctx,env){super(ctx,env);this.active=0;}
   serviceFor(identity){
@@ -47,6 +47,7 @@ export class AccountDirectory extends DurableObject {
   async revokeKey(userId,id){return rpcResult(()=>this.accounts.revokeKey(userId,id));}
   async reserve(pages,userId){return rpcResult(()=>this.accounts.reserve(pages,userId));}
   async creditSummary(userId){return rpcResult(()=>this.accounts.creditSummary(userId));}
+  async recordBillingConsent(userId,version){return rpcResult(()=>this.accounts.recordBillingConsent(userId,version));}
   async creditReserve(...args){return rpcResult(()=>this.accounts.creditReserve(...args));}
   async creditSettle(...args){return rpcResult(()=>this.accounts.creditSettle(...args));}
   async creditGrant(...args){return rpcResult(()=>this.accounts.creditGrant(...args));}
@@ -74,7 +75,7 @@ export default {
       if(url.hostname==='www.aihackr.com'){url.hostname='aihackr.com';return Response.redirect(url.href,308);}
       if(url.pathname==='/web-data'||url.pathname==='/web-data/'){url.pathname='/';url.search='';return Response.redirect(url.href,308);}
       if(request.method==='GET'&&['/api/capabilities','/v1/capabilities'].includes(url.pathname))return json(capabilities(env));
-      if(request.method==='GET'&&url.pathname==='/__version')return json({release:'cloudflare-browser-run-0.5.0',engine:engineName,upstreamCommit:'a21972e219289337731a066befb5c66886b9ce7b'});
+      if(request.method==='GET'&&url.pathname==='/__version')return json({release:'cloudflare-browser-run-0.7.0',engine:engineName,upstreamCommit:'a21972e219289337731a066befb5c66886b9ce7b'});
       if(request.method==='GET'&&url.pathname==='/health/live')return json({live:true,engine:engineName});
       if(request.method==='GET'&&url.pathname==='/health/ready'){
         const ready=Boolean(env.BROWSER&&env.BROWSER_WORKSPACE&&env.ACCOUNT_DIRECTORY&&env.EMAIL&&env.AIHACKR_API_KEY?.length>=32&&env.CLOUDFLARE_BROWSER_TOKEN);
@@ -87,14 +88,7 @@ export default {
       if(url.pathname.startsWith('/api/keys')||url.pathname.startsWith('/api/jobs')||url.pathname==='/api/usage'||url.pathname.startsWith('/api/billing/')||url.pathname==='/api/session'||url.pathname==='/mcp'||url.pathname.startsWith('/v2/')){
         return await customerGateway(request,env);
       }
-      if(['/','/app.mjs','/account.mjs','/style.css','/dashboard','/dashboard/','/dashboard.mjs','/dashboard.css','/aihackr-plugin.zip','/docs','/docs/'].includes(url.pathname)&&['GET','HEAD'].includes(request.method)){
-        if(url.pathname==='/')url.pathname='/index.html';
-        if(url.pathname==='/docs'||url.pathname==='/docs/')url.pathname='/docs.html';
-        if(url.pathname==='/dashboard'||url.pathname==='/dashboard/')url.pathname='/dashboard.html';
-        const asset=await env.ASSETS.fetch(new Request(url,request));const headers=new Headers(asset.headers);
-        headers.set('Content-Security-Policy',csp);headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','no-referrer');
-        return new Response(asset.body,{status:asset.status,headers});
-      }
+      const page=await publicSite(request,env);if(page)return page;
       reject('NOT_FOUND','Unknown route.',404);
     }catch(error){return errorResponse(error);}
   }

@@ -1,5 +1,6 @@
 import {ServiceError,bearer,boundedJson,credentialMatches,json,onlyKeys,reject} from './policy.mjs';
 import {CreditLedger} from './credits.mjs';
+import {POLICY_VERSION} from './policies.mjs';
 
 export const SESSION_COOKIE='__Host-aihackr_session';
 export const CHALLENGE_COOKIE='__Host-aihackr_challenge';
@@ -89,6 +90,7 @@ export class AccountService {
     });
   }
   async creditSummary(userId){return this.credits.summary(userId);}
+  async recordBillingConsent(userId,version){if(version!==POLICY_VERSION)reject('INVALID_INPUT','Unknown policy version.');if(!await this.storage.get('user:'+userId))reject('AUTH_REQUIRED','Unknown account.',401);const consent={version,acceptedAt:this.now(),purpose:'subscription_checkout'};await this.storage.put('billing-consent:'+userId,consent);return consent;}
   async creditReserve(userId,id,units,details){return this.credits.reserve(userId,id,units,details);}
   async creditSettle(userId,id,units){return this.credits.settle(userId,id,units);}
   async creditGrant(userId,grant){return this.credits.grant(userId,grant);}

@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-08T22:46:32.273Z",
+  "checkedAt": "2026-11-09T02:04:07.074Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "fda71e5d-5303-4264-ba90-958c2e0ac39f",
+  "retainedCrawlId": "0071225e-c353-4cdc-ae12-1865bf31f656",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -43,100 +43,276 @@
     "get_crawl_result",
     "cancel_crawl"
   ],
-  "customerAccountGuardsVerifiedAt": "2026-11-08T22:47:18.723Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-09T02:06:12.212Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-08T22:48:40.568Z",
-  "customerPortal": {
-    "checkedAt": "2026-11-08T22:14:14.442Z",
+  "redeployVerifiedAt": "2026-11-09T02:06:55.673Z",
+  "site": {
+    "checkedAt": "2026-11-09T02:11:17.711Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
     "passed": true,
-    "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
-    "emailDelivered": true,
-    "emailCodeLogin": true,
-    "privateCustomerScrape": true,
-    "privateCustomerTwoPageCrawl": true,
-    "usage": {
-      "trialLimit": 20,
-      "reserved": 3,
-      "remaining": 17
+    "checks": {
+      "pagesAndMetadata": {
+        "passed": true,
+        "count": 23
+      },
+      "redirectsAnd404": {
+        "passed": true
+      },
+      "discoveryFeedsAndSearch": {
+        "passed": true
+      },
+      "brandAssetsAndMarketingKit": {
+        "passed": true
+      },
+      "privateRoutes": {
+        "passed": true
+      },
+      "queryCanonical": {
+        "passed": true
+      }
     },
-    "apiKeySettingsVisible": true,
-    "sessionAndUsagePersistedAcrossWorkerRedeploy": true,
-    "typography": {
-      "bodyPx": 17,
-      "labelPx": 15,
-      "inputPx": 16
-    },
-    "desktopOverflow": false,
-    "mobileViewportWidth": 390,
-    "mobileOverflow": false,
-    "screenshots": [
-      "AIHackr_SaaS_Staging_Desktop.png",
-      "AIHackr_SaaS_Staging_Mobile.png"
-    ],
-    "note": "Real email login completed by the owner; browser UI verified through CUA. Key ownership, revocation and tenant isolation additionally tested in the shared account/customer routing tests.",
-    "signedOutResponsesHidden": true,
-    "logoutVerifiedAt": "2026-11-08T22:16:48.945Z",
-    "inheritedAccountVerification": {
-      "commit": "5747a365fc04a38e5a9bf463c4c263549acd0e64",
-      "sourceDigest": "4b658e6941569bdfcab497bea7f2cd0a8decde44c1e6e26ebcf208812d3ecd97",
-      "reason": "Only playground JS/HTML changed; account, gateway, engine, configuration and dependencies are unchanged."
-    },
-    "urlInputVerification": {
-      "checkedAt": "2026-11-08T22:33:10.492Z",
-      "browser": true,
-      "signedOutSubmissionReachedSignIn": true,
-      "operations": [
-        "scrape",
-        "crawl",
-        "map",
-        "extract"
+    "pages": [
+      {
+        "path": "/",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/quickstart",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/authentication",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/scrape",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/map",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/crawl",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/extract",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/mcp",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/limits",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/errors",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/migration",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/website-to-markdown-api",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/scrape-vs-crawl-vs-map",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/web-data-for-rag",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/structured-data-extraction",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/rag",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/ai-agents",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/data-extraction",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/plans",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/media-kit",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      }
+    ]
+  },
+  "customerPortal": {
+    "checkedAt": "2026-11-09T02:11:54.581Z",
+    "passed": true,
+    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
+    "scope": "Marketing/public routing release: unchanged authenticated account/engine implementation with inherited owner verification and current regression checks.",
+    "inheritedAccountProof": {
+      "commit": "f2a11549c80036955a1af027eaa6f382f115be34",
+      "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
+      "verifiedSourceFiles": [
+        {
+          "path": "cloudflare/accounts.mjs",
+          "sha256": "1d5e0aa9e6863c39401ac314a7e71f62a85336168abd7ec086a6fd1ff7130acf"
+        },
+        {
+          "path": "cloudflare/customer-gateway.mjs",
+          "sha256": "839e73d87707a23ef350c65594caeea36fc58705dffe4db5ffdac6979f1f707f"
+        },
+        {
+          "path": "cloudflare/browser-service.mjs",
+          "sha256": "2815bdc13902069367761a8c7fb356a1746497bbd68b1964a3b269abf5046256"
+        },
+        {
+          "path": "cloudflare/mcp-client.mjs",
+          "sha256": "535fdaec0c4b163d7a7a2efb8f1d128fac470498f03e352265258bd58e869242"
+        },
+        {
+          "path": "cloudflare/mcp-context.mjs",
+          "sha256": "aa0a08440b5ec2e528869d323af323d992c739255967216d84fe8e7e2b3c4928"
+        },
+        {
+          "path": "cloudflare/vendor/browser.tools.ts",
+          "sha256": "d4e57ee3b0cac0596cc0565caa6dca54efa7e6862231212f7ed2e6fec441af57"
+        },
+        {
+          "path": "web/account.mjs",
+          "sha256": "b5362d3cfb3134e06dcf050455a3bbb9b4b6df14d925992b80a126ec703602ad"
+        },
+        {
+          "path": "web/app.mjs",
+          "sha256": "5371f6597c7381e0c9d3ff7d0fa2071d9239c06b4860f49ee9cbfb8c242ec95a"
+        },
+        {
+          "path": "web/style.css",
+          "sha256": "0ff348c6347479f1807e74b61ac9bb9f22b30daac2b3c9ee2a1a2aa59d022578"
+        }
       ],
-      "bareDomain": "llmmargin.com",
-      "normalized": "https://llmmargin.com/",
-      "explicitHttpPreserved": true,
-      "whitespaceAndPathPreserved": true,
-      "unsupportedSchemeRejected": true
+      "ownerEmailCodeLogin": true,
+      "privateCustomerScrape": true,
+      "privateCustomerCrawl": true,
+      "sessionAndUsagePersistence": true,
+      "priorDesktopAndMobileEvidence": [
+        "AIHackr_SaaS_Staging_Desktop.png",
+        "AIHackr_SaaS_Staging_Mobile.png"
+      ]
     },
-    "toolSwitchingVerification": {
-      "checkedAt": "2026-11-08T22:49:37.163Z",
-      "browser": true,
-      "localUiFixture": {
-        "engineResponsesMocked": true,
-        "priorToolResultsHidden": true,
-        "crawlControlsOnlyOnCrawl": true,
-        "resultsRestoredPerTool": true,
-        "limitsRestoredIndependently": true,
-        "tabsDisabledDuringRequest": true
+    "current": {
+      "allPortalControlIdsPreserved": true,
+      "accountGuards": {
+        "passed": true
       },
-      "liveStagingControls": {
-        "mapDefaultLinks": 20,
-        "crawlDefaultPages": 5,
-        "emptyContentViewCorrect": true,
-        "staleCrawlControlsHidden": true
+      "publicPagesAndSeo": true,
+      "responsiveSourceReview": {
+        "mobileNavigation": true,
+        "singleColumnCards": true,
+        "overflowContainedForTablesAndCode": true,
+        "systemFonts": true,
+        "readableBodyTextPx": 17,
+        "reducedMotion": true
       }
     },
-    "requestedLiveSiteChecks": {
-      "site": "https://llmmargin.com/",
-      "crawl": {
-        "status": "completed",
-        "pages": 3,
-        "seconds": 18.5
-      },
-      "map": {
-        "success": true,
-        "sameOriginLinks": 17,
-        "seconds": 2.5
-      },
-      "extract": {
-        "success": true,
-        "name": "LLM Margin",
-        "descriptionReturned": true,
-        "seconds": 3.3
-      }
-    }
+    "freshVisualBrowserReview": false,
+    "limitations": [
+      "Local browser automation is disabled. No new visual screenshot, interactive docs-search test or owner login is claimed. Prior owner login and private-workspace proof is inherited only for source files explicitly verified unchanged. New public-page layouts were reviewed in source and checked through real HTTP responses."
+    ]
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
+  "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
   "portalVerified": true,
-  "stagingVersion": "8e298cee-4a50-4b55-b62b-116bbe232c17"
+  "stagingVersion": "733ca1f4-80ec-446a-9b88-a7e9ddb6bbd1"
 }
