@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-09T02:04:07.074Z",
+  "checkedAt": "2026-11-09T19:10:24.953Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "0071225e-c353-4cdc-ae12-1865bf31f656",
+  "retainedCrawlId": "0400fa07-7e20-4536-a2b1-2429e3ea7a07",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -43,18 +43,111 @@
     "get_crawl_result",
     "cancel_crawl"
   ],
-  "customerAccountGuardsVerifiedAt": "2026-11-09T02:06:12.212Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-09T02:06:55.673Z",
-  "site": {
-    "checkedAt": "2026-11-09T02:11:17.711Z",
+  "redeployVerifiedAt": "2026-11-10T23:40:32.715Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-10T23:40:33.971Z",
+  "billing": {
+    "passed": true,
+    "checkedAt": "2026-11-10T23:55:52.051Z",
+    "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
+    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
+    "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e",
+    "checks": {
+      "checkout": {
+        "passed": true,
+        "interactive": true,
+        "plan": "starter",
+        "currency": "usd",
+        "amount": 900,
+        "quantity": 1,
+        "explicitPolicyAcceptance": true,
+        "consentRequiredBeforeRedirect": true,
+        "taxCollection": false,
+        "realFundsMoved": false
+      },
+      "paidInvoice": {
+        "passed": true,
+        "invoice": "in_1UaOTv2OxvOkZCMOqH8rTFTb",
+        "event": "evt_1UaOTy2OxvOkZCMOSefmbtY2",
+        "stripePendingWebhookDeliveries": 0,
+        "openingAvailable": 16,
+        "availableAfterPayment": 1016,
+        "monthlyGrant": 1000
+      },
+      "duplicateEvents": {
+        "passed": true,
+        "replayStatus": 200,
+        "appReconciliationVerified": true,
+        "availableAfterBoth": 1016
+      },
+      "portal": {
+        "passed": true,
+        "hosted": true,
+        "invoiceHistory": true,
+        "cancelAtPeriodEnd": true,
+        "remainingCreditsPreserved": true,
+        "upgrade": {
+          "invoice": "in_1UaOWN2OxvOkZCMOAdgiTsk8",
+          "event": "evt_1UaOWQ2OxvOkZCMORUzuIIH8",
+          "amount": 2000,
+          "proratedGrant": 4000,
+          "availableAfterUpgrade": 5016,
+          "stripePendingWebhookDeliveries": 0
+        },
+        "declinedAdjustment": {
+          "invoice": "in_1UaOYi2OxvOkZCMOtCwqQDIK",
+          "event": "evt_1UaOYo2OxvOkZCMOxhRugz77",
+          "amountPaid": 0,
+          "grant": 0,
+          "voidedTestInvoice": true
+        }
+      },
+      "creditSettlement": {
+        "passed": true,
+        "operations": [
+          {
+            "tool": "scrape",
+            "site": "https://llmmargin.com/",
+            "charged": 1
+          },
+          {
+            "tool": "extract",
+            "site": "https://llmmargin.com/",
+            "charged": 5
+          },
+          {
+            "tool": "crawl",
+            "site": "https://example.com/",
+            "held": 5,
+            "charged": 1,
+            "returned": 4
+          }
+        ],
+        "dailyCredits": 7,
+        "availableAfterWork": 5009,
+        "heldAfterWork": 0,
+        "persistedAfterRedeploy": true,
+        "retainedCrawlDownloadPages": 1
+      },
+      "webhookSignature": {
+        "passed": true,
+        "tamperedStatus": 400,
+        "validReplayStatus": 200,
+        "realStripeEventsDelivered": true
+      }
+    },
+    "note": "Verified hosted sandbox Checkout and portal in a real customer browser. The upgrade grant was observed on portal return without a billing reconciliation request. The replay used a fresh valid signature over the real sandbox event; it was not an additional Stripe-originated delivery. Full-period renewal, expiry, and partial cancelled crawl settlement are covered by automated tests; period-end cancellation was exercised in the hosted portal."
+  },
+  "site": {
+    "checkedAt": "2026-11-10T23:40:34.078Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
         "passed": true,
-        "count": 23
+        "count": 29
       },
       "redirectsAnd404": {
         "passed": true
@@ -233,86 +326,91 @@
         "deployedSourceMatches": true,
         "canonical": true,
         "structuredDataCsp": true
+      },
+      {
+        "path": "/privacy",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/terms",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/refunds",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/acceptable-use",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/cookies",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/support",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
       }
     ]
   },
   "customerPortal": {
-    "checkedAt": "2026-11-09T02:11:54.581Z",
     "passed": true,
-    "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
-    "scope": "Marketing/public routing release: unchanged authenticated account/engine implementation with inherited owner verification and current regression checks.",
-    "inheritedAccountProof": {
-      "commit": "f2a11549c80036955a1af027eaa6f382f115be34",
-      "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
-      "verifiedSourceFiles": [
-        {
-          "path": "cloudflare/accounts.mjs",
-          "sha256": "1d5e0aa9e6863c39401ac314a7e71f62a85336168abd7ec086a6fd1ff7130acf"
-        },
-        {
-          "path": "cloudflare/customer-gateway.mjs",
-          "sha256": "839e73d87707a23ef350c65594caeea36fc58705dffe4db5ffdac6979f1f707f"
-        },
-        {
-          "path": "cloudflare/browser-service.mjs",
-          "sha256": "2815bdc13902069367761a8c7fb356a1746497bbd68b1964a3b269abf5046256"
-        },
-        {
-          "path": "cloudflare/mcp-client.mjs",
-          "sha256": "535fdaec0c4b163d7a7a2efb8f1d128fac470498f03e352265258bd58e869242"
-        },
-        {
-          "path": "cloudflare/mcp-context.mjs",
-          "sha256": "aa0a08440b5ec2e528869d323af323d992c739255967216d84fe8e7e2b3c4928"
-        },
-        {
-          "path": "cloudflare/vendor/browser.tools.ts",
-          "sha256": "d4e57ee3b0cac0596cc0565caa6dca54efa7e6862231212f7ed2e6fec441af57"
-        },
-        {
-          "path": "web/account.mjs",
-          "sha256": "b5362d3cfb3134e06dcf050455a3bbb9b4b6df14d925992b80a126ec703602ad"
-        },
-        {
-          "path": "web/app.mjs",
-          "sha256": "5371f6597c7381e0c9d3ff7d0fa2071d9239c06b4860f49ee9cbfb8c242ec95a"
-        },
-        {
-          "path": "web/style.css",
-          "sha256": "0ff348c6347479f1807e74b61ac9bb9f22b30daac2b3c9ee2a1a2aa59d022578"
-        }
-      ],
-      "ownerEmailCodeLogin": true,
-      "privateCustomerScrape": true,
-      "privateCustomerCrawl": true,
-      "sessionAndUsagePersistence": true,
-      "priorDesktopAndMobileEvidence": [
-        "AIHackr_SaaS_Staging_Desktop.png",
-        "AIHackr_SaaS_Staging_Mobile.png"
-      ]
+    "checkedAt": "2026-11-10T23:55:52.051Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
+    "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e",
+    "emailDelivered": true,
+    "emailCodeLogin": true,
+    "signedOutEndpointsDenied": true,
+    "privateCustomerScrape": true,
+    "privateCustomerExtract": true,
+    "privateCustomerCrawl": true,
+    "privateResultJsonDownload": true,
+    "sessionAndUsagePersistedAcrossWorkerRedeploy": true,
+    "usage": {
+      "available": 5009,
+      "held": 0,
+      "settledCreditsInLast14UtcDays": 7
     },
-    "current": {
-      "allPortalControlIdsPreserved": true,
-      "accountGuards": {
-        "passed": true
-      },
-      "publicPagesAndSeo": true,
-      "responsiveSourceReview": {
-        "mobileNavigation": true,
-        "singleColumnCards": true,
-        "overflowContainedForTablesAndCode": true,
-        "systemFonts": true,
-        "readableBodyTextPx": 17,
-        "reducedMotion": true
-      }
+    "desktop": {
+      "viewport": 2515,
+      "document": 2500,
+      "bodyFontPx": 17,
+      "overflow": false
     },
-    "freshVisualBrowserReview": false,
-    "limitations": [
-      "Local browser automation is disabled. No new visual screenshot, interactive docs-search test or owner login is claimed. Prior owner login and private-workspace proof is inherited only for source files explicitly verified unchanged. New public-page layouts were reviewed in source and checked through real HTTP responses."
-    ]
+    "mobile": {
+      "viewport": 390,
+      "document": 375,
+      "bodyFontPx": 17,
+      "overflow": false
+    },
+    "screenshots": [
+      "AIHackr_Stripe_Sandbox_Starter.jpg",
+      "AIHackr_Credit_Ledger_Staging.jpg",
+      "AIHackr_Dashboard_Mobile.jpg"
+    ],
+    "note": "Owner completed real email-code login. Dashboard, ledger and private results verified in Chrome. Key ownership and logout behavior are additionally verified by the account and routing test suite."
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "5768d9f1afb753f5e442a828839afd031d98d1241df09ca70c28aa5a0410760c",
+  "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
   "portalVerified": true,
-  "stagingVersion": "733ca1f4-80ec-446a-9b88-a7e9ddb6bbd1"
+  "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e"
 }
