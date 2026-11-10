@@ -1,4 +1,6 @@
 import {ServiceError,bearer,boundedJson,credentialMatches,json,onlyKeys,reject} from './policy.mjs';
+import {CreditLedger} from './credits.mjs';
+import {POLICY_VERSION} from './policies.mjs';
 
 export const SESSION_COOKIE='__Host-aihackr_session';
 export const CHALLENGE_COOKIE='__Host-aihackr_challenge';
@@ -16,7 +18,7 @@ function normalizeEmail(raw){const value=typeof raw==='string'?raw.trim().toLowe
 // Only hashed challenge, session and API-key secrets are persisted. The directory
 // also serializes account-wide reservations so new accounts cannot multiply spend.
 export class AccountService {
-  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;}
+  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;this.credits=new CreditLedger(storage,now);}
   async throttle(txn,key,limit,windowMs){const now=this.now();let item=await txn.get(key);if(!item||item.expiresAt<=now)item={count:0,expiresAt:now+windowMs};if(item.count>=limit)reject('RATE_LIMITED','Too many attempts. Please try again later.',429);item.count++;await txn.put(key,item);}
   async start(raw,ip){
     const email=normalizeEmail(raw),emailId=await digest(email),ipId=await digest(ip),challenge=opaque();
@@ -84,10 +86,30 @@ export class AccountService {
     await this.storage.transaction(async txn=>{
       const day=new Date(this.now()).toISOString().slice(0,10);let budget=await txn.get('global:budget');if(!budget||budget.day!==day)budget={day,pages:0};
       if(budget.pages+pages>this.globalLimit)reject('DAILY_LIMIT','AIHackr has reached its daily service allowance. Please try again tomorrow.',429);
-      if(userId){const user=await txn.get('user:'+userId);if(!user)reject('AUTH_REQUIRED','Sign in to continue.',401);if(user.trialReserved+pages>user.trialLimit)reject('TRIAL_LIMIT','Your free trial page allowance has been used. Paid plans are not available yet.',429);user.trialReserved+=pages;await txn.put('user:'+userId,user);}
       budget.pages+=pages;await txn.put('global:budget',budget);
     });
   }
+  async creditSummary(userId){return this.credits.summary(userId);}
+  async recordBillingConsent(userId,version){if(version!==POLICY_VERSION)reject('INVALID_INPUT','Unknown policy version.');if(!await this.storage.get('user:'+userId))reject('AUTH_REQUIRED','Unknown account.',401);const consent={version,acceptedAt:this.now(),purpose:'subscription_checkout'};await this.storage.put('billing-consent:'+userId,consent);return consent;}
+  async creditReserve(userId,id,units,details){return this.credits.reserve(userId,id,units,details);}
+  async creditSettle(userId,id,units){return this.credits.settle(userId,id,units);}
+  async creditGrant(userId,grant){return this.credits.grant(userId,grant);}
+  async creditEntries(userId,cursor){return this.credits.entries(userId,cursor);}
+  async creditDaily(userId){return this.credits.daily(userId);}
+  async billingUpdate(userId,update){return this.credits.billing(userId,update);}
+  async billingRisk(userId,invoice,reason){return this.credits.risk(userId,invoice,reason);}
+  async billingCustomer(userId,customer){
+    return this.storage.transaction(async tx=>{
+      const user=await tx.get('user:'+userId);if(!user)reject('AUTH_REQUIRED','Unknown account.',401);
+      if(customer){if(user.stripeCustomer&&user.stripeCustomer!==customer)reject('BILLING_CONFLICT','Account already linked.',409);user.stripeCustomer=customer;await tx.put('user:'+userId,user);await tx.put('customer:'+customer,userId);}
+      return user.stripeCustomer??null;
+    });
+  }
+  async customerOwner(customer){return await this.storage.get('customer:'+customer)??null;}
+  async billingEvent(id,done=false){const key='stripe-event:'+id;if(done)await this.storage.put(key,{at:this.now()});return Boolean(await this.storage.get(key));}
+  async billingThrottle(userId){return this.storage.transaction(tx=>this.throttle(tx,'rate:billing:'+userId,10,60000));}
+  async checkoutAttempt(userId,plan){return this.storage.transaction(async tx=>{const key='checkout:'+userId;let attempt=await tx.get(key);if(attempt&&attempt.createdAt>this.now()-1920000){if(attempt.plan!==plan)reject('CHECKOUT_PENDING','A checkout is already open. Resume that plan or close the unpaid checkout before choosing another plan.',409);return attempt;}attempt={id:crypto.randomUUID(),suffix:Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>String.fromCharCode(97+b%26)).join(''),plan,createdAt:this.now()};await tx.put(key,attempt);return attempt;});}
+  async checkoutPending(userId,attemptId,session){return this.storage.transaction(async tx=>{const key='checkout:'+userId,attempt=await tx.get(key);if(attemptId){if(attempt?.id!==attemptId)reject('BILLING_CONFLICT','Checkout attempt changed. Refresh the dashboard.',409);if(session===null){await tx.delete(key);return null;}attempt.session=session;await tx.put(key,attempt);}return attempt??null;});}
   async cleanup(){
     for(const prefix of ['challenge:','session:','rate:','sent:','signup:']){let start;for(;;){const entries=await this.storage.list({prefix,...(start?{startAfter:start}:{}),limit:500});for(const[key,value]of entries)if(value.expiresAt<=this.now())await this.storage.delete(key);if(entries.size<500)break;start=[...entries.keys()].at(-1);}}
     await this.storage.setAlarm(this.now()+3600000);

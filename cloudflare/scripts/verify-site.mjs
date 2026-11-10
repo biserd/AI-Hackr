@@ -6,7 +6,7 @@ import {sourceDigest} from './source-digest.mjs';
 const out=new URL('../../dist/public/',import.meta.url),origin='https://aihackr.com';
 const catalogue=[{path:'/'},...pages],html=new Map(),titles=new Set(),descriptions=new Set(),report={checkedAt:new Date().toISOString(),sourceDigest:await sourceDigest(),passed:false,pages:[],limitations:['Static/source validation does not establish search-engine indexing, rankings, Core Web Vitals or a fresh visual browser review.']};
 for(const item of catalogue)html.set(item.path,await readFile(new URL(item.path==='/'?'index.html':'.'+item.path+'.html',out),'utf8'));
-const files=new Set(['/style.css','/marketing.css','/app.mjs','/account.mjs','/content.mjs','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-mark.svg','/assets/aihackr-wordmark.svg','/assets/social-card.png','/api/capabilities']);
+const files=new Set(['/style.css','/marketing.css','/app.mjs','/account.mjs','/content.mjs','/dashboard','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-mark.svg','/assets/aihackr-wordmark.svg','/assets/social-card.png','/api/capabilities']);
 const hashes=JSON.parse(await readFile(new URL('csp-hashes.json',out),'utf8'));
 for(const item of catalogue){
   const text=html.get(item.path),title=text.match(/<title>(.*?)<\/title>/)?.[1],description=text.match(/<meta name="description" content="([^"]+)"/)?.[1];

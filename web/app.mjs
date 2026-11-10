@@ -55,7 +55,7 @@ $('view-json').onclick = () => { state.view = 'json'; showResult(); };
 $('copy-result').onclick = () => navigator.clipboard.writeText($('result-content').textContent);
 $('copy-example').onclick = () => navigator.clipboard.writeText($('sdk-example').textContent);
 async function nativeRequest(path, body, method = body ? 'POST' : 'GET') {
-  const response = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: body ? JSON.stringify(body) : undefined });
+  const response = await fetch(path, { method, headers: { 'Content-Type': 'application/json',...(method==='POST'?{'Idempotency-Key':crypto.randomUUID()}:{}) }, credentials: 'same-origin', body: body ? JSON.stringify(body) : undefined });
   const data = await response.json();
   if (!response.ok || data.success === false) throw new Error(typeof data.error === 'string' ? data.error : data.error?.message ?? data.message ?? 'Request failed.');
   return data;
@@ -119,3 +119,5 @@ $('refresh-job').onclick = () => jobAction('/v2/crawl/' + encodeURIComponent(sta
 $('cancel-job').onclick = () => jobAction('/v2/crawl/' + encodeURIComponent(state.job), 'DELETE');
 $('next-page').onclick = () => { if (state.next?.startsWith('/v2/crawl/')) jobAction(state.next); };
 initialize();
+
+try{const {plans}=await(await fetch('/api/plans')).json();const target=document.getElementById('public-plans');target.replaceChildren();for(const plan of plans){const card=document.createElement('article');card.className='plan-card'+(plan.recommended?' recommended':'');const title=document.createElement('h3'),price=document.createElement('div'),credits=document.createElement('p'),description=document.createElement('p'),link=document.createElement('a');title.textContent=plan.name;price.className='plan-price';price.textContent='$'+plan.amount/100+' / month';credits.textContent=plan.credits.toLocaleString()+' credits per month';description.textContent=plan.description;link.className='button '+(plan.recommended?'primary':'');link.href='/dashboard#billing';link.textContent='Choose '+plan.name+' →';card.append(title,price,credits,description,link);target.append(card);}}catch{document.getElementById('public-plans').textContent='See your dashboard for current plans.';}

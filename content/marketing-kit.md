@@ -20,7 +20,7 @@ Developer call to action: **Make your first API request** → https://aihackr.co
 
 Short: AIHackr turns public webpages into Markdown, HTML, links and structured JSON through a browser playground, REST API and MCP tools, powered by Cloudflare Browser Run.
 
-Extended: AIHackr gives developers a managed way to collect public web content for applications and AI agents. Start with one page in the playground, create a server-side API key, then use REST or a compatible MCP client. Scrape readable content, discover same-origin links, run a bounded asynchronous crawl or extract JSON from one page. Each verified account starts with 20 trial pages and a private workspace. Paid plans and hosted OAuth are not enabled in the current production release.
+Extended: AIHackr gives developers a managed way to collect public web content for applications and AI agents. Start with one page in the playground, create a server-side API key, then use REST or a compatible MCP client. Scrape readable content, discover same-origin links, run a bounded asynchronous crawl or extract JSON from one page. Each verified account starts with 20 free credits and a private workspace. Monthly paid plans add credits through Stripe Checkout. Hosted OAuth remains in testing.
 
 ## Value propositions and proof
 
@@ -62,7 +62,7 @@ AIHackr is live for developers who need public web content in their apps and AI 
 
 Use the playground or REST API to turn a page into Markdown, HTML, links or JSON. Discover same-origin links, submit a bounded crawl, or connect a compatible MCP client using your own customer API key.
 
-The service runs on Cloudflare Browser Run. Each verified account starts with 20 trial pages; no credit card is required. Crawl requests reserve their full requested maximum, so start with a small limit. Paid plans and hosted OAuth are still being tested and are not advertised as live.
+The service runs on Cloudflare Browser Run. Each verified account starts with 20 free credits; no credit card is required. Crawls hold their requested maximum while running and return unused credits at completion. Monthly paid plans add allowances; hosted OAuth remains in testing.
 
 Try one page: https://aihackr.com/#workspace
 Read the quickstart: https://aihackr.com/docs/quickstart
@@ -87,11 +87,11 @@ Read the quickstart: https://aihackr.com/docs/quickstart
 
 Subject: Your first page with AIHackr
 
-Welcome to AIHackr. Start in the playground with one public URL and choose Markdown, HTML or links. Your verified account includes 20 trial pages and does not need a credit card.
+Welcome to AIHackr. Start in the playground with one public URL and choose Markdown, HTML or links. Your verified account includes 20 free credits and does not need a credit card.
 
 When you connect your own code, create a named API key and keep it on your server. The quickstart includes cURL, JavaScript and Python examples: https://aihackr.com/docs/quickstart
 
-For a crawl, set a small page limit: the full requested maximum is reserved under current trial accounting.
+For a crawl, set a small page limit. Its maximum is held while running; unused held credits return when the job ends.
 
 ### Education
 
@@ -120,9 +120,9 @@ These drafts are not configured as automated emails. Before a marketing send, us
 
 **Can I scrape every website?** No. Public target restrictions, robots rules, provider limits and target behavior apply. Logged-in sessions and CAPTCHA bypass are not available.
 
-**Is it unlimited?** No. The current trial is 20 pages per verified account. Crawl requests reserve the full requested maximum. Other request and service limits are documented.
+**Is it unlimited?** No. The current trial is 20 free credits per verified account. Crawl requests reserve the full requested maximum. Other request and service limits are documented.
 
-**Can I buy a plan or install a public ChatGPT plugin?** Not yet on the current production service. Check the live plans and integration pages for current availability before making a promise.
+**Can I buy a plan or install a public ChatGPT plugin?** Monthly subscriptions are available through the dashboard. A public ChatGPT listing and hosted OAuth are not live; check current integration availability before making a promise.
 
 ## Four-week content distribution plan
 

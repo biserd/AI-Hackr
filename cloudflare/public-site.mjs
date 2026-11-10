@@ -1,7 +1,7 @@
 import {pages} from '../content/manifest.mjs';
-const routes=new Map([['/','/index.html'],...pages.map(p=>[p.path,p.path+'.html'])]);
-const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
-const aliases=new Map([['/index.html','/'],['/web-data','/'],['/web-data/','/'],...pages.map(p=>[p.path+'.html',p.path])]);
+const routes=new Map([['/','/index.html'],['/dashboard','/dashboard.html'],...pages.map(p=>[p.path,p.path+'.html'])]);
+const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/dashboard.mjs','/dashboard.css','/aihackr-plugin.zip','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
+const aliases=new Map([['/index.html','/'],['/dashboard.html','/dashboard'],['/web-data','/'],['/web-data/','/'],...pages.map(p=>[p.path+'.html',p.path])]);
 const baseCsp="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export async function publicSite(request,env){
   if(!['GET','HEAD'].includes(request.method))return null;
@@ -23,7 +23,7 @@ export async function publicSite(request,env){
     headers.set('Content-Type','text/html; charset=utf-8');
     if(assetPath)headers.set('Link','<https://aihackr.com'+path+'>; rel="canonical"');
   }
-  if(stage||!assetPath)headers.set('X-Robots-Tag',stage?'noindex, nofollow':'noindex');
+  if(stage||!assetPath||path==='/dashboard')headers.set('X-Robots-Tag',stage?'noindex, nofollow':'noindex');
   if(['/sitemap.xml','/rss.xml'].includes(path))headers.set('Content-Type',path==='/rss.xml'?'application/rss+xml; charset=utf-8':'application/xml; charset=utf-8');
   if(path==='/marketing-kit.md'){headers.set('Content-Type','text/markdown; charset=utf-8');headers.set('Content-Disposition','attachment; filename="AIHackr-Marketing-Kit.md"');}
   headers.set('Cache-Control',!assetPath?'no-store':stage?'no-cache':html?'public, max-age=0, must-revalidate':'public, max-age=3600');

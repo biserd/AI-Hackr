@@ -7,7 +7,7 @@ export const docs=[
   ['crawl','Crawl API','Start a bounded website crawl, poll status, paginate retained results and cancel jobs with the AIHackr Crawl API. Includes practical request examples.','API reference'],
   ['extract','Extract API','Extract structured JSON from a public webpage with an AIHackr prompt or JSON schema. Includes a working request shape and validation guidance.','API reference'],
   ['mcp','MCP integration','Connect a Streamable HTTP MCP client to AIHackr using a customer API key. Explore the eight browser and crawl tools available to your agents.','Integrations'],
-  ['limits','Usage, limits and retention','Understand the AIHackr 20-page free trial, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
+  ['limits','Usage, limits and retention','Understand the AIHackr 20 free credits, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
   ['errors','Errors and troubleshooting','Resolve AIHackr API authentication, URL, robots, rate-limit and crawl errors. Use error codes to decide when to correct a request or retry.','Operations'],
   ['migration','Firecrawl API migration','Evaluate the documented Firecrawl-shaped REST subset in AIHackr. Compare supported routes, MCP tools and differences before changing your integration.','Integrations'],
 ].map(([slug,title,description,category])=>({path:'/docs/'+slug,title,description,category,kind:'docs'}));
@@ -21,7 +21,7 @@ export const landings=[
   ['/use-cases/rag','Web data for RAG pipelines','Collect public web content as Markdown for retrieval-augmented generation. Use bounded AIHackr crawls, source URLs and your own ingestion pipeline.'],
   ['/use-cases/ai-agents','Web scraping tools for AI agents','Give agents access to public webpages with AIHackr REST APIs and MCP tools. Read page content, discover links and run bounded website crawls.'],
   ['/use-cases/data-extraction','Structured web data extraction','Turn public webpages into structured JSON with AIHackr. Use a prompt or schema, validate the output and keep source context in your workflow.'],
-  ['/plans','Free trial and service availability','Try AIHackr with 20 pages per verified account and no credit card. See current usage rules, available APIs and the status of paid plans.'],
+  ['/plans','Monthly plans and application credits','Compare AIHackr monthly plans: Starter $9, Builder $29 and Scale $79. Start with 20 free credits, then manage subscriptions and usage in your dashboard.'],
   ['/media-kit','AIHackr media kit','Find AIHackr product messaging, brand assets, launch copy and factual product information for writing about the web scraping API and MCP tools.'],
 ].map(([path,title,description])=>({path,title,description,kind:'landing'}));
 export const hubs=[
@@ -29,4 +29,12 @@ export const hubs=[
   {path:'/blog',title:'Web scraping and AI data guides',description:'Practical AIHackr guides to website-to-Markdown APIs, structured extraction, bounded crawling and preparing source-aware web content for AI.',kind:'blogHub'},
   {path:'/use-cases',title:'Build with public web data',description:'Explore AIHackr workflows for RAG, AI agents and structured data extraction. Connect public webpages to your applications through REST and MCP.',kind:'useCasesHub'},
 ];
-export const pages=[...hubs,...docs,...posts,...landings];
+export const policies=[
+  ['/privacy','Privacy policy','Learn how AIHackr handles account information, public-page requests, retained results, billing references, cookies and privacy requests.'],
+  ['/terms','Terms of service','Read AIHackr service terms covering accounts, application credits, monthly subscriptions, cancellation, acceptable use and support.'],
+  ['/refunds','Cancellation and refunds','Understand AIHackr subscription cancellation, credit expiry, refund reviews, billing errors and how to contact customer support.'],
+  ['/acceptable-use','Acceptable use policy','Review AIHackr rules for public web retrieval, permitted sources, account security, agent integrations and responsible service use.'],
+  ['/cookies','Cookie policy','Learn about AIHackr essential authentication cookies, browser features, hosted payment pages and the current optional tracking setup.'],
+  ['/support','Customer support','Get help with AIHackr jobs, credits, subscriptions, invoices, account access and privacy requests through the existing operator support contact.'],
+].map(([path,title,description])=>({path,title,description,kind:'policy'}));
+export const pages=[...hubs,...docs,...posts,...landings,...policies];
