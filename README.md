@@ -1,78 +1,75 @@
-# AIHackr — Cloudflare Browser Run
+# AIHackr
 
-Public-web data for developers and agents, hosted entirely on Cloudflare. The new portal and gateway use managed Browser Run for page retrieval, JavaScript rendering, structured extraction and asynchronous crawls. MCP embeds the official Cloudflare Browser Run tool implementations and schemas.
+AIHackr is a web scraping API and hosted MCP server for developers and AI agents. Turn public webpages into Markdown, rendered HTML, links, or structured JSON. Run a bounded crawl when you need several pages. The service runs on Cloudflare Browser Run.
 
-This replaces the previously prepared native Firecrawl/Docker design following the owner's explicit selection of Browser Run. No external Docker host, PostgreSQL, Redis, RabbitMQ or Firecrawl Cloud API is required. The outdated scanner application is retired. Earlier implementations remain in Git history; existing stored production resources are not deleted.
+[Try the playground](https://aihackr.com/#workspace) · [Read the docs](https://aihackr.com/docs) · [Connect an MCP client](https://aihackr.com/docs/mcp) · [See plans](https://aihackr.com/plans)
+
+## Start with one page
+
+Sign in by email to use the playground or create an API key in your [dashboard](https://aihackr.com/dashboard). Save the key as `AIHACKR_API_KEY` in your environment, then try the public test page.
+
+```sh
+curl --fail-with-body https://aihackr.com/v2/scrape \
+  -H "Authorization: Bearer $AIHACKR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://fixtures.aihackr.com/","formats":["markdown"]}'
+```
+
+Look for “Native engine fixture” in `data.markdown`. Store `data.metadata.sourceURL` with the result so readers can trace the Markdown to the original page. [Quickstart](https://aihackr.com/docs/quickstart) · [Markdown API tutorial](https://aihackr.com/blog/website-to-markdown-api)
+
+| Operation | What it does | Credits |
+| --- | --- | --- |
+| [Scrape](https://aihackr.com/docs/scrape) | Read one public page as Markdown, HTML, or links | 1 per successful request |
+| [Map](https://aihackr.com/docs/map) | Find same-origin links on one page | 1 per successful request |
+| [Crawl](https://aihackr.com/docs/crawl) | Start a bounded crawl and retrieve paginated results | 1 per successful page with retained content |
+| [Extract](https://aihackr.com/docs/extract) | Turn one public page into structured JSON using a prompt or schema | 5 per successful request |
+
+Crawls support up to 100 pages and a depth of 5, subject to available credits. Completed crawl results are retained for seven days. The REST API supports a subset of Firecrawl request shapes for migration. See the current service limits and supported options. [Usage and retention](https://aihackr.com/docs/limits) · [Firecrawl migration guide](https://aihackr.com/docs/migration) · [Live capabilities](https://aihackr.com/api/capabilities)
+
+## Connect over MCP
+
+Add `https://aihackr.com/mcp` as a remote MCP server over Streamable HTTP. In ChatGPT or another compatible client, choose OAuth if prompted, sign in to AIHackr, and review the permissions. Clients that use bearer authentication can send an AIHackr API key. Manage or revoke OAuth access under Connected apps. [MCP setup guide](https://aihackr.com/docs/mcp) · [Connector repository](https://github.com/biserd/aihackr-mcp) · [Connected apps](https://aihackr.com/connections)
+
+## Plans and billing
+
+Verified accounts receive **1,200 free credits per UTC calendar month**. The playground, REST API, and MCP share the same workspace credit balance. The dashboard shows usage, private jobs, downloads, keys, and billing. Paid plans use Stripe Checkout and the customer portal.
+
+| Plan | USD per month | Credits per month |
+| --- | ---: | ---: |
+| Starter | $7 | 3,000 |
+| Builder | $15 | 7,500 |
+| Scale | $29 | 20,000 |
+
+[Current plans](https://aihackr.com/plans) · [Customer support](https://aihackr.com/support)
 
 ## Architecture
 
 | Layer | Implementation |
 | --- | --- |
-| Portal and documentation | Reused fresh static portal in `web/` |
-| HTTPS, routing, authentication | Cloudflare Worker and adapted shared gateway |
-| Customer accounts | Email-code sign-in through the existing Cloudflare Email Service; hashed sessions and keys in AccountDirectory |
-| Rendering, conversion, extraction | Browser Run Quick Actions through the Worker browser binding |
-| Asynchronous crawling | Browser Run managed `/crawl` API, using a scoped operator credential |
-| Workspace limits, job ownership and retained results | New SQLite-backed `BrowserWorkspace` Durable Object |
-| MCP | Unmodified tool-registration source from `cloudflare/mcp-server-cloudflare`, pinned to `a21972e219289337731a066befb5c66886b9ce7b`; patched official MCP SDK/Agents dependencies |
+| Portal, docs, and blog | Static HTML built from `web/` and `content/` |
+| Routing and authentication | Cloudflare Worker with email-code sign-in and OAuth |
+| Rendering and extraction | Cloudflare Browser Run Quick Actions via the `BROWSER` binding |
+| Asynchronous crawling | Cloudflare Browser Run managed Crawl API |
+| Accounts, credits, and jobs | SQLite-backed Cloudflare Durable Objects |
+| MCP | Official Cloudflare Browser Run tool implementations, with AIHackr authentication and workspace isolation |
 
-The Cloudflare provider account is fixed server-side. Each verified customer receives a separate BrowserWorkspace Durable Object. Browser sessions use Secure, HttpOnly, SameSite=Strict cookies. Optional developer API keys are hashed at rest, shown once and revocable. Caller credentials never become Cloudflare account credentials. REST and MCP invoke the same target validation, robots policy, quotas and job store. Old Durable Object exports are inert compatibility classes so migration does not delete previously stored resources.
+REST and MCP share target validation, robots rules, credits, and job ownership. API keys are hashed at rest and revocable. Provider credentials stay server-side. Browser Run handles public-page retrieval and JavaScript rendering. Web search, batch scraping, and authenticated target sessions are outside the current API scope. [OAuth operations](cloudflare/OAUTH.md) · [Billing operations](cloudflare/BILLING.md) · [Architecture decisions](docs/decisions.md)
 
-## Setup and validation
+## Build and deploy
 
-Use Node 24 and the exact lockfiles:
+Use Node.js 24. The build installs pinned Worker dependencies and verifies the vendored MCP source.
 
 ```sh
-npm ci --ignore-scripts
 npm run build
 npm test
-npm --prefix cloudflare audit --omit=dev
+node cloudflare/scripts/verify-site.mjs
 node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --dry-run
 ```
 
-Set encrypted Worker secrets `AIHACKR_API_KEY` (a random workspace key of at least 32 characters) and `CLOUDFLARE_BROWSER_TOKEN` (Browser Run: Edit, scoped to the operator's account). The `BROWSER` binding handles page Quick Actions without an API token; the managed crawl API requires the scoped token. Never persist a Wrangler OAuth refresh token in the service or put provider credentials in Git/client code.
+Edit `web/` and `content/` to change public pages. The build writes generated HTML and discovery assets to `dist/public/`.
 
-Staging is `aihackr-browser-run-stage.biser-d.workers.dev`, configured by the `staging` Wrangler environment. Production is the existing `aihackr` Worker on `aihackr.com` and `www.aihackr.com`.
+The `staging` Wrangler environment uses a separate Worker. Configure operator and Browser Run credentials as encrypted Worker secrets. The `BROWSER` binding serves Quick Actions, and managed crawling requires a scoped Browser Run credential. Use the live test suite in `cloudflare/test/` to verify browser operations, crawl persistence, and MCP. The production deploy script checks the release receipt against the current source and verifies that staging is ready.
 
-```sh
-node cloudflare/node_modules/wrangler/bin/wrangler.js deploy --env staging
-AIHACKR_ORIGIN=https://your-stage.example AIHACKR_API_KEY=your-private-key node cloudflare/test/live.mjs
-```
+## License
 
-The live verification exercises real browser JavaScript, links, managed crawling, retained records, JSON extraction and the official MCP implementation. Mocked local tests do not substitute for it. Redeploy staging and re-read a completed crawl to verify persistence across Worker replacement. The production deploy script requires a passing release gate matching the current source digest and a ready staging deployment.
-
-## API and supported scope
-
-See `/docs` and `/api/capabilities`. `/v2` provides a documented Firecrawl-shaped migration subset, not full Firecrawl SDK/API compatibility. MCP uses official Cloudflare tool names, not Firecrawl tool names.
-
-Public email-code signup and sign-in create isolated customer workspaces. Verified accounts receive 1,200 free credits per UTC calendar month. The existing operator API key remains usable for bounded operations without exposing operator data to customers. A shared directory atomically enforces a 1,000-page daily service allowance across customers and operator requests. Balances survive sign-in, key rotation and deployment. Monthly plans are Starter at $7 for 3,000 credits, Builder at $15 for 7,500, and Scale at $29 for 20,000. Tax collection stays off.
-
-Scrape Markdown/HTML/links, discover same-origin links, extract JSON and start/status/cancel managed crawls. Crawl defaults are 20 pages and depth 2, with maximum 100 pages/depth 5, subject to the account allowance. Each workspace has two active crawl slots, three concurrent requests and 30 engine operations per minute. Customer credits are held at admission and settled against successful results, returning unused crawl capacity or failed-operation holds. Provider safety reservations remain nonrefundable and separate from the customer ledger. Browser use, email and extraction incur applicable Cloudflare usage charges.
-
-Sign-in codes expire in 10 minutes, are single-use and lock after five invalid attempts. Sign-in requests have per-IP, per-email and global limits; signup is limited to three accounts per IP and 50 globally in a rolling day. Sessions expire after seven days. Email uses the existing hello@aihackr.com sender through the EMAIL binding. The portal no longer accepts an operator key; sign in and manage developer credentials under API keys. No passwords or provider credentials are stored in browser JavaScript. Hosted Stripe Checkout, paid-invoice webhooks and the dedicated Customer Portal handle subscriptions. The customer dashboard shows actual balances, daily usage, private jobs, downloads, keys and billing. Checkout stays disabled when required billing configuration is missing.
-
-Completed crawl records are retained in Durable Object storage for seven days. Retrieval is paginated in groups of ten. Content is limited to 60,000 characters per page/format with explicit truncation. Cached completed records remain readable without the managed provider. Raw provider job identifiers are never accepted as workspace-owned jobs.
-
-Search, batch scraping are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
-
-## Paid billing
-
-See [billing operations](cloudflare/BILLING.md) for restricted-key permissions, dedicated live/sandbox catalog and portal setup, webhook events, ledger semantics and release evidence. The production gate additionally requires current-source Stripe sandbox and customer-credit integration proof.
-
-## OAuth and ChatGPT/MCP linking
-
-Connect an OAuth-capable client to https://aihackr.com/mcp and sign in with your existing email account. PKCE, discovery, ChatGPT CIMD, compatible-client DCR, rotating refresh tokens and immediate disconnect are handled by the official Cloudflare OAuth provider and existing AccountDirectory. Manage connections at https://aihackr.com/connections. OAuth tokens are limited to MCP; REST API keys and website sessions keep their existing roles.
-
-See [OAuth operations](cloudflare/OAUTH.md) for endpoints, scopes, storage semantics and test evidence. The portable development package is under `integrations/aihackr-plugin/` and downloadable as /aihackr-plugin.zip. Public directory submission is separate from implementing OAuth.
-
-## Source and licenses
-
-AIHackr's wrapper remains AGPL-3.0-or-later. The official Cloudflare MCP tool source is Apache-2.0; its license and source digest are retained under `cloudflare/vendor/` and `cloudflare/upstream.lock.json`. The official file is unchanged; import aliases adapt its client and workspace context. Authentication/account selection and exposed tool filtering are AIHackr adaptations. See `THIRD_PARTY_NOTICES.md` and `docs/decisions.md`.
-
-## Documentation, blog and marketing
-
-Public pages are statically generated from `content/manifest.mjs`, `content/pages.mjs` and `content/posts.mjs`. The existing portal is retained in `web/index.html`; the build adds shared navigation, structured metadata and footer. Edit the content sources, not `dist/`. Run `node cloudflare/scripts/build.mjs` and `node cloudflare/scripts/verify-site.mjs` before deployment.
-
-The release includes ten documentation guides, four original blog tutorials, three use-case landing pages, a transparent free-trial availability page and a media kit. `/sitemap.xml`, `/robots.txt`, `/rss.xml` and `/docs-search.json` are generated. The search is browser-local after one static index fetch; no search service or analytics provider is added.
-
-Public HTML has unique titles/descriptions, production canonicals, Open Graph/Twitter metadata, Organization/WebSite/page/Breadcrumb structured data and BlogPosting markup for articles. JSON-LD hashes are included in the page CSP. Staging returns noindex headers and a blocking robots file. Unknown website paths return an actual 404. Marketing copy describes current production capabilities; change it when paid billing/OAuth become live. The marketing kit contains drafts only, with no campaign sends or analytics provisioning.
+AIHackr is licensed under [AGPL-3.0-or-later](LICENSE). The vendored Cloudflare MCP tool source is Apache-2.0 and pinned in `cloudflare/upstream.lock.json`. See [Third-party notices](THIRD_PARTY_NOTICES.md).
