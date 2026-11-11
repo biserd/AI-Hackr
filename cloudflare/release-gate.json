@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-08T22:46:32.273Z",
+  "checkedAt": "2026-11-11T01:20:08.762Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "fda71e5d-5303-4264-ba90-958c2e0ac39f",
+  "retainedCrawlId": "3f20f511-0e40-4e1c-80d4-91521b7680cd",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -41,102 +41,539 @@
     "get_url_links",
     "start_crawl",
     "get_crawl_result",
-    "cancel_crawl"
+    "cancel_crawl",
+    "get_account"
   ],
-  "customerAccountGuardsVerifiedAt": "2026-11-08T22:47:18.723Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-11T01:20:49.190Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-08T22:48:40.568Z",
-  "customerPortal": {
-    "checkedAt": "2026-11-08T22:14:14.442Z",
+  "redeployVerifiedAt": "2026-11-11T01:27:18.008Z",
+  "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+  "billing": {
     "passed": true,
-    "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
-    "emailDelivered": true,
-    "emailCodeLogin": true,
-    "privateCustomerScrape": true,
-    "privateCustomerTwoPageCrawl": true,
-    "usage": {
-      "trialLimit": 20,
-      "reserved": 3,
-      "remaining": 17
-    },
-    "apiKeySettingsVisible": true,
-    "sessionAndUsagePersistedAcrossWorkerRedeploy": true,
-    "typography": {
-      "bodyPx": 17,
-      "labelPx": 15,
-      "inputPx": 16
-    },
-    "desktopOverflow": false,
-    "mobileViewportWidth": 390,
-    "mobileOverflow": false,
-    "screenshots": [
-      "AIHackr_SaaS_Staging_Desktop.png",
-      "AIHackr_SaaS_Staging_Mobile.png"
-    ],
-    "note": "Real email login completed by the owner; browser UI verified through CUA. Key ownership, revocation and tenant isolation additionally tested in the shared account/customer routing tests.",
-    "signedOutResponsesHidden": true,
-    "logoutVerifiedAt": "2026-11-08T22:16:48.945Z",
-    "inheritedAccountVerification": {
-      "commit": "5747a365fc04a38e5a9bf463c4c263549acd0e64",
-      "sourceDigest": "4b658e6941569bdfcab497bea7f2cd0a8decde44c1e6e26ebcf208812d3ecd97",
-      "reason": "Only playground JS/HTML changed; account, gateway, engine, configuration and dependencies are unchanged."
-    },
-    "urlInputVerification": {
-      "checkedAt": "2026-11-08T22:33:10.492Z",
-      "browser": true,
-      "signedOutSubmissionReachedSignIn": true,
-      "operations": [
-        "scrape",
-        "crawl",
-        "map",
-        "extract"
-      ],
-      "bareDomain": "llmmargin.com",
-      "normalized": "https://llmmargin.com/",
-      "explicitHttpPreserved": true,
-      "whitespaceAndPathPreserved": true,
-      "unsupportedSchemeRejected": true
-    },
-    "toolSwitchingVerification": {
-      "checkedAt": "2026-11-08T22:49:37.163Z",
-      "browser": true,
-      "localUiFixture": {
-        "engineResponsesMocked": true,
-        "priorToolResultsHidden": true,
-        "crawlControlsOnlyOnCrawl": true,
-        "resultsRestoredPerTool": true,
-        "limitsRestoredIndependently": true,
-        "tabsDisabledDuringRequest": true
+    "checkedAt": "2026-11-11T01:28:01.774Z",
+    "livemode": false,
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+    "checks": {
+      "checkout": {
+        "passed": true,
+        "interactive": true,
+        "plan": "starter",
+        "amount": 700,
+        "currency": "usd",
+        "quantity": 1,
+        "explicitPolicyAcceptance": true,
+        "consentRequiredBeforeRedirect": true,
+        "taxCollection": false
       },
-      "liveStagingControls": {
-        "mapDefaultLinks": 20,
-        "crawlDefaultPages": 5,
-        "emptyContentViewCorrect": true,
-        "staleCrawlControlsHidden": true
+      "paidInvoice": {
+        "passed": true,
+        "invoice": "in_1UaPOy2OxvOkZCMOOfUoYKVo",
+        "event": "evt_1UaPP02OxvOkZCMOG9ORejfQ",
+        "availableBefore": 6209,
+        "availableAfter": 9209,
+        "creditsGranted": 3000
+      },
+      "duplicateEvents": {
+        "passed": true,
+        "reconciledFromDashboard": true,
+        "availableAfter": 9209,
+        "activeSubscriptionPreserved": true
+      },
+      "portal": {
+        "passed": true,
+        "starterMonthlyAmount": 700,
+        "paidInvoiceVisible": true,
+        "managedViaStripe": true
+      },
+      "creditSettlement": {
+        "passed": true,
+        "operation": "scrape",
+        "charged": 1,
+        "availableBefore": 9209,
+        "availableAfter": 9208,
+        "heldAfter": 0
+      },
+      "webhookSignature": {
+        "passed": true,
+        "tamperedStatus": 400,
+        "stripePendingWebhookDeliveries": 0
       }
     },
-    "requestedLiveSiteChecks": {
-      "site": "https://llmmargin.com/",
-      "crawl": {
-        "status": "completed",
-        "pages": 3,
-        "seconds": 18.5
+    "note": "The staged checkout used a Stripe test card. The original and current price mappings remain available for invoice processing. Only the live catalog bindings differ from the tested staging catalog.",
+    "evidenceBasis": "Prior successful sandbox Checkout, paid invoice, duplicate reconciliation and Stripe Portal checks are retained from the pricing release. Billing, credit-ledger, plan, policy, operation and Browser Run runtime files are byte-equivalent after line-ending normalization. All 61 current local tests passed. Current-source live OAuth tests verified one exact customer credit settlement. Public plans and invalid webhook rejection were rechecked.",
+    "originalSandboxEvidence": {
+      "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
+      "checkedAt": "2026-11-11T00:41:48.327Z",
+      "checks": {
+        "checkout": {
+          "passed": true,
+          "interactive": true,
+          "plan": "starter",
+          "amount": 700,
+          "currency": "usd",
+          "quantity": 1,
+          "explicitPolicyAcceptance": true,
+          "consentRequiredBeforeRedirect": true,
+          "taxCollection": false
+        },
+        "paidInvoice": {
+          "passed": true,
+          "invoice": "in_1UaPOy2OxvOkZCMOOfUoYKVo",
+          "event": "evt_1UaPP02OxvOkZCMOG9ORejfQ",
+          "availableBefore": 6209,
+          "availableAfter": 9209,
+          "creditsGranted": 3000
+        },
+        "duplicateEvents": {
+          "passed": true,
+          "reconciledFromDashboard": true,
+          "availableAfter": 9209,
+          "activeSubscriptionPreserved": true
+        },
+        "portal": {
+          "passed": true,
+          "starterMonthlyAmount": 700,
+          "paidInvoiceVisible": true,
+          "managedViaStripe": true
+        },
+        "creditSettlement": {
+          "passed": true,
+          "operation": "scrape",
+          "charged": 1,
+          "availableBefore": 9209,
+          "availableAfter": 9208,
+          "heldAfter": 0
+        },
+        "webhookSignature": {
+          "passed": true,
+          "tamperedStatus": 400,
+          "stripePendingWebhookDeliveries": 0
+        }
+      }
+    },
+    "verifiedRuntimeFiles": {
+      "cloudflare/billing.mjs": "0fb29bd965554524647b9d790e8c0d0e8fee0c47e4e33355f69efdac0f2eae58",
+      "cloudflare/credits.mjs": "8a8eab720a7e1d4bb80c1e94eb0b552ede7fce5c8aac7bf8937ea431118079bf",
+      "cloudflare/plans.mjs": "5883a5a548539df9279e30d18dc13a1de10b7e81f16b06ecef2bab130c05a6fa",
+      "cloudflare/operations.mjs": "be850a0ac28ec636ae8803ce3f493387589ed84bffec5646dd00cbcf8fe883f3",
+      "cloudflare/policies.mjs": "99255d900eac88b4ec0d8442ad882a88d20a99cf2d7de386c2abcf2f39d66640",
+      "cloudflare/browser-service.mjs": "05434e8ed44b6ac2eb34189554cc9c3a0106129d54790fdbf36f8794688edc93"
+    },
+    "currentOAuthCreditSettlement": {
+      "passed": true,
+      "availableBefore": 1199,
+      "availableAfter": 1198,
+      "charged": 1,
+      "heldAfter": 0
+    }
+  },
+  "site": {
+    "checkedAt": "2026-11-11T01:26:31.049Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "passed": true,
+    "checks": {
+      "pagesAndMetadata": {
+        "passed": true,
+        "count": 29
       },
-      "map": {
-        "success": true,
-        "sameOriginLinks": 17,
-        "seconds": 2.5
+      "redirectsAnd404": {
+        "passed": true
       },
-      "extract": {
-        "success": true,
-        "name": "LLM Margin",
-        "descriptionReturned": true,
-        "seconds": 3.3
+      "discoveryFeedsAndSearch": {
+        "passed": true
+      },
+      "brandAssetsAndMarketingKit": {
+        "passed": true
+      },
+      "privateRoutes": {
+        "passed": true
+      },
+      "queryCanonical": {
+        "passed": true
+      }
+    },
+    "pages": [
+      {
+        "path": "/",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/quickstart",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/authentication",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/scrape",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/map",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/crawl",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/extract",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/mcp",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/limits",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/errors",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/docs/migration",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/website-to-markdown-api",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/scrape-vs-crawl-vs-map",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/web-data-for-rag",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/blog/structured-data-extraction",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/rag",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/ai-agents",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/use-cases/data-extraction",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/plans",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/media-kit",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/privacy",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/terms",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/refunds",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/acceptable-use",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/cookies",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      },
+      {
+        "path": "/support",
+        "status": 200,
+        "deployedSourceMatches": true,
+        "canonical": true,
+        "structuredDataCsp": true
+      }
+    ]
+  },
+  "oauth": {
+    "checkedAt": "2026-11-11T01:26:29.041Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "passed": true,
+    "checks": {
+      "authorizationCodeAndPkce": {
+        "passed": true,
+        "accessTokenSeconds": 900,
+        "refreshIssued": true
+      },
+      "mcpToolDiscovery": {
+        "passed": true,
+        "toolCount": 9
+      },
+      "linkedAccountProfile": {
+        "passed": true
+      },
+      "scopeEnforcement": {
+        "passed": true
+      },
+      "realBrowserInCustomerWorkspace": {
+        "passed": true,
+        "successfulPageCalls": 1
+      },
+      "customerCreditSettlement": {
+        "passed": true,
+        "availableBefore": 1199,
+        "availableAfter": 1198,
+        "charged": 1,
+        "heldAfter": 0
+      },
+      "tokenPersistenceAcrossWorkerRedeploy": {
+        "passed": true
+      },
+      "refreshCannotEscalateScope": {
+        "passed": true
+      },
+      "audienceBinding": {
+        "passed": true
+      },
+      "refreshRotation": {
+        "passed": true
+      },
+      "downscopedTokenEnforcement": {
+        "passed": true
+      },
+      "immediateRevocation": {
+        "passed": true
+      }
+    },
+    "accountFingerprint": "1e5ca11420126c9ba3d472aab6352401ec95c4ba372fe85c3b54124548c6e2c9",
+    "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e"
+  },
+  "oauthPublic": {
+    "checkedAt": "2026-11-11T01:26:28.650Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "passed": true,
+    "checks": {
+      "discovery": {
+        "passed": true
+      },
+      "transportChallenge": {
+        "passed": true
+      },
+      "publicNativeClientRegistration": {
+        "passed": true
+      },
+      "pkceRedirectAndResourceAdmission": {
+        "passed": true
+      },
+      "browserBoundConsentPage": {
+        "passed": true
+      },
+      "unauthenticatedDenialCsrfAndSingleUse": {
+        "passed": true
+      },
+      "realChatgptCimdResolution": {
+        "passed": true
+      },
+      "htmlRoutesAndPrivateConnectionList": {
+        "passed": true
       }
     }
   },
+  "customerPortal": {
+    "passed": true,
+    "checkedAt": "2026-11-11T01:28:01.774Z",
+    "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+    "authenticatedCustomerSession": true,
+    "privateCustomerScrape": true,
+    "credits": {
+      "passed": true,
+      "availableBefore": 1199,
+      "availableAfter": 1198,
+      "charged": 1,
+      "heldAfter": 0
+    },
+    "ownerVerification": {
+      "checkedAt": "2026-11-11T01:20:08.710Z",
+      "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+      "sourceDigest": "2499a46e9285aac624ff6d93a9373d3caff14d3d11dcbf0d6441f73766ac7a48",
+      "passed": true,
+      "checks": {
+        "authorizationCodeAndPkce": {
+          "passed": true,
+          "accessTokenSeconds": 900,
+          "refreshIssued": true
+        },
+        "mcpToolDiscovery": {
+          "passed": true,
+          "toolCount": 9
+        },
+        "linkedAccountProfile": {
+          "passed": true
+        },
+        "scopeEnforcement": {
+          "passed": true
+        },
+        "realBrowserInCustomerWorkspace": {
+          "passed": true,
+          "successfulPageCalls": 1
+        },
+        "tokenPersistenceAcrossWorkerRedeploy": {
+          "passed": true
+        },
+        "refreshCannotEscalateScope": {
+          "passed": true
+        },
+        "audienceBinding": {
+          "passed": true
+        },
+        "refreshRotation": {
+          "passed": true
+        },
+        "downscopedTokenEnforcement": {
+          "passed": true
+        },
+        "immediateRevocation": {
+          "passed": true
+        }
+      },
+      "accountFingerprint": "3b28d51932510a1f50e61faeff2e7b154c80482a8a64084369cc21c478dc4619",
+      "redeployVersion": "468d0a71-b16a-45f4-bdb4-397e8021d953"
+    },
+    "priorResponsiveEvidence": {
+      "passed": true,
+      "checkedAt": "2026-11-11T00:41:48.327Z",
+      "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+      "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
+      "stagingVersion": "832f9cc8-1aeb-47e5-8de5-27c062d37b4d",
+      "authenticatedCustomerSession": true,
+      "privateCustomerScrape": true,
+      "freeMonthlyAllowance": 1200,
+      "availableAfterRedeploy": 9208,
+      "activeSubscriptionAfterRedeploy": true,
+      "desktop": {
+        "viewport": 2515,
+        "content": 2500
+      },
+      "mobile": {
+        "viewport": 390,
+        "content": 375,
+        "plansStacked": true
+      }
+    },
+    "note": "Current-source reviewer login, private account summary and MCP credit settlement verified by the live OAuth client. Browser-observed owner credits changed from 9208 to 9207 with zero held. Existing responsive dashboard evidence is retained from the pricing release."
+  },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "4f453e45ee9c8860da6f42116088835f97fdcb3c63ba8a464b6860e97854af7c",
+  "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
   "portalVerified": true,
-  "stagingVersion": "8e298cee-4a50-4b55-b62b-116bbe232c17"
+  "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e"
 }

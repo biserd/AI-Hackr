@@ -1,11 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "aihackr",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "description": "Read public websites, extract structured data and run bounded crawls through your linked AIHackr account.",
   "author": {
-    "name": "AIHackr",
-    "url": "https://aihackr.com"
+    "name": "Big Apple Digital LLC",
+    "url": "https://aihackr.com",
+    "email": "hello@aihackr.com"
   },
   "homepage": "https://aihackr.com",
   "repository": "https://github.com/biserd/AI-Hackr",
@@ -20,15 +21,89 @@
     "com.openai": {
       "interface": {
         "displayName": "AIHackr",
-        "shortDescription": "Web data for your apps and agents",
-        "longDescription": "Link your AIHackr account with OAuth, then read webpages, discover links, extract JSON and manage bounded crawls in your private workspace.",
-        "developerName": "AIHackr",
+        "shortDescription": "Scrape and extract web data",
+        "longDescription": "Connect your AIHackr account to read public webpages, extract structured data, discover links and run bounded crawls. Tools use the credits in your AIHackr workspace.",
+        "developerName": "Big Apple Digital LLC",
         "websiteURL": "https://aihackr.com",
         "brandColor": "#D94C1C",
         "defaultPrompt": [
-          "Use AIHackr to turn a public webpage into Markdown.",
-          "Use AIHackr to extract structured information from this URL."
-        ]
+          "Read this public webpage and summarize it with a source link.",
+          "Extract structured information from this URL.",
+          "Crawl this website with a maximum of two pages."
+        ],
+        "supportURL": "https://aihackr.com/support",
+        "privacyPolicyURL": "https://aihackr.com/privacy",
+        "termsOfServiceURL": "https://aihackr.com/terms",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read public webpages",
+          "Extract structured JSON",
+          "Discover page links",
+          "Crawl public websites"
+        ],
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/icon.svg"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Read rendered public content",
+              "prompt": "Read https://fixtures.aihackr.com and report its JavaScript-rendered marker with a source link.",
+              "tools_triggered": "get_url_markdown",
+              "expected_behavior": "Return BROWSER_EXECUTED_JAVASCRIPT_42 and cite the page. One successful request uses 1 credit."
+            },
+            {
+              "description": "Discover links",
+              "prompt": "List the links on https://fixtures.aihackr.com.",
+              "tools_triggered": "get_url_links",
+              "expected_behavior": "Return links including the /second page. Use 1 credit."
+            },
+            {
+              "description": "Extract structured fields",
+              "prompt": "Extract the main heading from https://fixtures.aihackr.com as JSON.",
+              "tools_triggered": "get_url_json",
+              "expected_behavior": "Return a heading containing Native engine fixture. Use 5 credits for successful extraction."
+            },
+            {
+              "description": "Complete a bounded crawl",
+              "prompt": "Crawl https://fixtures.aihackr.com, maximum two pages, and summarize the results.",
+              "tools_triggered": "start_crawl, get_crawl_result",
+              "expected_behavior": "Start one job, poll that job to a terminal state, return at most two pages, and charge each successful page once."
+            },
+            {
+              "description": "Identify the linked account",
+              "prompt": "Which AIHackr account is connected?",
+              "tools_triggered": "get_account",
+              "expected_behavior": "Return the linked reviewer account identity. No credits are charged for the profile tool."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Reject private targets",
+              "prompt": "Read http://169.254.169.254/latest/meta-data.",
+              "tools_triggered": "get_url_markdown",
+              "expected_behavior": "Reject the private target and charge zero credits."
+            },
+            {
+              "description": "Respect unavailable capabilities",
+              "prompt": "Search the web for the latest AI news.",
+              "tools_triggered": "",
+              "expected_behavior": "Explain that AIHackr needs supplied URLs and offers scraping and crawl tools."
+            },
+            {
+              "description": "Reject foreign workspace identifiers",
+              "prompt": "Retrieve crawl job 00000000-0000-4000-8000-000000000001 from another account.",
+              "tools_triggered": "get_crawl_result",
+              "expected_behavior": "Return job not found and reveal no foreign workspace data."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "Tool calls use credits purchased on the AIHackr website. Subscriptions and payment details are managed in the AIHackr dashboard."
+      },
+      "publication": {
+        "release_notes": "Initial OAuth release with account linking, public webpage tools, bounded crawls, shared account credits and connection revocation."
       }
     }
   }

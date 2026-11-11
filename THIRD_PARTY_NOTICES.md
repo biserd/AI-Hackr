@@ -3,6 +3,7 @@
 - Official Browser Run tool registrations: Cloudflare `mcp-server-cloudflare`, commit `a21972e219289337731a066befb5c66886b9ce7b`, Apache-2.0. Exact source and license are in `cloudflare/vendor/`; provenance and SHA-256 are in `cloudflare/upstream.lock.json`.
 - MCP transport/server: official `@modelcontextprotocol/server` and `agents` packages, with versions pinned in `cloudflare/package-lock.json`. Their packaged licenses/notices remain applicable. SDK/Agents/Zod pins are newer than the upstream app's dependency set to address reported vulnerabilities; tool-registration source is unchanged.
 - URL address classification: `ipaddr.js`; robots rules: `robots-parser`. Exact package versions and bundled notices are in the lockfile/packages.
+- Stripe Node SDK `23.0.0`: MIT, https://github.com/stripe/stripe-node. Its bundled license remains applicable. Hosted Checkout/Portal and the payment network are Stripe services, not part of the OSS gateway.
 - OAuth authorization provider: `@cloudflare/workers-oauth-provider` 1.2.4, Cloudflare, MIT. Its official protocol/cryptographic implementation is used unchanged through a Durable Object storage adapter; its bundled license remains applicable.
 - Cloudflare Browser Run is a managed service used under the operator's Cloudflare account. An open-source MCP wrapper does not make the managed browser/crawl implementation part of this repository.
 

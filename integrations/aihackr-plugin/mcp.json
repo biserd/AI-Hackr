@@ -3,7 +3,25 @@
   "mcpServers": {
     "aihackr": {
       "type": "streamable-http",
-      "url": "https://aihackr.com/mcp"
+      "url": "https://aihackr.com/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "cimd"
+            },
+            "resource": "https://aihackr.com/mcp",
+            "baseScopes": [
+              "account:read",
+              "web:read",
+              "crawl:read",
+              "crawl:write",
+              "offline_access"
+            ]
+          }
+        }
+      }
     }
   }
 }

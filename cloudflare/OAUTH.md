@@ -1,6 +1,6 @@
 # OAuth account linking
 
-This release adds OAuth independently of the unactivated paid-plan draft. It uses the official `@cloudflare/workers-oauth-provider` 1.2.4, with the existing email sign-in, AccountDirectory and BrowserWorkspace. It introduces no external identity provider or additional hosting service.
+This release adds MCP account linking to the existing plans and credit ledger. It uses the official `@cloudflare/workers-oauth-provider` 1.2.4, with the existing email sign-in, AccountDirectory and BrowserWorkspace. It introduces no external identity provider or additional hosting service.
 
 ## Endpoints and identity
 
@@ -39,6 +39,10 @@ OAuth records have a separate `oauth-kv:<issuer-host>:` prefix. No existing user
 
 The source-bound release gate requires the OAuth public/live reports for current source, token persistence after redeploy, existing browser/MCP checks and customer portal evidence. A unit test pass or endpoint heartbeat alone does not mark OAuth production-ready. Do not put real credentials into test fixtures or receipts.
 
-The portable plugin package uses discovery and contains no fixed tokens. The separate OpenAI metadata example declares OAuth/CIMD and requested scopes. The canonical schema currently rejects the documented per-server OpenAI extension; see the package README. Public plugin submission remains a separate action requiring domain verification, privacy/terms and reviewer materials.
+The portable plugin package uses discovery and contains no fixed tokens. The package declares the documented OpenAI OAuth/CIMD extension and requested scopes in mcp.json. Public submission requires the OpenAI portal domain challenge and reviewer materials.
 
 References: [Cloudflare official provider](https://github.com/cloudflare/workers-oauth-provider), [OpenAI authentication](https://developers.openai.com/plugins/build/auth), [MCP authorization 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
+
+## Dedicated reviewer account
+
+The /reviewer sign-in uses only plugin-review@aihackr.com and the independently generated reviewer credential. Configure REVIEWER_LOGIN_HASH as a secret and REVIEWER_LOGIN_EXPIRES_AT as an absolute UTC expiration. The account is created in a separate workspace after successful credential validation and uses the standard monthly free allowance. Its credentials never select another email account. Requests require a same-origin POST and use the ordinary sign-in rate limits and secure session cookie. Missing or expired configuration disables reviewer sign-in. The credential is supplied privately through the OpenAI review form. It is excluded from the package, repository and public reports.

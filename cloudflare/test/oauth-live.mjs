@@ -14,10 +14,11 @@ const scope='account:read web:read offline_access',port=8794,redirectUrl='http:/
 const reportFile=new URL(origin==='https://aihackr.com'?'../reports/oauth-production.json':'../reports/oauth-staging.json',import.meta.url),signalFile=new URL('../reports/oauth-resume.json',import.meta.url);
 const report={checkedAt:new Date().toISOString(),origin,sourceDigest:await sourceDigest(),passed:false,checks:{}};
 let clientInfo,tokens,verifier,authorizationUrl,finished=false;
+let reviewerCookie,reviewerAvailable;
 const expectedState=randomBytes(32).toString('base64url');
 const provider={redirectUrl,clientMetadata:{client_name:'AIHackr OAuth verification',application_type:'native',redirect_uris:[redirectUrl],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none',scope},state:()=>expectedState,clientInformation:()=>clientInfo,saveClientInformation:value=>{clientInfo=value;},tokens:()=>tokens,saveTokens:value=>{tokens=value;},saveCodeVerifier:value=>{verifier=value;},codeVerifier:()=>verifier,redirectToAuthorization:url=>{authorizationUrl=url;},invalidateCredentials:part=>{if(part==='all'||part==='client')clientInfo=undefined;if(part==='all'||part==='tokens')tokens=undefined;}};
 const check=(name,details={})=>{report.checks[name]={passed:true,...details};console.log('PASS '+name);};
-async function callToken(body){const response=await fetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientInfo.client_id,resource:origin+'/mcp',...body}),signal:AbortSignal.timeout(20000)});return {status:response.status,data:await response.json()};}
+async function callToken(body){const response=await fetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientInfo.client_id,resource:origin+'/mcp',...body}),signal:AbortSignal.timeout(20000)});const raw=await response.text();return {status:response.status,data:raw.trim()?JSON.parse(raw):null};}
 async function useClient(token,run){const client=new Client({name:'AIHackr OAuth verification',version:'0.6.0'}),transport=new StreamableHTTPClientTransport(new URL('/mcp',origin),{requestInit:{headers:{Authorization:'Bearer '+token}}});try{await client.connect(transport);return await run(client);}finally{await client.close();}}
 async function verify(){
   check('authorizationCodeAndPkce',{accessTokenSeconds:tokens.expires_in,refreshIssued:Boolean(tokens.refresh_token)});assert(tokens.refresh_token);assert.equal(tokens.expires_in,900);const initial={...tokens};
@@ -27,6 +28,14 @@ async function verify(){
     const denied=await client.callTool({name:'start_crawl',arguments:{url:'https://fixtures.aihackr.com',limit:1,render:false}});assert.equal(denied.isError,true);assert(denied._meta?.['mcp/www_authenticate']?.some(h=>h.includes('crawl:write')));check('scopeEnforcement');
     const pageResult=await client.callTool({name:'get_url_markdown',arguments:{url:'https://fixtures.aihackr.com'}});assert(!pageResult.isError);assert.match(pageResult.content[0].text,/Native engine fixture/i);check('realBrowserInCustomerWorkspace',{successfulPageCalls:1});
   });
+  if(reviewerCookie){
+    const response=await fetch(origin+'/api/session',{headers:{Cookie:reviewerCookie}});
+    assert.equal(response.status,200);
+    const session=await response.json();
+    assert.equal(session.usage.available,reviewerAvailable-1);
+    assert.equal(session.usage.held,0);
+    check('customerCreditSettlement',{availableBefore:reviewerAvailable,availableAfter:session.usage.available,charged:1,heldAfter:0});
+  }
   if(process.env.AIHACKR_REDEPLOY_CHECK==='1'){
     console.log(JSON.stringify({readyForRedeploy:true,signalFile:signalFile.pathname}));
     const started=Date.now();for(;;){let signal;try{signal=JSON.parse(await readFile(signalFile,'utf8'));}catch{}if(signal?.sourceDigest===report.sourceDigest&&Date.parse(signal.at)>started){report.redeployVersion=signal.version;break;}if(Date.now()-started>15*60000)throw new Error('Worker redeploy signal was not received.');await new Promise(resolve=>setTimeout(resolve,1000));}
@@ -56,4 +65,26 @@ const server=createServer(async(req,res)=>{
 });
 const expiry=setTimeout(()=>finalize(new Error('Consent test timed out')),30*60000);
 await new Promise((resolve,reject)=>server.listen(port,'127.0.0.1',error=>error?reject(error):resolve()));
-try{const result=await auth(provider,{serverUrl:new URL('/mcp',origin),scope});assert.equal(result,'REDIRECT');console.log(JSON.stringify({authorizationUrl:authorizationUrl.href,client:'AIHackr OAuth verification',publicPageCalls:1}));}catch(error){await finalize(error);}
+try{
+  const result=await auth(provider,{serverUrl:new URL('/mcp',origin),scope});assert.equal(result,'REDIRECT');
+  if(process.env.AIHACKR_REVIEWER_PASSWORD){
+    const password=process.env.AIHACKR_REVIEWER_PASSWORD;delete process.env.AIHACKR_REVIEWER_PASSWORD;
+    const login=await fetch(origin+'/auth/reviewer',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({email:'plugin-review@aihackr.com',password})});
+    assert.equal(login.status,200,'Reviewer login failed');
+    reviewerCookie=login.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
+    const session=await(await fetch(origin+'/api/session',{headers:{Cookie:reviewerCookie}})).json();
+    assert.equal(session.user.email,'plugin-review@aihackr.com');reviewerAvailable=session.usage.available;
+    const consent=await fetch(authorizationUrl,{headers:{Cookie:reviewerCookie},redirect:'manual'});
+    assert.equal(consent.status,200);const html=await consent.text();
+    const handle=html.match(/name="handle" value="([^"]+)"/)[1];
+    const cookies=reviewerCookie+'; '+consent.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
+    const form=new URLSearchParams({handle,userId:session.user.id,decision:'approve'});
+    for(const permission of scope.split(' '))form.append('scope',permission);
+    const approved=await fetch(origin+'/oauth/authorize',{method:'POST',headers:{Origin:origin,Cookie:cookies,'Content-Type':'application/x-www-form-urlencoded',Accept:'application/json'},body:form,redirect:'manual'});
+    assert.equal(approved.status,200,'Reviewer consent failed');
+    const callback=new URL((await approved.json()).redirectTo);
+    assert.equal(callback.searchParams.get('state'),expectedState);assert.equal(callback.searchParams.get('iss'),origin);
+    assert.equal(await auth(provider,{serverUrl:new URL('/mcp',origin),authorizationCode:callback.searchParams.get('code'),scope}),'AUTHORIZED');
+    await verify();await finalize();
+  }else console.log(JSON.stringify({authorizationUrl:authorizationUrl.href,client:'AIHackr OAuth verification',publicPageCalls:1}));
+}catch(error){await finalize(error);}

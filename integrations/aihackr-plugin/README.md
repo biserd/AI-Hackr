@@ -8,7 +8,7 @@ ChatGPT can use its public Client ID Metadata Document at `https://chatgpt.com/o
 
 Scopes: `account:read`, `web:read`, `crawl:read`, `crawl:write`. Optional `offline_access` allows rotating refresh tokens for up to 30 days. Access tokens expire after 15 minutes. Disconnect at https://aihackr.com/connections to revoke that application's access and refresh tokens immediately. Already-running requests may finish.
 
-The canonical portable `mcp.json` contains only the endpoint and relies on OAuth discovery. `openai-mcp.example.json` records the OpenAI-specific OAuth/CIMD declaration for submission tooling. It is not automatically loaded: the canonical Agent Plugins 1.0.0 schema currently rejects per-server `extensions`, although OpenAI documents that extension. Use the canonical package for compatible clients and configure OAuth in ChatGPT's MCP setup. Recheck schema support before public submission.
+The MCP configuration declares OAuth with ChatGPT CIMD preference, the canonical resource and the permissions used by the browser and crawl tools. It follows the OpenAI submission configuration. Account linking also supports dynamic registration for compatible clients.
 
 The server exposes the eight official Cloudflare OSS browser/crawl tools plus AIHackr's `get_account` profile tool. Upstream handlers remain unchanged at commit `a21972e219289337731a066befb5c66886b9ce7b`. OAuth uses the official `@cloudflare/workers-oauth-provider` library, with its KV-shaped storage interface backed by the existing SQLite Durable Object.
 

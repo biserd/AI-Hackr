@@ -1,4 +1,6 @@
 import {ServiceError,bearer,boundedJson,credentialMatches,json,onlyKeys,reject} from './policy.mjs';
+import {CreditLedger} from './credits.mjs';
+import {POLICY_VERSION} from './policies.mjs';
 import {oauthResource} from './oauth-config.mjs';
 
 export const SESSION_COOKIE='__Host-aihackr_session';
@@ -17,7 +19,7 @@ function normalizeEmail(raw){const value=typeof raw==='string'?raw.trim().toLowe
 // Only hashed challenge, session and API-key secrets are persisted. The directory
 // also serializes account-wide reservations so new accounts cannot multiply spend.
 export class AccountService {
-  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;}
+  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000,monthlyFreeCredits=0}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;this.credits=new CreditLedger(storage,now,monthlyFreeCredits);}
   async throttle(txn,key,limit,windowMs){const now=this.now();let item=await txn.get(key);if(!item||item.expiresAt<=now)item={count:0,expiresAt:now+windowMs};if(item.count>=limit)reject('RATE_LIMITED','Too many attempts. Please try again later.',429);item.count++;await txn.put(key,item);}
   async start(raw,ip){
     const email=normalizeEmail(raw),emailId=await digest(email),ipId=await digest(ip),challenge=opaque();
@@ -46,7 +48,7 @@ export class AccountService {
       let userId=await txn.get('email:'+item.emailId),user=userId?await txn.get('user:'+userId):null;
       if(!user){
         await this.throttle(txn,'signup:ip:'+item.ipId,3,86400000);await this.throttle(txn,'signup:global',50,86400000);
-        user={id:crypto.randomUUID(),email:item.email,createdAt:now,trialReserved:0,trialLimit:20};userId=user.id;
+        user={id:crypto.randomUUID(),email:item.email,createdAt:now,trialReserved:0,trialLimit:this.credits.monthlyFreeCredits?0:20};userId=user.id;
         await txn.put('email:'+item.emailId,userId);await txn.put('user:'+userId,user);
       }
       await txn.delete('challenge:'+id);
@@ -61,6 +63,29 @@ export class AccountService {
     const record=await this.storage.get(kind+':'+await digest(token));
     if(!record||record.expiresAt&&record.expiresAt<=this.now())return null;
     const user=await this.storage.get('user:'+record.userId);return user?{id:user.id,email:user.email,trialReserved:user.trialReserved,trialLimit:user.trialLimit,kind}:null;
+  }
+  async reviewerLogin(email,password,ip,expectedHash,expiresAt){
+    const expiry=Date.parse(expiresAt);
+    if(!/^[a-f0-9]{64}$/.test(expectedHash??'')||!Number.isFinite(expiry)||expiry<=this.now())reject('NOT_FOUND','Reviewer sign-in is unavailable.',404);
+    if(typeof password!=='string'||password.length<32||password.length>128)reject('AUTH_REQUIRED','Invalid review credentials.',401);
+    const ipId=await digest(ip),presentedHash=await digest(password);
+    await this.storage.transaction(async tx=>{
+      await this.throttle(tx,'rate:reviewer:ip:'+ipId,10,3600000);
+      await this.throttle(tx,'rate:reviewer:global',100,3600000);
+    });
+    if(email!=='plugin-review@aihackr.com'||!await credentialMatches(presentedHash,expectedHash))reject('AUTH_REQUIRED','Invalid review credentials.',401);
+    const session=opaque(),sessionHash=await digest(session),now=this.now();
+    await this.storage.transaction(async tx=>{
+      let userId=await tx.get('reviewer:user-id');
+      if(!userId){
+        userId=crypto.randomUUID();
+        await tx.put('reviewer:user-id',userId);
+        await tx.put('user:'+userId,{id:userId,email:'plugin-review@aihackr.com',createdAt:now,trialReserved:0,trialLimit:0});
+      }
+      await tx.put('session:'+sessionHash,{userId,expiresAt:Math.min(now+SESSION_TTL,expiry)});
+    });
+    await this.storage.setAlarm(now+3600000);
+    return {session};
   }
   async logout(token){if(token)await this.storage.delete('session:'+await digest(token));}
   async keys(userId){return [...(await this.storage.list({prefix:'keymeta:'+userId+':'})).values()].map(({hash,...item})=>item);}
@@ -85,10 +110,42 @@ export class AccountService {
     await this.storage.transaction(async txn=>{
       const day=new Date(this.now()).toISOString().slice(0,10);let budget=await txn.get('global:budget');if(!budget||budget.day!==day)budget={day,pages:0};
       if(budget.pages+pages>this.globalLimit)reject('DAILY_LIMIT','AIHackr has reached its daily service allowance. Please try again tomorrow.',429);
-      if(userId){const user=await txn.get('user:'+userId);if(!user)reject('AUTH_REQUIRED','Sign in to continue.',401);if(user.trialReserved+pages>user.trialLimit)reject('TRIAL_LIMIT','Your free trial page allowance has been used. Paid plans are not available yet.',429);user.trialReserved+=pages;await txn.put('user:'+userId,user);}
       budget.pages+=pages;await txn.put('global:budget',budget);
     });
   }
+  async creditSummary(userId){return this.credits.summary(userId);}
+  async recordBillingConsent(userId,version){if(version!==POLICY_VERSION)reject('INVALID_INPUT','Unknown policy version.');if(!await this.storage.get('user:'+userId))reject('AUTH_REQUIRED','Unknown account.',401);const consent={version,acceptedAt:this.now(),purpose:'subscription_checkout'};await this.storage.put('billing-consent:'+userId,consent);return consent;}
+  async creditReserve(userId,id,units,details){return this.credits.reserve(userId,id,units,details);}
+  async creditSettle(userId,id,units){return this.credits.settle(userId,id,units);}
+  async creditGrant(userId,grant){return this.credits.grant(userId,grant);}
+  async creditEntries(userId,cursor){return this.credits.entries(userId,cursor);}
+  async creditDaily(userId){return this.credits.daily(userId);}
+  async billingUpdate(userId,update){return this.credits.billing(userId,update);}
+  async billingRisk(userId,invoice,reason){return this.credits.risk(userId,invoice,reason);}
+  async billingCustomer(userId,customer){
+    return this.storage.transaction(async tx=>{
+      const user=await tx.get('user:'+userId);if(!user)reject('AUTH_REQUIRED','Unknown account.',401);
+      if(customer){if(user.stripeCustomer&&user.stripeCustomer!==customer)reject('BILLING_CONFLICT','Account already linked.',409);user.stripeCustomer=customer;await tx.put('user:'+userId,user);await tx.put('customer:'+customer,userId);}
+      return user.stripeCustomer??null;
+    });
+  }
+  async customerOwner(customer){return await this.storage.get('customer:'+customer)??null;}
+  async billingEvent(id,done=false){const key='stripe-event:'+id;if(done)await this.storage.put(key,{at:this.now()});return Boolean(await this.storage.get(key));}
+  async billingThrottle(userId){return this.storage.transaction(tx=>this.throttle(tx,'rate:billing:'+userId,10,60000));}
+  async checkoutAttempt(userId,plan,price){
+    return this.storage.transaction(async tx=>{
+      const key='checkout:'+userId;
+      let attempt=await tx.get(key);
+      if(attempt&&attempt.createdAt>this.now()-1920000){
+        if(attempt.plan!==plan||attempt.price!==price)reject('CHECKOUT_PENDING','Close the unpaid checkout before choosing a different plan or price.',409);
+        return attempt;
+      }
+      attempt={id:crypto.randomUUID(),suffix:Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>String.fromCharCode(97+b%26)).join(''),plan,price,createdAt:this.now()};
+      await tx.put(key,attempt);
+      return attempt;
+    });
+  }
+  async checkoutPending(userId,attemptId,session){return this.storage.transaction(async tx=>{const key='checkout:'+userId,attempt=await tx.get(key);if(attemptId){if(attempt?.id!==attemptId)reject('BILLING_CONFLICT','Checkout attempt changed. Refresh the dashboard.',409);if(session===null){await tx.delete(key);return null;}attempt.session=session;await tx.put(key,attempt);}return attempt??null;});}
   async cleanup(){
     for(const prefix of ['challenge:','session:','rate:','sent:','signup:']){let start;for(;;){const entries=await this.storage.list({prefix,...(start?{startAfter:start}:{}),limit:500});for(const[key,value]of entries)if(value.expiresAt<=this.now())await this.storage.delete(key);if(entries.size<500)break;start=[...entries.keys()].at(-1);}}
     await this.storage.setAlarm(this.now()+3600000);
@@ -112,6 +169,11 @@ export async function authenticate(request,env){
 export async function authRoute(request,env){
   const path=new URL(request.url).pathname;sameOrigin(request,true);
   if(request.method!=='POST')reject('NOT_FOUND','Unknown account route.',404);
+  if(path==='/auth/reviewer'){
+    const body=await boundedJson(request,1024);onlyKeys(body,['email','password']);
+    const result=await directoryCall(env,'reviewerLogin',body.email,body.password,request.headers.get('cf-connecting-ip')??'unknown');
+    return json({authenticated:true},200,{'Set-Cookie':setCookie(SESSION_COOKIE,result.session,SESSION_TTL/1000)});
+  }
   if(path==='/auth/start'){
     const body=await boundedJson(request,2048);onlyKeys(body,['email']);const challenge=await directoryCall(env,'start',body.email,request.headers.get('cf-connecting-ip')??'unknown');
     return json({success:true,message:'Check your email for an eight-digit sign-in code.'},200,{'Set-Cookie':setCookie(CHALLENGE_COOKIE,challenge,600)});

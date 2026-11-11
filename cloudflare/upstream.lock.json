@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/cloudflare/mcp-server-cloudflare",
   "commit": "a21972e219289337731a066befb5c66886b9ce7b",
-  "appVersion": "0.5.0",
+  "appVersion": "0.7.0",
   "license": "Apache-2.0",
   "file": "apps/browser-rendering/src/tools/browser.tools.ts",
   "sha256": "d4e57ee3b0cac0596cc0565caa6dca54efa7e6862231212f7ed2e6fec441af57",
