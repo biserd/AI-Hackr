@@ -27,4 +27,4 @@ The RSS feed includes the four published guides. Docs search uses a static publi
 
 ## Marketing materials
 
-`content/marketing-kit.md` contains positioning, launch copy, six social drafts, three email drafts, use-case messages, objection handling and a four-week distribution plan. `/media-kit` provides approved current product facts and brand downloads. No messages are sent, campaigns scheduled or paid ads purchased by this release.
+`content/marketing-kit.md` contains positioning, launch copy, six social drafts, three email drafts, use-case messages, objection handling and a four-week distribution plan. No messages are sent, campaigns scheduled or paid ads purchased by this release.

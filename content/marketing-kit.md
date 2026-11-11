@@ -142,6 +142,6 @@ Use tagged links consistently in campaigns you actually publish. Keep sensitive 
 
 ## Brand and claims
 
-Product name: AIHackr. Palette: orange #e54b16, warm white #f9f9f7, forest ink #34432d. SVG wordmark/icon and a PNG social card are available at https://aihackr.com/media-kit.
+Product name: AIHackr. Palette: orange #e54b16, warm white #f9f9f7, forest ink #34432d. The site assets include the SVG wordmark, icon and PNG social card.
 
 Do not add fake customer logos, testimonials, reviews, growth metrics, performance comparisons, certifications, SLA claims or “unlimited” language. Do not imply Cloudflare sponsorship. Distinguish live capabilities from roadmap work in every channel.

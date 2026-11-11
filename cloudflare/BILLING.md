@@ -39,7 +39,7 @@ New subscriptions require the current policy version from an explicit dashboard 
 
 ## Customer policies
 
-Static, indexable pages at `/privacy`, `/terms`, `/refunds`, `/acceptable-use`, `/cookies` and `/support` are included in the sitemap, navigation and dashboard footer. `cloudflare/policies.mjs` owns the operator contact details and policy version; `content/customer-policies.mjs` owns the public text. The operator is Big Apple Digital LLC. Support uses the existing business mailbox `hello@bigappledigital.nyc`.
+Static, indexable pages at `/privacy`, `/terms`, `/refunds`, `/acceptable-use`, `/cookies` and `/support` are included in the sitemap, navigation and dashboard footer. `cloudflare/policies.mjs` owns the operator contact details and policy version; `content/customer-policies.mjs` owns the public text. The operator is Big Apple Digital LLC. Support uses the existing business mailbox `hello@aitracker.com`.
 
 The notices distinguish seven-day retrieved-content retention from longer-lived account, consent, ledger and billing-reference records. Account deletion/export requests are manual support requests. Cancellation stops subscription renewal and does not delete the account. No advertising analytics, automatic refunds, guaranteed SLA or automatic tax collection are represented. Staging shows a sandbox banner when a test-mode runtime key is installed; simulated transactions create no real purchase obligation.
 
