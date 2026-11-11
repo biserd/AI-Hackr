@@ -1,7 +1,7 @@
 import {bodies,section,p,list,table,link} from './pages.mjs';
 import {OPERATOR,POLICY_VERSION} from '../cloudflare/policies.mjs';
 const contact=`<a href="mailto:${OPERATOR.email}">${OPERATOR.email}</a>`;
-const operator=p(`AIHackr is operated by <strong>${OPERATOR.name}</strong>. Contact: ${contact}. Postal address: ${OPERATOR.address}.`);
+const operator=p(`AIHackr is operated by <strong>${OPERATOR.name}</strong>. Contact: ${contact}.`);
 const effectiveDate=new Intl.DateTimeFormat('en-US',{dateStyle:'long',timeZone:'UTC'}).format(new Date(POLICY_VERSION));
 const date=p(`<strong>Effective date: ${effectiveDate}.</strong> Policy version: <code>${POLICY_VERSION}</code>.`);
 bodies['/privacy']=date+operator+

@@ -53,7 +53,7 @@
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -172,14 +172,14 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "site": {
-    "checkedAt": "2026-11-11T01:26:31.049Z",
+    "checkedAt": "2026-11-11T01:56:44.188Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
         "passed": true,
-        "count": 29
+        "count": 28
       },
       "redirectsAnd404": {
         "passed": true
@@ -187,7 +187,7 @@
       "discoveryFeedsAndSearch": {
         "passed": true
       },
-      "brandAssetsAndMarketingKit": {
+      "brandAssets": {
         "passed": true
       },
       "privateRoutes": {
@@ -353,13 +353,6 @@
         "structuredDataCsp": true
       },
       {
-        "path": "/media-kit",
-        "status": 200,
-        "deployedSourceMatches": true,
-        "canonical": true,
-        "structuredDataCsp": true
-      },
-      {
         "path": "/privacy",
         "status": 200,
         "deployedSourceMatches": true,
@@ -401,14 +394,12 @@
         "canonical": true,
         "structuredDataCsp": true
       }
-    ],
-    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
-    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
+    ]
   },
   "oauth": {
     "checkedAt": "2026-11-11T01:26:29.041Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -464,7 +455,7 @@
   "oauthPublic": {
     "checkedAt": "2026-11-11T01:26:28.650Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
     "passed": true,
     "checks": {
       "discovery": {
@@ -499,7 +490,7 @@
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -583,7 +574,15 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
+  "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
   "portalVerified": true,
-  "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e"
+  "stagingVersion": "e5c6caa1-9c18-44be-adba-ff689de52845",
+  "siteCleanupVerification": {
+    "checkedAt": "2026-11-11T01:56:44.188Z",
+    "htmlRoutesChecked": 35,
+    "stagingSiteAndAccountGuardsPassed": true,
+    "priorRuntimeRelease": "c9c21b066bb7f65455b10cef156fad15afdf62cc",
+    "priorRuntimeStagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+    "evidenceBasis": "Content, public static routes and support contact metadata changed. Live site parity, contact removal, retirement routes, account guards, plan readiness and OAuth discovery were checked on staging. All 61 automated tests passed. Prior full Browser Run, billing and OAuth evidence is retained for the unchanged workflows."
+  }
 }

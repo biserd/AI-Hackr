@@ -22,7 +22,6 @@ export const landings=[
   ['/use-cases/ai-agents','Web scraping tools for AI agents','Give agents access to public webpages with AIHackr REST APIs and MCP tools. Read page content, discover links and run bounded website crawls.'],
   ['/use-cases/data-extraction','Structured web data extraction','Turn public webpages into structured JSON with AIHackr. Use a prompt or schema, validate the output and keep source context in your workflow.'],
   ['/plans','Monthly plans and application credits','Compare AIHackr monthly plans: Starter $7, Builder $15 and Scale $29. Start with 1,200 free credits each month, then manage subscriptions and usage in your dashboard.'],
-  ['/media-kit','AIHackr media kit','Find AIHackr product messaging, brand assets, launch copy and factual product information for writing about the web scraping API and MCP tools.'],
 ].map(([path,title,description])=>({path,title,description,kind:'landing'}));
 export const hubs=[
   {path:'/docs',title:'AIHackr documentation',description:'Learn the AIHackr web scraping API: quickstart guides, REST reference, MCP integration, authentication, crawl limits and troubleshooting.',kind:'docsHub'},

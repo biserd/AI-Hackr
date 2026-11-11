@@ -1,6 +1,6 @@
 import {pages} from '../content/manifest.mjs';
 const routes=new Map([['/','/index.html'],['/dashboard','/dashboard.html'],['/connections','/connections.html'],['/reviewer','/reviewer.html'],...pages.map(p=>[p.path,p.path+'.html'])]);
-const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/dashboard.mjs','/dashboard.css','/connections.mjs','/reviewer.mjs','/oauth.mjs','/oauth.css','/aihackr-plugin.zip','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
+const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/dashboard.mjs','/dashboard.css','/connections.mjs','/reviewer.mjs','/oauth.mjs','/oauth.css','/aihackr-plugin.zip','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
 const aliases=new Map([['/index.html','/'],['/dashboard.html','/dashboard'],['/web-data','/'],['/web-data/','/'],...pages.map(p=>[p.path+'.html',p.path])]);
 const baseCsp="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export async function publicSite(request,env){
@@ -29,7 +29,6 @@ export async function publicSite(request,env){
   }
   if(stage||!assetPath||['/dashboard','/connections','/reviewer'].includes(path))headers.set('X-Robots-Tag',stage?'noindex, nofollow':'noindex');
   if(['/sitemap.xml','/rss.xml'].includes(path))headers.set('Content-Type',path==='/rss.xml'?'application/rss+xml; charset=utf-8':'application/xml; charset=utf-8');
-  if(path==='/marketing-kit.md'){headers.set('Content-Type','text/markdown; charset=utf-8');headers.set('Content-Disposition','attachment; filename="AIHackr-Marketing-Kit.md"');}
   headers.set('Cache-Control',!assetPath||['/connections','/reviewer'].includes(path)?'no-store':stage?'no-cache':html?'public, max-age=0, must-revalidate':'public, max-age=3600');
   return new Response(request.method==='HEAD'?null:asset.body,{status:assetPath?asset.status:404,headers});
 }
