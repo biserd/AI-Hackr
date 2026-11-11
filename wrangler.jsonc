@@ -32,7 +32,9 @@
   },
   "vars": {
     "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
-    "DAILY_PAGE_LIMIT": "1000"
+    "DAILY_PAGE_LIMIT": "1000",
+    "STRIPE_PRICES_V2": "{\"starter\":\"price_1UaPZjRwvWaTf8xfpioORU86\",\"builder\":\"price_1UaPZlRwvWaTf8xfnARIyvf0\",\"scale\":\"price_1UaPZnRwvWaTf8xfHxhuoWfG\"}",
+    "STRIPE_PORTAL_CONFIGURATION_V2": "bpc_1UaPZoRwvWaTf8xf4LlZdFXV"
   },
   "alias": {
     "@repo/mcp-common/src/cloudflare-api": "./cloudflare/mcp-client.mjs",
