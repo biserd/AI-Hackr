@@ -6,17 +6,17 @@ export const docs=[
   ['map','Map API','Discover same-origin links on a public webpage with the AIHackr Map API. Learn page-level discovery limits and when to use a recursive crawl.','API reference'],
   ['crawl','Crawl API','Start a bounded website crawl, poll status, paginate retained results and cancel jobs with the AIHackr Crawl API. Includes practical request examples.','API reference'],
   ['extract','Extract API','Extract structured JSON from a public webpage with an AIHackr prompt or JSON schema. Includes a working request shape and validation guidance.','API reference'],
-  ['mcp','MCP integration','Connect AIHackr to ChatGPT with OAuth or use a customer API key in a compatible Streamable HTTP client. Explore the browser and crawl tools.','Integrations'],
+  ['mcp','Web scraping MCP server','Connect AIHackr’s web scraping MCP server with OAuth or an API key. Read a public URL as Markdown, extract JSON, or run a bounded crawl.','Integrations','Web Scraping MCP Server for AI Agents'],
   ['limits','Usage, limits and retention','Understand the AIHackr 1,200 free credits each month, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
   ['errors','Errors and troubleshooting','Resolve AIHackr API authentication, URL, robots, rate-limit and crawl errors. Use error codes to decide when to correct a request or retry.','Operations'],
   ['migration','Firecrawl API migration','Evaluate the documented Firecrawl-shaped REST subset in AIHackr. Compare supported routes, MCP tools and differences before changing your integration.','Integrations'],
-].map(([slug,title,description,category])=>({path:'/docs/'+slug,title,description,category,kind:'docs'}));
+].map(([slug,title,description,category,seoTitle])=>({path:'/docs/'+slug,title,description,category,kind:'docs',seoTitle}));
 export const posts=[
-  ['website-to-markdown-api','How to turn a website into Markdown with an API','A practical guide to scraping public webpages as Markdown, preserving source URLs and preparing useful text for AI applications.','Web scraping','7 min'],
+  ['website-to-markdown-api','Turn a website into Markdown with an API','Convert a public URL to Markdown with the AIHackr API. Run a cURL example, keep the source URL, and learn when to use a bounded crawl.','Web scraping','7 min','Website to Markdown API: A cURL Tutorial','2026-11-11'],
   ['scrape-vs-crawl-vs-map','Scrape vs. crawl vs. map: choose the right request','Understand when to scrape one page, map its links or crawl a bounded section of a website, with AIHackr examples and usage considerations.','Engineering','6 min'],
   ['web-data-for-rag','Build a source-aware web data pipeline for RAG','Plan a web-to-RAG workflow with bounded crawling, retained source metadata, chunking, validation and a refresh strategy.','AI workflows','8 min'],
   ['structured-data-extraction','Extract JSON from webpages without losing context','Use prompts and JSON schemas to turn public page content into structured data. Learn how to validate missing values and retain source context.','Tutorial','7 min'],
-].map(([slug,title,description,category,readingTime])=>({path:'/blog/'+slug,title,description,category,readingTime,kind:'post',date:published}));
+].map(([slug,title,description,category,readingTime,seoTitle,updated])=>({path:'/blog/'+slug,title,description,category,readingTime,kind:'post',date:published,seoTitle,updated}));
 export const landings=[
   ['/use-cases/rag','Web data for RAG pipelines','Collect public web content as Markdown for retrieval-augmented generation. Use bounded AIHackr crawls, source URLs and your own ingestion pipeline.'],
   ['/use-cases/ai-agents','Web scraping tools for AI agents','Give agents access to public webpages with AIHackr REST APIs and MCP tools. Read page content, discover links and run bounded website crawls.'],
