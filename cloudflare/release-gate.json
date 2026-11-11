@@ -53,7 +53,7 @@
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -167,12 +167,14 @@
       "availableAfter": 1198,
       "charged": 1,
       "heldAfter": 0
-    }
+    },
+    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "site": {
     "checkedAt": "2026-11-11T01:26:31.049Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -399,12 +401,14 @@
         "canonical": true,
         "structuredDataCsp": true
       }
-    ]
+    ],
+    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "oauth": {
     "checkedAt": "2026-11-11T01:26:29.041Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -453,12 +457,14 @@
       }
     },
     "accountFingerprint": "1e5ca11420126c9ba3d472aab6352401ec95c4ba372fe85c3b54124548c6e2c9",
-    "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e"
+    "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "oauthPublic": {
     "checkedAt": "2026-11-11T01:26:28.650Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
     "passed": true,
     "checks": {
       "discovery": {
@@ -485,13 +491,15 @@
       "htmlRoutesAndPrivateConnectionList": {
         "passed": true
       }
-    }
+    },
+    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "customerPortal": {
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -570,10 +578,12 @@
         "plansStacked": true
       }
     },
-    "note": "Current-source reviewer login, private account summary and MCP credit settlement verified by the live OAuth client. Browser-observed owner credits changed from 9208 to 9207 with zero held. Existing responsive dashboard evidence is retained from the pricing release."
+    "note": "Current-source reviewer login, private account summary and MCP credit settlement verified by the live OAuth client. Browser-observed owner credits changed from 9208 to 9207 with zero held. Existing responsive dashboard evidence is retained from the pricing release.",
+    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
+  "sourceDigest": "6d45f4ffc793f89c5d99e0b11b25c527a6b9c37319293da81a8c6c403b01bce7",
   "portalVerified": true,
   "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e"
 }
