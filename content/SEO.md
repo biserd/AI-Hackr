@@ -4,11 +4,11 @@ The homepage targets the product category “web scraping API” and “AI agent
 
 | Cluster | Primary page | Supporting guide |
 | --- | --- | --- |
-| Website to Markdown | /docs/scrape | /blog/website-to-markdown-api |
+| Website to Markdown API | /blog/website-to-markdown-api | /docs/scrape |
 | Scrape, map and crawl | /docs/crawl and /docs/map | /blog/scrape-vs-crawl-vs-map |
 | Web data for RAG | /use-cases/rag | /blog/web-data-for-rag |
 | JSON extraction | /use-cases/data-extraction and /docs/extract | /blog/structured-data-extraction |
-| MCP browser tools | /use-cases/ai-agents | /docs/mcp |
+| Web scraping MCP server | /docs/mcp | /use-cases/ai-agents |
 | Account activation | /docs/quickstart | /docs/authentication |
 
 These are editorial intent themes, not measured search volume or ranking claims. Semrush keyword data was unavailable because the connected account lacked API units. No traffic forecast, keyword difficulty score or ranking position is invented.

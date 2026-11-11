@@ -53,7 +53,7 @@
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -172,9 +172,9 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "site": {
-    "checkedAt": "2026-11-11T01:56:44.188Z",
+    "checkedAt": "2026-11-11T13:43:05.475Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -399,7 +399,7 @@
   "oauth": {
     "checkedAt": "2026-11-11T01:26:29.041Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -453,9 +453,9 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "oauthPublic": {
-    "checkedAt": "2026-11-11T01:26:28.650Z",
+    "checkedAt": "2026-11-11T13:43:05.452Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
     "passed": true,
     "checks": {
       "discovery": {
@@ -482,15 +482,13 @@
       "htmlRoutesAndPrivateConnectionList": {
         "passed": true
       }
-    },
-    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
-    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
+    }
   },
   "customerPortal": {
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -574,9 +572,9 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+  "sourceDigest": "5b3cdcecb91fede82508e378fe7927e3581a4f73ea31801986f67f8fde9176b5",
   "portalVerified": true,
-  "stagingVersion": "e5c6caa1-9c18-44be-adba-ff689de52845",
+  "stagingVersion": "281e98e4-6fbc-480c-92b5-3ae0eef337b4",
   "siteCleanupVerification": {
     "checkedAt": "2026-11-11T01:56:44.188Z",
     "htmlRoutesChecked": 35,
@@ -584,5 +582,23 @@
     "priorRuntimeRelease": "c9c21b066bb7f65455b10cef156fad15afdf62cc",
     "priorRuntimeStagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "evidenceBasis": "Content, public static routes and support contact metadata changed. Live site parity, contact removal, retirement routes, account guards, plan readiness and OAuth discovery were checked on staging. All 61 automated tests passed. Prior full Browser Run, billing and OAuth evidence is retained for the unchanged workflows."
+  },
+  "guideRefreshVerification": {
+    "checkedAt": "2026-11-11T13:44:11.372Z",
+    "priorSourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
+    "priorStagingVersion": "e5c6caa1-9c18-44be-adba-ff689de52845",
+    "changedFiles": [
+      "cloudflare/scripts/build-content.mjs",
+      "content/SEO.md",
+      "content/manifest.mjs",
+      "content/pages.mjs",
+      "content/posts.mjs",
+      "web/index.html"
+    ],
+    "restMarkdownAndSourceMetadata": true,
+    "mcpMarkdown": true,
+    "publicOAuth": true,
+    "plansReady": true,
+    "evidenceBasis": "Guide copy, page metadata and the static site generator changed. Public paths and backend logic for billing, browser operations, OAuth and customer accounts are unchanged. The earlier end-to-end integration evidence is retained with its observed source digest. Fresh staging checks covered all public pages, OAuth discovery and access guards, plan readiness, and the exact Markdown example through REST and MCP."
   }
 }
