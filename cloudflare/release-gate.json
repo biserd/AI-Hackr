@@ -53,7 +53,7 @@
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -172,9 +172,9 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "site": {
-    "checkedAt": "2026-11-11T13:45:51.960Z",
+    "checkedAt": "2026-11-11T13:59:07.049Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -399,7 +399,7 @@
   "oauth": {
     "checkedAt": "2026-11-11T01:26:29.041Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -455,7 +455,7 @@
   "oauthPublic": {
     "checkedAt": "2026-11-11T13:45:51.975Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
     "passed": true,
     "checks": {
       "discovery": {
@@ -482,13 +482,14 @@
       "htmlRoutesAndPrivateConnectionList": {
         "passed": true
       }
-    }
+    },
+    "observedSourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33"
   },
   "customerPortal": {
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -572,9 +573,9 @@
     "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+  "sourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
   "portalVerified": true,
-  "stagingVersion": "dcaf7659-67d1-4425-b6de-18645003bddb",
+  "stagingVersion": "ebca070a-c82f-4a98-8fa2-147166bbc583",
   "siteCleanupVerification": {
     "checkedAt": "2026-11-11T01:56:44.188Z",
     "htmlRoutesChecked": 35,
@@ -600,5 +601,14 @@
     "publicOAuth": true,
     "plansReady": true,
     "evidenceBasis": "Guide copy, page metadata and the static site generator changed. Public paths and backend logic for billing, browser operations, OAuth and customer accounts are unchanged. The earlier end-to-end integration evidence is retained with its observed source digest. Fresh staging checks covered all public pages, OAuth discovery and access guards, plan readiness, and the exact Markdown example through REST and MCP."
+  },
+  "blogCopyVerification": {
+    "checkedAt": "2026-11-11T13:59:07.049Z",
+    "priorSourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
+    "priorStagingVersion": "dcaf7659-67d1-4425-b6de-18645003bddb",
+    "changedFiles": [
+      "content/posts.mjs"
+    ],
+    "evidenceBasis": "Only the static scrape, crawl and map article copy changed. All 28 pages passed live source parity on staging. Runtime evidence is inherited from the prior release with observed digests preserved."
   }
 }
