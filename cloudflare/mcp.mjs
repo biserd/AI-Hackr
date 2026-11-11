@@ -5,8 +5,17 @@ import { browserRequest } from './mcp-client.mjs';
 import {TOOL_SCOPES,oauthChallenge,hasToolScope,accountProfile} from './oauth-config.mjs';
 import {z} from 'zod';
 
-const allowed = new Set(['get_url_html_content','get_url_markdown','get_url_json','get_url_links','scrape_url_elements','start_crawl','get_crawl_result','cancel_crawl']);
-export const officialTools = [...allowed];
+const toolTitles = new Map([
+  ['get_url_html_content', 'Read webpage HTML'],
+  ['get_url_markdown', 'Read webpage Markdown'],
+  ['get_url_json', 'Extract structured webpage data'],
+  ['get_url_links', 'List webpage links'],
+  ['scrape_url_elements', 'Extract webpage elements'],
+  ['start_crawl', 'Start a website crawl'],
+  ['get_crawl_result', 'Get crawl results'],
+  ['cancel_crawl', 'Cancel a website crawl'],
+]);
+export const officialTools = [...toolTitles.keys()];
 export async function handleMcp(request, env, ctx, service,identity) {
   const permissionError=scope=>({isError:true,content:[{type:'text',text:'Reconnect AIHackr to approve the required permission: '+scope}],_meta:{'mcp/www_authenticate':[oauthChallenge(env,{error:'insufficient_scope',scope})]}});
   const handler = createMcpHandler(() => {
@@ -14,12 +23,13 @@ export async function handleMcp(request, env, ctx, service,identity) {
     registerBrowserTools({
       props:{accessToken:'workspace-internal'},
       accountTool(name, config, callback) {
-        if (!allowed.has(name)) return;
+        const title = toolTitles.get(name);
+        if (!title) return;
         const description = config.description + (name==='start_crawl'?' Workspace maximum: 100 pages and depth 5. Reserves the page limit; charges 1 credit per successful page.':name==='get_url_json'?' Costs 5 credits per successful extraction.':['get_crawl_result','cancel_crawl'].includes(name)?' No additional credits; final crawl settlement includes partial successful pages.':' Costs 1 credit per successful request.');
         const scope=TOOL_SCOPES[name];
         const annotations = {readOnlyHint: scope !== 'crawl:write', destructiveHint: name === 'cancel_crawl', idempotentHint: false, openWorldHint: name !== 'get_crawl_result' && name !== 'cancel_crawl'};
         const securitySchemes = [{type:'oauth2',scopes:[scope]}];
-        server.registerTool(name,{...config,description,annotations,securitySchemes,_meta:{...config._meta,securitySchemes}},async params=>{
+        server.registerTool(name,{...config,title,description,annotations,securitySchemes,_meta:{...config._meta,securitySchemes}},async params=>{
           if(!hasToolScope(identity,name))return permissionError(scope);
           return browserRequest.run({service,accountId:env.CLOUDFLARE_ACCOUNT_ID},async()=>{
           const result=await callback(params,env.CLOUDFLARE_ACCOUNT_ID);
@@ -38,7 +48,7 @@ export async function handleMcp(request, env, ctx, service,identity) {
         });});
       },
     });
-    server.registerTool('get_account',{description:'Identify the connected AIHackr account.',inputSchema:{},outputSchema:{id:z.string().min(1).regex(/\S/),email:z.string().optional(),nickname:z.string().optional()},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},securitySchemes:[{type:'oauth2',scopes:['account:read']}],_meta:{'openai/profile':true,securitySchemes:[{type:'oauth2',scopes:['account:read']}]}},async()=>{
+    server.registerTool('get_account',{title:'Get connected account',description:'Identify the connected AIHackr account.',inputSchema:{},outputSchema:{id:z.string().min(1).regex(/\S/),email:z.string().optional(),nickname:z.string().optional()},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},securitySchemes:[{type:'oauth2',scopes:['account:read']}],_meta:{'openai/profile':true,securitySchemes:[{type:'oauth2',scopes:['account:read']}]}},async()=>{
       if(!hasToolScope(identity,'get_account'))return permissionError('account:read');
       const profile=await accountProfile(identity,service.storage);return {content:[{type:'text',text:JSON.stringify(profile)}],structuredContent:profile};
     });
