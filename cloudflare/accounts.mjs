@@ -18,7 +18,7 @@ function normalizeEmail(raw){const value=typeof raw==='string'?raw.trim().toLowe
 // Only hashed challenge, session and API-key secrets are persisted. The directory
 // also serializes account-wide reservations so new accounts cannot multiply spend.
 export class AccountService {
-  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;this.credits=new CreditLedger(storage,now);}
+  constructor(storage,{send,now=()=>Date.now(),globalLimit=1000,monthlyFreeCredits=0}={}){this.storage=storage;this.send=send;this.now=now;this.globalLimit=globalLimit;this.credits=new CreditLedger(storage,now,monthlyFreeCredits);}
   async throttle(txn,key,limit,windowMs){const now=this.now();let item=await txn.get(key);if(!item||item.expiresAt<=now)item={count:0,expiresAt:now+windowMs};if(item.count>=limit)reject('RATE_LIMITED','Too many attempts. Please try again later.',429);item.count++;await txn.put(key,item);}
   async start(raw,ip){
     const email=normalizeEmail(raw),emailId=await digest(email),ipId=await digest(ip),challenge=opaque();
@@ -47,7 +47,7 @@ export class AccountService {
       let userId=await txn.get('email:'+item.emailId),user=userId?await txn.get('user:'+userId):null;
       if(!user){
         await this.throttle(txn,'signup:ip:'+item.ipId,3,86400000);await this.throttle(txn,'signup:global',50,86400000);
-        user={id:crypto.randomUUID(),email:item.email,createdAt:now,trialReserved:0,trialLimit:20};userId=user.id;
+        user={id:crypto.randomUUID(),email:item.email,createdAt:now,trialReserved:0,trialLimit:this.credits.monthlyFreeCredits?0:20};userId=user.id;
         await txn.put('email:'+item.emailId,userId);await txn.put('user:'+userId,user);
       }
       await txn.delete('challenge:'+id);
@@ -108,7 +108,19 @@ export class AccountService {
   async customerOwner(customer){return await this.storage.get('customer:'+customer)??null;}
   async billingEvent(id,done=false){const key='stripe-event:'+id;if(done)await this.storage.put(key,{at:this.now()});return Boolean(await this.storage.get(key));}
   async billingThrottle(userId){return this.storage.transaction(tx=>this.throttle(tx,'rate:billing:'+userId,10,60000));}
-  async checkoutAttempt(userId,plan){return this.storage.transaction(async tx=>{const key='checkout:'+userId;let attempt=await tx.get(key);if(attempt&&attempt.createdAt>this.now()-1920000){if(attempt.plan!==plan)reject('CHECKOUT_PENDING','A checkout is already open. Resume that plan or close the unpaid checkout before choosing another plan.',409);return attempt;}attempt={id:crypto.randomUUID(),suffix:Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>String.fromCharCode(97+b%26)).join(''),plan,createdAt:this.now()};await tx.put(key,attempt);return attempt;});}
+  async checkoutAttempt(userId,plan,price){
+    return this.storage.transaction(async tx=>{
+      const key='checkout:'+userId;
+      let attempt=await tx.get(key);
+      if(attempt&&attempt.createdAt>this.now()-1920000){
+        if(attempt.plan!==plan||attempt.price!==price)reject('CHECKOUT_PENDING','Close the unpaid checkout before choosing a different plan or price.',409);
+        return attempt;
+      }
+      attempt={id:crypto.randomUUID(),suffix:Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>String.fromCharCode(97+b%26)).join(''),plan,price,createdAt:this.now()};
+      await tx.put(key,attempt);
+      return attempt;
+    });
+  }
   async checkoutPending(userId,attemptId,session){return this.storage.transaction(async tx=>{const key='checkout:'+userId,attempt=await tx.get(key);if(attemptId){if(attempt?.id!==attemptId)reject('BILLING_CONFLICT','Checkout attempt changed. Refresh the dashboard.',409);if(session===null){await tx.delete(key);return null;}attempt.session=session;await tx.put(key,attempt);}return attempt??null;});}
   async cleanup(){
     for(const prefix of ['challenge:','session:','rate:','sent:','signup:']){let start;for(;;){const entries=await this.storage.list({prefix,...(start?{startAfter:start}:{}),limit:500});for(const[key,value]of entries)if(value.expiresAt<=this.now())await this.storage.delete(key);if(entries.size<500)break;start=[...entries.keys()].at(-1);}}

@@ -7,7 +7,7 @@ export const docs=[
   ['crawl','Crawl API','Start a bounded website crawl, poll status, paginate retained results and cancel jobs with the AIHackr Crawl API. Includes practical request examples.','API reference'],
   ['extract','Extract API','Extract structured JSON from a public webpage with an AIHackr prompt or JSON schema. Includes a working request shape and validation guidance.','API reference'],
   ['mcp','MCP integration','Connect a Streamable HTTP MCP client to AIHackr using a customer API key. Explore the eight browser and crawl tools available to your agents.','Integrations'],
-  ['limits','Usage, limits and retention','Understand the AIHackr 20 free credits, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
+  ['limits','Usage, limits and retention','Understand the AIHackr 1,200 free credits each month, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
   ['errors','Errors and troubleshooting','Resolve AIHackr API authentication, URL, robots, rate-limit and crawl errors. Use error codes to decide when to correct a request or retry.','Operations'],
   ['migration','Firecrawl API migration','Evaluate the documented Firecrawl-shaped REST subset in AIHackr. Compare supported routes, MCP tools and differences before changing your integration.','Integrations'],
 ].map(([slug,title,description,category])=>({path:'/docs/'+slug,title,description,category,kind:'docs'}));
@@ -21,7 +21,7 @@ export const landings=[
   ['/use-cases/rag','Web data for RAG pipelines','Collect public web content as Markdown for retrieval-augmented generation. Use bounded AIHackr crawls, source URLs and your own ingestion pipeline.'],
   ['/use-cases/ai-agents','Web scraping tools for AI agents','Give agents access to public webpages with AIHackr REST APIs and MCP tools. Read page content, discover links and run bounded website crawls.'],
   ['/use-cases/data-extraction','Structured web data extraction','Turn public webpages into structured JSON with AIHackr. Use a prompt or schema, validate the output and keep source context in your workflow.'],
-  ['/plans','Monthly plans and application credits','Compare AIHackr monthly plans: Starter $9, Builder $29 and Scale $79. Start with 20 free credits, then manage subscriptions and usage in your dashboard.'],
+  ['/plans','Monthly plans and application credits','Compare AIHackr monthly plans: Starter $7, Builder $15 and Scale $29. Start with 1,200 free credits each month, then manage subscriptions and usage in your dashboard.'],
   ['/media-kit','AIHackr media kit','Find AIHackr product messaging, brand assets, launch copy and factual product information for writing about the web scraping API and MCP tools.'],
 ].map(([path,title,description])=>({path,title,description,kind:'landing'}));
 export const hubs=[

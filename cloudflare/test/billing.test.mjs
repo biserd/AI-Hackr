@@ -7,12 +7,12 @@ import {AccountService,rpcResult} from '../accounts.mjs';
 import {Storage} from './storage.mjs';
 async function setup(){
   const storage=new Storage(),account=new AccountService(storage);await storage.put('user:u',{id:'u',trialLimit:20,trialReserved:0});await account.billingCustomer('u','cus_aihackr');
-  const env={STRIPE_SECRET_KEY:'sk_test_fixture_not_a_real_key',STRIPE_WEBHOOK_SECRET:'whsec_fixture_not_a_real_secret',STRIPE_PRICES:JSON.stringify({starter:'price_starter',builder:'price_builder',scale:'price_scale'}),STRIPE_PORTAL_CONFIGURATION:'bpc_fixture',ACCOUNT_DIRECTORY:{getByName:()=>new Proxy({},{get:(_,method)=>(...args)=>rpcResult(()=>account[method](...args))})}};
+  const env={STRIPE_SECRET_KEY:'sk_test_fixture_not_a_real_key',STRIPE_WEBHOOK_SECRET:'whsec_fixture_not_a_real_secret',STRIPE_PRICES:JSON.stringify({starter:'price_starter',builder:'price_builder',scale:'price_scale'}),STRIPE_PORTAL_CONFIGURATION:'bpc_fixture',STRIPE_PORTAL_CONFIGURATION_V2:'bpc_v2fixture',STRIPE_PRICES_V2:JSON.stringify({starter:'price_v2starter',builder:'price_v2builder',scale:'price_v2scale'}),ACCOUNT_DIRECTORY:{getByName:()=>new Proxy({},{get:(_,method)=>(...args)=>rpcResult(()=>account[method](...args))})}};
   const start=Math.floor(Date.now()/1000),end=start+30*86400;
   const sub={id:'sub_aihackr',created:start,customer:'cus_aihackr',status:'active',cancel_at_period_end:false,items:{data:[{price:{id:'price_starter'},quantity:1,current_period_start:start,current_period_end:end}]}};
   const invoices=new Map([['in_first',{id:'in_first',customer:'cus_aihackr',status:'paid',billing_reason:'subscription_create',parent:{subscription_details:{subscription:sub.id}}}]]);
   const lines=new Map([['in_first',[{quantity:1,amount:900,pricing:{price_details:{price:'price_starter'}},period:{start,end}}]]]);let checkoutParams,portalParams,customerCreates=0;
-  const client={prices:{retrieve:async id=>({active:true,currency:'usd',unit_amount:{price_starter:900,price_builder:2900,price_scale:7900}[id],recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{metadata:{app:'aihackr',plan:id.replace('price_','')}}})},subscriptions:{retrieve:async()=>structuredClone(sub),list:async()=>({data:[],has_more:false})},invoices:{retrieve:async id=>structuredClone(invoices.get(id)),listLineItems:async id=>({data:structuredClone(lines.get(id)??[]),has_more:false}),list:async()=>({data:[...invoices.values()]})},customers:{create:async()=>{customerCreates++;return{id:'cus_created'};}},checkout:{sessions:{create:async(params)=>{checkoutParams=params;return {id:'cs_fixture',url:'https://checkout.stripe.com/fixture'};},retrieve:async id=>({id,customer:'cus_aihackr',status:'open',payment_status:'unpaid',subscription:sub.id,invoice:'in_first'}),expire:async()=>({status:'expired'})}},billingPortal:{sessions:{create:async params=>{portalParams=params;return {url:'https://billing.stripe.com/fixture'};}}},charges:{retrieve:async()=>({customer:'cus_aihackr',payment_intent:'pi_fixture'})},invoicePayments:{list:async()=>({data:[{invoice:'in_first'}],has_more:false})}};
+  const client={prices:{retrieve:async id=>({active:true,currency:'usd',unit_amount:{price_starter:900,price_builder:2900,price_scale:7900,price_v2starter:700,price_v2builder:1500,price_v2scale:2900}[id],recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{metadata:{app:'aihackr',plan:id.replace(/^price_(v2)?/,'')}}})},subscriptions:{retrieve:async()=>structuredClone(sub),list:async()=>({data:[],has_more:false})},invoices:{retrieve:async id=>structuredClone(invoices.get(id)),listLineItems:async id=>({data:structuredClone(lines.get(id)??[]),has_more:false}),list:async()=>({data:[...invoices.values()]})},customers:{create:async()=>{customerCreates++;return{id:'cus_created'};}},checkout:{sessions:{create:async(params)=>{checkoutParams=params;return {id:'cs_fixture',url:'https://checkout.stripe.com/fixture'};},retrieve:async id=>({id,customer:'cus_aihackr',status:'open',payment_status:'unpaid',subscription:sub.id,invoice:'in_first'}),expire:async()=>({status:'expired'})}},billingPortal:{sessions:{create:async params=>{portalParams=params;return {url:'https://billing.stripe.com/fixture'};}}},charges:{retrieve:async()=>({customer:'cus_aihackr',payment_intent:'pi_fixture'})},invoicePayments:{list:async()=>({data:[{invoice:'in_first'}],has_more:false})}};
   const billing=new BillingService(env,{client});return{account,env,billing,client,sub,invoices,lines,start,end,params:()=>({checkoutParams,portalParams,customerCreates})};
 }
 test('paid canonical invoices grant once across different and replayed webhook events; redirects and unpaid checkout cannot grant',async()=>{
@@ -26,6 +26,45 @@ test('renewals and prorated upgrades add only the paid invoice entitlement; old 
   await s.billing.invoice('in_upgrade');assert.equal((await s.account.creditSummary('u')).available,3020);
   s.invoices.set('in_old',{id:'in_old',customer:'cus_aihackr',status:'paid',parent:{subscription_details:{subscription:s.sub.id}}});s.lines.set('in_old',[{quantity:1,amount:7900,pricing:{price_details:{price:'price_scale'}},period:{end:s.start-10}}]);await s.billing.invoice('in_old');assert.equal((await s.account.creditSummary('u')).available,3020);
 });
+test('new paid invoices grant the new allowance and use the matching customer portal',async()=>{
+  const s=await setup();
+  const item=s.sub.items.data[0];
+  item.price.id='price_v2builder';
+  const line=s.lines.get('in_first')[0];
+  line.amount=1500;
+  line.pricing.price_details.price=item.price.id;
+  await s.billing.invoice('in_first');
+  await s.billing.invoice('in_first');
+  const summary=await s.account.creditSummary('u');
+  assert.equal(summary.available,7520);
+  assert.equal(summary.billing.monthlyAmount,1500);
+  assert.equal(summary.billing.monthlyCredits,7500);
+  s.client.subscriptions.list=async()=>({data:[s.sub],has_more:false});
+  await s.billing.portal({id:'u'},'https://aihackr.com');
+  assert.equal(s.params().portalParams.configuration,'bpc_v2fixture');
+});
+test('a pending checkout for the same plan at an old price cannot be reused',async()=>{
+  const s=await setup();
+  await s.account.checkoutAttempt('u','starter','price_starter');
+  await assert.rejects(()=>s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION),{code:'CHECKOUT_PENDING'});
+  assert.equal(s.params().checkoutParams,undefined);
+});
+test('reconciling an older canceled subscription invoice preserves the new active subscription',async()=>{
+  const s=await setup();
+  const old={...s.sub,status:'canceled'};
+  const current=structuredClone(s.sub);
+  current.id='sub_new';
+  current.created+=10;
+  current.items.data[0].price.id='price_v2starter';
+  s.client.subscriptions.list=async()=>({data:[current,old],has_more:false});
+  s.client.subscriptions.retrieve=async id=>id===current.id?current:old;
+  await s.billing.refresh({id:'u'});
+  const summary=await s.account.creditSummary('u');
+  assert.equal(summary.available,1020);
+  assert.equal(summary.billing.subscription,current.id);
+  assert.equal(summary.billing.status,'active');
+  assert.equal(summary.billing.monthlyAmount,700);
+});
 test('other apps, foreign customers and subscription updates alone cannot grant credits',async()=>{
   const s=await setup();await s.billing.subscription(s.sub.id);assert.equal((await s.account.creditSummary('u')).available,20);s.lines.set('in_first',[{quantity:1,amount:999,pricing:{price_details:{price:'price_other_app'}},period:{end:s.end}}]);await s.billing.invoice('in_first');assert.equal((await s.account.creditSummary('u')).available,20);s.invoices.get('in_first').customer='cus_unrelated';await s.billing.invoice('in_first');assert.equal((await s.account.creditSummary('u')).available,20);
 });
@@ -36,7 +75,7 @@ test('financial risk resolves charge to invoice to subscription and holds credit
   const s=await setup();await s.billing.invoice('in_first');const event={id:'evt_refund',type:'charge.refunded',created:s.start,data:{object:{id:'ch_fixture'}}};await s.billing.event(event);await s.billing.event(event);assert.equal((await s.account.creditSummary('u')).available,0);assert.equal((await s.account.creditSummary('u')).billing.hold,true);await assert.rejects(()=>s.account.creditReserve('u','new',1),{code:'BILLING_REVIEW'});
 });
 test('checkout uses allowlisted server prices, fixed returns, dynamic methods, no tax and one pending attempt',async()=>{
-  const s=await setup();await s.billing.checkout({id:'u',email:'test@example.com'},'starter','https://aihackr.com',POLICY_VERSION);const p=s.params().checkoutParams;assert.deepEqual(p.line_items,[{price:'price_starter',quantity:1}]);assert.equal(p.automatic_tax.enabled,false);assert.equal(p.payment_method_types,undefined);assert.match(p.integration_identifier,/aihackr_launch_[a-z]{8}$/);assert.equal(p.success_url,'https://aihackr.com/dashboard?checkout=success');await assert.rejects(()=>s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION),{code:'CHECKOUT_PENDING'});await assert.rejects(()=>s.billing.checkout({id:'u'},'price_other','https://aihackr.com',POLICY_VERSION),{code:'INVALID_INPUT'});
+  const s=await setup();await s.billing.checkout({id:'u',email:'test@example.com'},'starter','https://aihackr.com',POLICY_VERSION);const p=s.params().checkoutParams;assert.deepEqual(p.line_items,[{price:'price_v2starter',quantity:1}]);assert.equal(p.automatic_tax.enabled,false);assert.equal(p.payment_method_types,undefined);assert.match(p.integration_identifier,/aihackr_launch_[a-z]{8}$/);assert.equal(p.success_url,'https://aihackr.com/dashboard?checkout=success');await assert.rejects(()=>s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION),{code:'CHECKOUT_PENDING'});await assert.rejects(()=>s.billing.checkout({id:'u'},'price_other','https://aihackr.com',POLICY_VERSION),{code:'INVALID_INPUT'});
   s.client.subscriptions.list=async()=>({data:[s.sub],has_more:false});await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);assert.equal(s.params().portalParams.customer,'cus_aihackr');assert.equal(s.params().portalParams.configuration,'bpc_fixture');
 });
 test('webhook verification rejects unsigned and tampered input and accepts a valid Stripe signature',async()=>{
@@ -44,7 +83,7 @@ test('webhook verification rejects unsigned and tampered input and accepts a val
   const request=(body,sig)=>new Request('https://aihackr.com/stripe/webhook',{method:'POST',headers:{'stripe-signature':sig??''},body});await assert.rejects(()=>billingWebhook(request(payload),s.env),{code:'INVALID_SIGNATURE'});await assert.rejects(()=>billingWebhook(request(payload+' ',signature),s.env),{code:'INVALID_SIGNATURE'});assert.equal((await billingWebhook(request(payload,signature),s.env)).status,200);
 });
 test('unpaid checkout can be closed before choosing a new plan; wrong catalog configuration fails closed',async()=>{
-  const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);await s.billing.closeCheckout({id:'u'});await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);assert.equal(s.params().checkoutParams.line_items[0].price,'price_builder');
+  const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);await s.billing.closeCheckout({id:'u'});await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);assert.equal(s.params().checkoutParams.line_items[0].price,'price_v2builder');
   s.client.prices.retrieve=async()=>({active:true,currency:'usd',unit_amount:499,recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{metadata:{app:'another-app'}}});await assert.rejects(()=>s.billing.checkout({id:'u'},'scale','https://aihackr.com',POLICY_VERSION),{code:'BILLING_CONFIGURATION'});
 });
 
@@ -59,7 +98,7 @@ test('completed or expired Checkout does not prevent a later subscription; forei
     s.client.checkout.sessions.retrieve=async()=>({customer:'cus_aihackr',status});
     await s.billing.checkout({id:'u'},'builder','https://aihackr.com',POLICY_VERSION);
     assert.notEqual((await s.account.checkoutPending('u')).id,previous.id);
-    assert.equal(s.params().checkoutParams.line_items[0].price,'price_builder');
+    assert.equal(s.params().checkoutParams.line_items[0].price,'price_v2builder');
   }
   const s=await setup();await s.billing.checkout({id:'u'},'starter','https://aihackr.com',POLICY_VERSION);
   s.client.checkout.sessions.retrieve=async()=>({customer:'cus_other',status:'expired'});

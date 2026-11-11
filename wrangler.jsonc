@@ -99,7 +99,9 @@
       "routes": [],
       "vars": {
         "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
-        "DAILY_PAGE_LIMIT": "1000"
+        "DAILY_PAGE_LIMIT": "1000",
+        "STRIPE_PRICES_V2": "{\"starter\":\"price_1UaPM92OxvOkZCMOAQNr0OIg\",\"builder\":\"price_1UaPMA2OxvOkZCMOjYCrdXnN\",\"scale\":\"price_1UaPMC2OxvOkZCMOvKFQQsyv\"}",
+        "STRIPE_PORTAL_CONFIGURATION_V2": "bpc_1UaPME2OxvOkZCMO8bzVlosn"
       },
       "durable_objects": {
         "bindings": [

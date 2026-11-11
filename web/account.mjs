@@ -5,7 +5,7 @@ sessionStorage.removeItem('aihackr-native-key');
 export function openSignIn(mode='signup'){
   if(account.session){location.assign('/dashboard');return;}
   $('auth-title').textContent=mode==='signin'?'Welcome back.':'Create your account.';
-  $('auth-note').textContent=mode==='signin'?'Sign in with a code sent to your email. No password needed.':'Start with 20 free credits. Sign in securely with a code sent to your email. No password needed.';
+  $('auth-note').textContent=mode==='signin'?'Sign in with a code sent to your email. No password needed.':'Start with 1,200 free credits each month. Sign in securely with a code sent to your email. No password needed.';
   $('connect-error').textContent='';$('connect-dialog').showModal();$(challenge?'sign-in-code':'email').focus();
 }
 export async function call(path,body,method=body?'POST':'GET'){

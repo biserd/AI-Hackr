@@ -1,10 +1,11 @@
 import { bearer, boundedJson, credentialMatches, errorResponse, integer, json, onlyKeys, reject } from './policy.mjs';
 import { engineName } from './browser-service.mjs';
+import { billingConfig } from './billing.mjs';
 
 export function capabilities(env) {
   return {release:'cloudflare-browser-run-0.7.0',engine:engineName,api:'/v2',mcp:'/mcp',
-    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRICES&&env.STRIPE_PORTAL_CONFIGURATION),signup:true,emailSignIn:true,customerApiKeys:true},
-    access:'Email sign-in; private customer workspaces, 20 free credits and monthly paid plans. Shared credit accounting for REST and MCP.',
+    available:{scrape:true,browser:true,crawl:Boolean(env.CLOUDFLARE_BROWSER_TOKEN),map:true,extract:true,search:false,batchScrape:false,oauth:false,checkout:billingConfig(env).ready,signup:true,emailSignIn:true,customerApiKeys:true},
+    access:'Email sign-in; private customer workspaces, 1,200 free credits each month and monthly paid plans. Shared credit accounting for REST and MCP.',
     limits:{crawlPages:100,crawlDepth:5,activeCrawls:2,dailyPageAllowance:Number(env.DAILY_PAGE_LIMIT??1000),retentionDays:7},
     compatibility:'Documented Firecrawl-shaped REST subset; engine and MCP tools are Cloudflare Browser Run, not Firecrawl.',
     source:'https://github.com/biserd/AI-Hackr',

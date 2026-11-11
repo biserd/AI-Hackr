@@ -9,7 +9,7 @@ import {customerGateway} from './customer-gateway.mjs';
 import {operationContext} from './operations.mjs';
 import {digest} from './accounts.mjs';
 import {billingWebhook,billingConfig} from './billing.mjs';
-import {PLANS} from './plans.mjs';
+import {PLANS,FREE_MONTHLY_CREDITS} from './plans.mjs';
 
 export class BrowserWorkspace extends DurableObject {
   constructor(ctx,env){super(ctx,env);this.active=0;}
@@ -37,7 +37,7 @@ export class BrowserWorkspace extends DurableObject {
   async alarm(){await (this.service??new BrowserService(this.env,this.ctx.storage)).cleanup();}
 }
 export class AccountDirectory extends DurableObject {
-  constructor(ctx,env){super(ctx,env);this.accounts=new AccountService(ctx.storage,{send:message=>env.EMAIL.send(message),globalLimit:Number(env.DAILY_PAGE_LIMIT??1000)});}
+  constructor(ctx,env){super(ctx,env);this.accounts=new AccountService(ctx.storage,{send:message=>env.EMAIL.send(message),globalLimit:Number(env.DAILY_PAGE_LIMIT??1000),monthlyFreeCredits:FREE_MONTHLY_CREDITS});}
   async start(email,ip){return rpcResult(()=>this.accounts.start(email,ip));}
   async verify(challenge,code){return rpcResult(()=>this.accounts.verify(challenge,code));}
   async authenticate(token,kind){return rpcResult(()=>this.accounts.authenticate(token,kind));}
@@ -82,7 +82,7 @@ export default {
         return json({ready,engine:engineName,note:'Configuration readiness; live functional checks verify browser and crawl execution.'},ready?200:503);
       }
       if(url.pathname==='/sse')return json({error:'Use the Streamable HTTP endpoint /mcp.'},410);
-      if(url.pathname==='/api/plans'&&request.method==='GET')return json({plans:PLANS,ready:billingConfig(env).ready,freeCredits:20,taxCollection:false});
+      if(url.pathname==='/api/plans'&&request.method==='GET')return json({plans:PLANS,ready:billingConfig(env).ready,freeCredits:FREE_MONTHLY_CREDITS,freeInterval:'month',taxCollection:false});
       if(url.pathname==='/stripe/webhook')return await billingWebhook(request,env);
       if(url.pathname.startsWith('/auth/'))return await authRoute(request,env);
       if(url.pathname.startsWith('/api/keys')||url.pathname.startsWith('/api/jobs')||url.pathname==='/api/usage'||url.pathname.startsWith('/api/billing/')||url.pathname==='/api/session'||url.pathname==='/mcp'||url.pathname.startsWith('/v2/')){

@@ -3,15 +3,34 @@ import {reject} from './policy.mjs';
 // All balances and holds live in the account directory, shared by REST and MCP.
 // Monetary billing is fixed-price. These are application entitlements, not charges.
 export class CreditLedger {
-  constructor(storage,now=()=>Date.now()){this.storage=storage;this.now=now;}
+  constructor(storage,now=()=>Date.now(),monthlyFreeCredits=0){
+    this.storage=storage;
+    this.now=now;
+    this.monthlyFreeCredits=monthlyFreeCredits;
+  }
+  freePeriod(){
+    const date=new Date(this.now()),year=date.getUTCFullYear(),month=date.getUTCMonth();
+    return {id:'free:'+date.toISOString().slice(0,7),startsAt:Date.UTC(year,month,1),expiresAt:Date.UTC(year,month+1,1)};
+  }
   async state(tx,userId){
     let state=await tx.get('credits:'+userId);
+    let changed=false;
     if(!state){
       const user=await tx.get('user:'+userId);if(!user)reject('AUTH_REQUIRED','Unknown account.',401);
       const total=user.trialLimit??20,used=Math.min(total,user.trialReserved??0);
       state={grants:[{id:'trial',label:'Free trial',total,spent:used,held:0,expiresAt:null}],billing:null};
-      await tx.put('credits:'+userId,state);
+      changed=true;
     }
+    if(this.monthlyFreeCredits){
+      const period=this.freePeriod();
+      if(!state.grants.some(grant=>grant.id===period.id)){
+        state.grants=state.grants.filter(grant=>!grant.id.startsWith('free:')||grant.held>0);
+        state.grants.push({...period,label:'Free monthly credits',total:this.monthlyFreeCredits,spent:0,held:0});
+        await this.entry(tx,userId,{type:'grant',units:this.monthlyFreeCredits,label:'Free monthly credits',expiresAt:period.expiresAt});
+        changed=true;
+      }
+    }
+    if(changed)await tx.put('credits:'+userId,state);
     return state;
   }
   valid(g){return !g.revoked&&(!g.startsAt||g.startsAt<=this.now())&&(!g.expiresAt||g.expiresAt>this.now());}
@@ -19,7 +38,7 @@ export class CreditLedger {
   async daily(userId){const days=[];for(let i=13;i>=0;i--){const day=new Date(this.now()-i*86400000).toISOString().slice(0,10);days.push({day,units:await this.storage.get('daily-usage:'+userId+':'+day)??0});}return days;}
   async summary(userId){return this.storage.transaction(async tx=>{
     const s=await this.state(tx,userId),active=s.grants.filter(g=>this.valid(g));
-    return {available:s.billing?.hold?0:active.reduce((n,g)=>n+Math.max(0,g.total-g.spent-g.held),0),held:s.grants.reduce((n,g)=>n+g.held,0),used:active.reduce((n,g)=>n+g.spent,0),allowance:active.reduce((n,g)=>n+g.total,0),billing:s.billing??{plan:'free',status:'free'},costs:{scrape:1,map:1,extract:5,crawl:1}};
+    return {available:s.billing?.hold?0:active.reduce((n,g)=>n+Math.max(0,g.total-g.spent-g.held),0),held:s.grants.reduce((n,g)=>n+g.held,0),used:active.reduce((n,g)=>n+g.spent,0),allowance:active.reduce((n,g)=>n+g.total,0),freeRenewsAt:this.monthlyFreeCredits?this.freePeriod().expiresAt:null,billing:s.billing??{plan:'free',status:'free'},costs:{scrape:1,map:1,extract:5,crawl:1}};
   });}
   async reserve(userId,id,units,details={}){
     if(!Number.isInteger(units)||units<1||units>100)reject('INVALID_INPUT','Invalid credit reservation.');
@@ -52,7 +71,14 @@ export class CreditLedger {
     await this.entry(tx,userId,{type:'grant',units:grant.total,label:grant.label,expiresAt:grant.expiresAt,invoice:grant.invoice});return {duplicate:false};
   });}
   async billing(userId,update){return this.storage.transaction(async tx=>{
-    const s=await this.state(tx,userId);if((s.billing?.updated??0)>(update.updated??0))return s.billing;
+    const s=await this.state(tx,userId);
+    const current=s.billing;
+    const currentCreated=current?.subscriptionCreated??0;
+    const nextCreated=update.subscriptionCreated??0;
+    // Invoice reconciliation also reads historical subscriptions. Only the
+    // latest subscription can replace the current account status.
+    if(currentCreated>nextCreated)return current;
+    if(currentCreated===nextCreated&&(current?.updated??0)>(update.updated??0))return current;
     s.billing={...s.billing,...update};await tx.put('credits:'+userId,s);return s.billing;
   });}
   async risk(userId,invoice,reason){return this.storage.transaction(async tx=>{

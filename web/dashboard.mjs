@@ -9,8 +9,10 @@ $('dashboard-sign-in').onclick=()=>openSignIn('signin');
 async function action(button,fn){button.disabled=true;$('dashboard-error').hidden=true;try{await fn();}catch(error){message(error);}finally{button.disabled=false;}}
 function renderSession(){const s=account.session;$('dashboard-locked').hidden=Boolean(s);$('dashboard-shell').hidden=!s;if(!s)return;
   const u=s.usage,hasSubscription=Boolean(u.billing?.subscription&&!['canceled','incomplete_expired'].includes(u.billing.status)),plan=hasSubscription?u.billing.plan:u.available==null?'Operator':'Free';$('credits-available').textContent=u.available==null?'Operator':n(u.available);$('credits-held').textContent=n(u.held);$('credits-used').textContent=n(u.used);$('plan-label').textContent=plan;$('billing-plan').textContent=plan+' plan';
-  $('credit-cycle').textContent=u.billing?.periodEnd?`Current period ends ${date(u.billing.periodEnd)}`:'20 free credits, with no expiry';
-  $('billing-state').textContent=u.billing?.hold?'Billing needs review. New jobs are paused.':u.billing?.periodEnd?`${u.billing.status} · ${u.billing.cancelAtPeriodEnd?'Cancels':'Renews'} ${date(u.billing.periodEnd)}`:'No subscription. No payment method required.';
+  const freeReset=u.freeRenewsAt?new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:'UTC'}).format(u.freeRenewsAt):null;
+  $('credit-cycle').textContent=hasSubscription&&u.billing?.periodEnd?`Paid period ends ${date(u.billing.periodEnd)}`:freeReset?`Free credits reset ${freeReset} (UTC)`:'Account credits';
+  $('billing-state').textContent=u.billing?.hold?'Billing needs review. New jobs are paused.':hasSubscription&&u.billing?.periodEnd?`${u.billing.status} · ${u.billing.cancelAtPeriodEnd?'Cancels':'Renews'} ${date(u.billing.periodEnd)}`:'No active subscription. No payment method required.';
+  if(hasSubscription&&u.billing.monthlyAmount!=null)$('billing-plan').textContent=`${plan} · $${u.billing.monthlyAmount/100}/month · ${n(u.billing.monthlyCredits)} paid credits`;
   $('billing-manage').hidden=!u.billing?.subscription;$('billing-review').hidden=!u.billing?.hold;
   $('billing-close-checkout').hidden=!s.billingReady||hasSubscription;
   $('billing-sandbox').hidden=!s.billingTestMode;
