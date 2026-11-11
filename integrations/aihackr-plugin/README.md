@@ -1,35 +1,17 @@
-# AIHackr plugin development package
+# AIHackr OAuth plugin package
 
-Remote endpoint: `https://aihackr.com/mcp` (Streamable HTTP).
+MCP endpoint: `https://aihackr.com/mcp`, Streamable HTTP.
 
-This portable Agent Plugins package uses API-key Bearer authentication. Create a customer key at https://aihackr.com/dashboard, then store it in an API-key-capable MCP client's secret settings. The root MCP config references `AIHACKR_API_KEY`; use a client that supports environment expansion, or set the equivalent Authorization header through its secret settings. Do not send the literal placeholder. The package contains no credentials. Do not set authentication to `none` to work around a client limitation.
+Select OAuth in an MCP client that supports account linking. The server's 401 challenge points to protected-resource discovery; the authorization server publishes authorization-code + S256 PKCE, token/refresh/revocation and client-registration endpoints. Sign in with your existing AIHackr email account, inspect the application's domain and callback destination, and explicitly approve the permissions. No application secret or customer token belongs in this package.
 
-The root manifests validate against the canonical Agent Plugins 1.0.0 schemas. `openai-mcp.example.json` separately records the API-key auth declaration documented by OpenAI. It is an example, not an automatically loaded component: the canonical MCP schema currently rejects per-server `extensions`, despite the OpenAI-specific documentation describing them. Recheck this format when implementing OAuth and preparing public submission. Neither file asserts that the protected server is unauthenticated.
+ChatGPT can use its public Client ID Metadata Document at `https://chatgpt.com/oauth/client.json`; DCR is available for compatible clients. AIHackr's CIMD trust policy currently accepts ChatGPT metadata URLs only. Other clients can register with DCR. Public clients use token endpoint auth `none`; confidential clients may use the library's supported secret methods but still require S256 PKCE at AIHackr. Native loopback callbacks are supported and clearly marked on the consent page.
 
-Official Cloudflare OSS tool handlers expose: `get_url_html_content`, `get_url_markdown`, `get_url_json`, `get_url_links`, `scrape_url_elements`, `start_crawl`, `get_crawl_result`, `cancel_crawl`. They share REST ownership, quotas and credit settlement. Attribution: https://github.com/cloudflare/mcp-server-cloudflare, upstream commit `a21972e219289337731a066befb5c66886b9ce7b`; original tool source is unchanged in the gateway repository.
+Scopes: `account:read`, `web:read`, `crawl:read`, `crawl:write`. Optional `offline_access` allows rotating refresh tokens for up to 30 days. Access tokens expire after 15 minutes. Disconnect at https://aihackr.com/connections to revoke that application's access and refresh tokens immediately. Already-running requests may finish.
 
-## OAuth deferred
+The MCP configuration declares OAuth with ChatGPT CIMD preference, the canonical resource and the permissions used by the browser and crawl tools. It follows the OpenAI submission configuration. Account linking also supports dynamic registration for compatible clients.
 
-This is prepared source, not a published ChatGPT plugin. The current ChatGPT submission portal does not offer a fixed API-key connection flow. Before public submission:
+The server exposes the eight official Cloudflare OSS browser/crawl tools plus AIHackr's `get_account` profile tool. Upstream handlers remain unchanged at commit `a21972e219289337731a066befb5c66886b9ce7b`. OAuth uses the official `@cloudflare/workers-oauth-provider` library, with its KV-shaped storage interface backed by the existing SQLite Durable Object.
 
-- Add OAuth authorization-code + S256 PKCE, consent, short-lived audience-bound access tokens, refresh/revocation and per-user scopes.
-- Implement protected-resource and authorization-server discovery, with a 401 Bearer discovery challenge. Use a supported registration method (CIMD or DCR); do not publish pretend endpoints.
-- Map OAuth identities to the existing customer directory and workspace. REST and MCP must continue to use the same credit ledger.
-- Replace `mcp.json` API-key auth with the implemented OAuth configuration; declare accurate tool security metadata and annotations.
-- Publish actual privacy/terms pages, complete domain verification, add reviewer access and recording, test revocation/expired scopes, and submit through With MCP.
+This package is not a published public-directory plugin. Public submission still requires domain verification, listing/reviewer information and actual privacy/terms pages.
 
-Official packaging and auth reference: https://developers.openai.com/plugins/build/plugins#configure-mcp-authentication
-
-Portal limitations: https://developers.openai.com/plugins/deploy/submission#authentication-limitations
-
-## Smoke/evaluation prompts
-
-1. “Read https://fixtures.aihackr.com and return its JavaScript-rendered marker.” Expect `BROWSER_EXECUTED_JAVASCRIPT_42`, source citation and 1 credit.
-2. “Extract the main heading from that URL as JSON.” Expect a bounded schema result and 5 credits.
-3. “Crawl that site, maximum two pages.” Expect one job, terminal polling and at most 2 spent credits.
-4. “Fetch http://169.254.169.254/latest/meta-data.” Expect rejection and no customer credit spend.
-5. Revoke the connected customer key and retry. Expect authentication failure.
-6. Ask a second account to retrieve the first account's job ID. Expect not found.
-7. Cancel an in-progress crawl. Expect successful partial pages charged once and unused holds released after terminal reconciliation.
-
-Client setup and tests must never include production credentials in a ZIP, repository or prompt.
+Official references: https://developers.openai.com/plugins/build/auth and https://developers.openai.com/plugins/build/plugins#configure-mcp-authentication

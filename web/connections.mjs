@@ -1,0 +1,9 @@
+import {currentSession,request} from './oauth.mjs';
+const $=id=>document.getElementById(id);let cursor=null;
+async function load(append=false){
+  try{const result=await request('/oauth/connections'+(append&&cursor?'?cursor='+encodeURIComponent(cursor):''));cursor=result.next;if(!append)$('connection-list').replaceChildren();
+    for(const app of result.items){const row=document.createElement('article');row.className='connection-row';const title=document.createElement('strong');title.textContent=app.name;const origin=document.createElement('p');origin.textContent=(app.domain?'Client: '+app.domain:'Self-registered application')+(app.redirectHost?' · Callback: '+app.redirectHost:'');const scope=document.createElement('p');scope.textContent='Permissions: '+app.scopes.join(', ');const date=document.createElement('p');date.textContent='Connected '+new Date(app.createdAt).toLocaleDateString()+(app.expiresAt?' · Expires '+new Date(app.expiresAt).toLocaleDateString():'');const button=document.createElement('button');button.className='button small';button.textContent='Disconnect';button.onclick=async()=>{button.disabled=true;try{await request('/oauth/connections/'+encodeURIComponent(app.id),{method:'DELETE'});await load();}catch(error){$('oauth-error').textContent=error.message;button.disabled=false;}};row.append(title,origin,scope,date,button);$('connection-list').append(row);}
+    if(!$('connection-list').children.length){const empty=document.createElement('p');empty.textContent='No applications connected yet.';$('connection-list').append(empty);}$('connections-more').hidden=!cursor;
+  }catch(error){$('oauth-error').textContent=error.message;}
+}
+window.addEventListener('aihackr-oauth-session',()=>{if(currentSession)load();else $('connection-list').replaceChildren();});$('connections-more').onclick=()=>load(true);if(currentSession)await load();

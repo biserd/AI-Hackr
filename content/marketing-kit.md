@@ -20,7 +20,7 @@ Developer call to action: **Make your first API request** → https://aihackr.co
 
 Short: AIHackr turns public webpages into Markdown, HTML, links and structured JSON through a browser playground, REST API and MCP tools, powered by Cloudflare Browser Run.
 
-Extended: AIHackr gives developers a managed way to collect public web content for applications and AI agents. Start with one page in the playground, create a server-side API key, then use REST or a compatible MCP client. Scrape readable content, discover same-origin links, run a bounded asynchronous crawl or extract JSON from one page. Each verified account starts with 1,200 free credits each month and a private workspace. Monthly paid plans add credits through Stripe Checkout. Hosted OAuth remains in testing.
+Extended: AIHackr gives developers a managed way to collect public web content for applications and AI agents. Start with one page in the playground, create a server-side API key, then use REST or a compatible MCP client. Scrape readable content, discover same-origin links, run a bounded asynchronous crawl or extract JSON from one page. Each verified account starts with 1,200 free credits each month and a private workspace. Monthly paid plans add credits through Stripe Checkout. Compatible MCP clients can link accounts using OAuth.
 
 ## Value propositions and proof
 
@@ -62,7 +62,7 @@ AIHackr is live for developers who need public web content in their apps and AI 
 
 Use the playground or REST API to turn a page into Markdown, HTML, links or JSON. Discover same-origin links, submit a bounded crawl, or connect a compatible MCP client using your own customer API key.
 
-The service runs on Cloudflare Browser Run. Each verified account starts with 1,200 free credits each month; no credit card is required. Crawls hold their requested maximum while running and return unused credits at completion. Monthly paid plans add allowances; hosted OAuth remains in testing.
+The service runs on Cloudflare Browser Run. Each verified account starts with 1,200 free credits each month; no credit card is required. Crawls hold their requested maximum while running and return unused credits at completion. Monthly paid plans add allowances.
 
 Try one page: https://aihackr.com/#workspace
 Read the quickstart: https://aihackr.com/docs/quickstart
@@ -122,7 +122,7 @@ These drafts are not configured as automated emails. Before a marketing send, us
 
 **Is it unlimited?** No. Verified accounts receive 1,200 free credits each calendar month. Crawl requests reserve the full requested maximum. Other request and service limits are documented.
 
-**Can I buy a plan or install a public ChatGPT plugin?** Monthly subscriptions are available through the dashboard. A public ChatGPT listing and hosted OAuth are not live; check current integration availability before making a promise.
+**Can I buy a plan or install a public ChatGPT plugin?** Monthly subscriptions are available through the dashboard. You can add AIHackr as a custom MCP server in ChatGPT with OAuth when your workspace allows it.
 
 ## Four-week content distribution plan
 

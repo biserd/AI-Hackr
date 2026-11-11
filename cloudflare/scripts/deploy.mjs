@@ -11,6 +11,8 @@ if(receipt.sourceDigest!==await sourceDigest())throw new Error('Source changed a
 if(!receipt.billing?.passed||receipt.billing.livemode!==false||receipt.billing.sourceDigest!==receipt.sourceDigest)throw new Error('Stripe sandbox and customer-credit integration proof is required before production.');
 for(const name of ['checkout','paidInvoice','duplicateEvents','portal','creditSettlement','webhookSignature'])if(!receipt.billing.checks?.[name]?.passed)throw new Error('Missing required billing verification: '+name);
 if(!receipt.site?.passed||receipt.site.sourceDigest!==receipt.sourceDigest)throw new Error('Public site and SEO verification is required.');
+if(!receipt.oauth?.passed||!receipt.oauthPublic?.passed||receipt.oauth.sourceDigest!==receipt.sourceDigest||receipt.oauthPublic.sourceDigest!==receipt.sourceDigest)throw new Error('Current-source OAuth linking and discovery evidence is required.');
+for(const name of ['authorizationCodeAndPkce','mcpToolDiscovery','linkedAccountProfile','scopeEnforcement','realBrowserInCustomerWorkspace','tokenPersistenceAcrossWorkerRedeploy','refreshCannotEscalateScope','audienceBinding','refreshRotation','downscopedTokenEnforcement','immediateRevocation'])if(!receipt.oauth.checks?.[name]?.passed)throw new Error('Missing OAuth release check: '+name);
 const response=await fetch(new URL('/health/ready',receipt.stagingOrigin),{signal:AbortSignal.timeout(10000)});
 if(!response.ok||!(await response.json()).ready)throw new Error('Cloudflare staging is not ready; production cutover refused.');
 const root=fileURLToPath(new URL('../../',import.meta.url));

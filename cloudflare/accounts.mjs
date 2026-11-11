@@ -1,6 +1,7 @@
 import {ServiceError,bearer,boundedJson,credentialMatches,json,onlyKeys,reject} from './policy.mjs';
 import {CreditLedger} from './credits.mjs';
 import {POLICY_VERSION} from './policies.mjs';
+import {oauthResource} from './oauth-config.mjs';
 
 export const SESSION_COOKIE='__Host-aihackr_session';
 export const CHALLENGE_COOKIE='__Host-aihackr_challenge';
@@ -62,6 +63,29 @@ export class AccountService {
     const record=await this.storage.get(kind+':'+await digest(token));
     if(!record||record.expiresAt&&record.expiresAt<=this.now())return null;
     const user=await this.storage.get('user:'+record.userId);return user?{id:user.id,email:user.email,trialReserved:user.trialReserved,trialLimit:user.trialLimit,kind}:null;
+  }
+  async reviewerLogin(email,password,ip,expectedHash,expiresAt){
+    const expiry=Date.parse(expiresAt);
+    if(!/^[a-f0-9]{64}$/.test(expectedHash??'')||!Number.isFinite(expiry)||expiry<=this.now())reject('NOT_FOUND','Reviewer sign-in is unavailable.',404);
+    if(typeof password!=='string'||password.length<32||password.length>128)reject('AUTH_REQUIRED','Invalid review credentials.',401);
+    const ipId=await digest(ip),presentedHash=await digest(password);
+    await this.storage.transaction(async tx=>{
+      await this.throttle(tx,'rate:reviewer:ip:'+ipId,10,3600000);
+      await this.throttle(tx,'rate:reviewer:global',100,3600000);
+    });
+    if(email!=='plugin-review@aihackr.com'||!await credentialMatches(presentedHash,expectedHash))reject('AUTH_REQUIRED','Invalid review credentials.',401);
+    const session=opaque(),sessionHash=await digest(session),now=this.now();
+    await this.storage.transaction(async tx=>{
+      let userId=await tx.get('reviewer:user-id');
+      if(!userId){
+        userId=crypto.randomUUID();
+        await tx.put('reviewer:user-id',userId);
+        await tx.put('user:'+userId,{id:userId,email:'plugin-review@aihackr.com',createdAt:now,trialReserved:0,trialLimit:0});
+      }
+      await tx.put('session:'+sessionHash,{userId,expiresAt:Math.min(now+SESSION_TTL,expiry)});
+    });
+    await this.storage.setAlarm(now+3600000);
+    return {session};
   }
   async logout(token){if(token)await this.storage.delete('session:'+await digest(token));}
   async keys(userId){return [...(await this.storage.list({prefix:'keymeta:'+userId+':'})).values()].map(({hash,...item})=>item);}
@@ -129,8 +153,13 @@ export class AccountService {
 }
 
 export async function authenticate(request,env){
-  sameOrigin(request);const token=bearer(request.headers);
-  if(token&&await credentialMatches(token,env.AIHACKR_API_KEY))return {operator:true,kind:'operator'};
+  const token=bearer(request.headers);
+  if(token&&await credentialMatches(token,env.AIHACKR_API_KEY)){sameOrigin(request);return {operator:true,kind:'operator'};}
+  if(token?.includes(':')){
+    if(new URL(request.url).href.split('?')[0]!==oauthResource(env))reject('AUTH_REQUIRED','This OAuth token is only valid at the AIHackr MCP endpoint.',401);
+    const identity=await directoryCall(env,'oauthValidate',token,oauthResource(env));if(!identity)reject('AUTH_REQUIRED','The connection expired or was disconnected. Reconnect your AIHackr account.',401);const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin&&origin!==identity.oauthOrigin)reject('ORIGIN_RESTRICTED','This origin does not belong to the connected application.',403);return identity;
+  }
+  sameOrigin(request);
   const kind=token?'key':'session',value=token??cookie(request,SESSION_COOKIE);
   const user=value?await directoryCall(env,'authenticate',value,kind):null;
   if(!user)reject('AUTH_REQUIRED','Sign in to your AIHackr account or provide a valid API key.',401);
@@ -140,6 +169,11 @@ export async function authenticate(request,env){
 export async function authRoute(request,env){
   const path=new URL(request.url).pathname;sameOrigin(request,true);
   if(request.method!=='POST')reject('NOT_FOUND','Unknown account route.',404);
+  if(path==='/auth/reviewer'){
+    const body=await boundedJson(request,1024);onlyKeys(body,['email','password']);
+    const result=await directoryCall(env,'reviewerLogin',body.email,body.password,request.headers.get('cf-connecting-ip')??'unknown');
+    return json({authenticated:true},200,{'Set-Cookie':setCookie(SESSION_COOKIE,result.session,SESSION_TTL/1000)});
+  }
   if(path==='/auth/start'){
     const body=await boundedJson(request,2048);onlyKeys(body,['email']);const challenge=await directoryCall(env,'start',body.email,request.headers.get('cf-connecting-ip')??'unknown');
     return json({success:true,message:'Check your email for an eight-digit sign-in code.'},200,{'Set-Cookie':setCookie(CHALLENGE_COOKIE,challenge,600)});

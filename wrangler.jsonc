@@ -4,7 +4,8 @@
   "main": "cloudflare/worker.mjs",
   "compatibility_date": "2026-11-08",
   "compatibility_flags": [
-    "nodejs_compat"
+    "nodejs_compat",
+    "global_fetch_strictly_public"
   ],
   "workers_dev": true,
   "triggers": {
@@ -31,6 +32,8 @@
     "binding": "BROWSER"
   },
   "vars": {
+    "REVIEWER_LOGIN_EXPIRES_AT": "2027-02-09T00:00:00Z",
+    "OAUTH_ISSUER": "https://aihackr.com",
     "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
     "DAILY_PAGE_LIMIT": "1000",
     "STRIPE_PRICES_V2": "{\"starter\":\"price_1UaPZjRwvWaTf8xfpioORU86\",\"builder\":\"price_1UaPZlRwvWaTf8xfnARIyvf0\",\"scale\":\"price_1UaPZnRwvWaTf8xfHxhuoWfG\"}",
@@ -100,6 +103,8 @@
       },
       "routes": [],
       "vars": {
+        "REVIEWER_LOGIN_EXPIRES_AT": "2027-02-09T00:00:00Z",
+    "OAUTH_ISSUER": "https://aihackr-browser-run-stage.biser-d.workers.dev",
         "CLOUDFLARE_ACCOUNT_ID": "73d71a2bef58f7469ecb48e2b8e84c0e",
         "DAILY_PAGE_LIMIT": "1000",
         "STRIPE_PRICES_V2": "{\"starter\":\"price_1UaPM92OxvOkZCMOAQNr0OIg\",\"builder\":\"price_1UaPMA2OxvOkZCMOjYCrdXnN\",\"scale\":\"price_1UaPMC2OxvOkZCMOvKFQQsyv\"}",

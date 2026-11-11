@@ -6,7 +6,7 @@ export const docs=[
   ['map','Map API','Discover same-origin links on a public webpage with the AIHackr Map API. Learn page-level discovery limits and when to use a recursive crawl.','API reference'],
   ['crawl','Crawl API','Start a bounded website crawl, poll status, paginate retained results and cancel jobs with the AIHackr Crawl API. Includes practical request examples.','API reference'],
   ['extract','Extract API','Extract structured JSON from a public webpage with an AIHackr prompt or JSON schema. Includes a working request shape and validation guidance.','API reference'],
-  ['mcp','MCP integration','Connect a Streamable HTTP MCP client to AIHackr using a customer API key. Explore the eight browser and crawl tools available to your agents.','Integrations'],
+  ['mcp','MCP integration','Connect AIHackr to ChatGPT with OAuth or use a customer API key in a compatible Streamable HTTP client. Explore the browser and crawl tools.','Integrations'],
   ['limits','Usage, limits and retention','Understand the AIHackr 1,200 free credits each month, crawl reservations, request limits, seven-day result retention and current service availability.','Operations'],
   ['errors','Errors and troubleshooting','Resolve AIHackr API authentication, URL, robots, rate-limit and crawl errors. Use error codes to decide when to correct a request or retry.','Operations'],
   ['migration','Firecrawl API migration','Evaluate the documented Firecrawl-shaped REST subset in AIHackr. Compare supported routes, MCP tools and differences before changing your integration.','Integrations'],

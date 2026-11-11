@@ -4,7 +4,24 @@
     "aihackr": {
       "type": "streamable-http",
       "url": "https://aihackr.com/mcp",
-      "headers": {"Authorization": "Bearer ${AIHACKR_API_KEY}"}
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "cimd"
+            },
+            "resource": "https://aihackr.com/mcp",
+            "baseScopes": [
+              "account:read",
+              "web:read",
+              "crawl:read",
+              "crawl:write",
+              "offline_access"
+            ]
+          }
+        }
+      }
     }
   }
 }

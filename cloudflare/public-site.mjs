@@ -1,11 +1,15 @@
 import {pages} from '../content/manifest.mjs';
-const routes=new Map([['/','/index.html'],['/dashboard','/dashboard.html'],...pages.map(p=>[p.path,p.path+'.html'])]);
-const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/dashboard.mjs','/dashboard.css','/aihackr-plugin.zip','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
+const routes=new Map([['/','/index.html'],['/dashboard','/dashboard.html'],['/connections','/connections.html'],['/reviewer','/reviewer.html'],...pages.map(p=>[p.path,p.path+'.html'])]);
+const files=new Map(['/app.mjs','/account.mjs','/style.css','/content.mjs','/marketing.css','/dashboard.mjs','/dashboard.css','/connections.mjs','/reviewer.mjs','/oauth.mjs','/oauth.css','/aihackr-plugin.zip','/docs-search.json','/robots.txt','/sitemap.xml','/rss.xml','/marketing-kit.md','/assets/aihackr-wordmark.svg','/assets/aihackr-mark.svg','/assets/social-card.png'].map(path=>[path,path]));
 const aliases=new Map([['/index.html','/'],['/dashboard.html','/dashboard'],['/web-data','/'],['/web-data/','/'],...pages.map(p=>[p.path+'.html',p.path])]);
 const baseCsp="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export async function publicSite(request,env){
   if(!['GET','HEAD'].includes(request.method))return null;
   const url=new URL(request.url),path=url.pathname,stage=url.hostname!=='aihackr.com';
+  if(path==='/.well-known/openai-apps-challenge'){
+    const asset=await env.ASSETS.fetch(new URL(path,url));
+    return new Response(request.method==='HEAD'?null:asset.body,{status:asset.status,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=60','X-Robots-Tag':'noindex'}});
+  }
   const target=aliases.get(path)??(path.endsWith('/')&&routes.has(path.slice(0,-1))?path.slice(0,-1):null);
   if(target!==null&&target!==undefined){url.pathname=target;return new Response(null,{status:308,headers:{Location:url.href,...(stage?{'X-Robots-Tag':'noindex, nofollow'}:{})}});}
   if(path==='/robots.txt'&&stage)return new Response(request.method==='HEAD'?null:'User-agent: *\nDisallow: /\n',{headers:{'Content-Type':'text/plain; charset=utf-8','X-Robots-Tag':'noindex, nofollow'}});
@@ -23,9 +27,9 @@ export async function publicSite(request,env){
     headers.set('Content-Type','text/html; charset=utf-8');
     if(assetPath)headers.set('Link','<https://aihackr.com'+path+'>; rel="canonical"');
   }
-  if(stage||!assetPath||path==='/dashboard')headers.set('X-Robots-Tag',stage?'noindex, nofollow':'noindex');
+  if(stage||!assetPath||['/dashboard','/connections','/reviewer'].includes(path))headers.set('X-Robots-Tag',stage?'noindex, nofollow':'noindex');
   if(['/sitemap.xml','/rss.xml'].includes(path))headers.set('Content-Type',path==='/rss.xml'?'application/rss+xml; charset=utf-8':'application/xml; charset=utf-8');
   if(path==='/marketing-kit.md'){headers.set('Content-Type','text/markdown; charset=utf-8');headers.set('Content-Disposition','attachment; filename="AIHackr-Marketing-Kit.md"');}
-  headers.set('Cache-Control',!assetPath?'no-store':stage?'no-cache':html?'public, max-age=0, must-revalidate':'public, max-age=3600');
+  headers.set('Cache-Control',!assetPath||['/connections','/reviewer'].includes(path)?'no-store':stage?'no-cache':html?'public, max-age=0, must-revalidate':'public, max-age=3600');
   return new Response(request.method==='HEAD'?null:asset.body,{status:assetPath?asset.status:404,headers});
 }

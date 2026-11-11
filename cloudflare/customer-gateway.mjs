@@ -9,7 +9,7 @@ export const workspaceName=identity=>identity.operator?'operator-workspace-v1':'
 export async function customerGateway(request,env){
   const url=new URL(request.url),identity=await authenticate(request,env);
   const workspace=env.BROWSER_WORKSPACE.getByName(workspaceName(identity));
-  if(url.pathname==='/api/session'&&request.method==='GET')return json({authenticated:true,user:{email:identity.email??null},workspace:identity.operator?'Operator workspace':'Your workspace',usage:{...await workspace.profile(identity),...(identity.operator?{}:await directoryCall(env,'creditSummary',identity.id))},plans:PLANS,billingReady:billingConfig(env).ready,billingTestMode:Boolean(env.STRIPE_SECRET_KEY?.includes('_test_')),policyVersion:POLICY_VERSION,...capabilities(env)});
+  if(url.pathname==='/api/session'&&request.method==='GET')return json({authenticated:true,user:{id:identity.id??null,email:identity.email??null},workspace:identity.operator?'Operator workspace':'Your workspace',usage:{...await workspace.profile(identity),...(identity.operator?{}:await directoryCall(env,'creditSummary',identity.id))},plans:PLANS,billingReady:billingConfig(env).ready,billingTestMode:Boolean(env.STRIPE_SECRET_KEY?.includes('_test_')),policyVersion:POLICY_VERSION,...capabilities(env)});
   if(url.pathname.startsWith('/api/billing/'))return billingRoute(request,env,identity);
   if(url.pathname==='/api/usage'&&request.method==='GET'){if(identity.operator)reject('NOT_FOUND','Customer account required.',404);return json({...await directoryCall(env,'creditEntries',identity.id,url.searchParams.get('cursor')),days:await directoryCall(env,'creditDaily',identity.id)});}
   if(url.pathname.startsWith('/api/jobs')&&request.method==='GET'){
@@ -24,5 +24,7 @@ export async function customerGateway(request,env){
     const match=url.pathname.match(/^\/api\/keys\/([a-f0-9-]{36})$/);if(match&&request.method==='DELETE')return json(await directoryCall(env,'revokeKey',identity.id,match[1]));
     reject('NOT_FOUND','Unknown API key route.',404);
   }
-  return workspace.run(request,identity);
+  const response=await workspace.run(request,identity);
+  if(identity.kind==='oauth'&&request.headers.has('origin')){const headers=new Headers(response.headers);headers.set('Access-Control-Allow-Origin',request.headers.get('origin'));headers.set('Access-Control-Expose-Headers','Mcp-Session-Id, WWW-Authenticate');headers.set('Vary','Origin');headers.set('Cache-Control','no-store');return new Response(response.body,{status:response.status,headers});}
+  return response;
 }

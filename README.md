@@ -53,13 +53,17 @@ Sign-in codes expire in 10 minutes, are single-use and lock after five invalid a
 
 Completed crawl records are retained in Durable Object storage for seven days. Retrieval is paginated in groups of ten. Content is limited to 60,000 characters per page/format with explicit truncation. Cached completed records remain readable without the managed provider. Raw provider job identifiers are never accepted as workspace-owned jobs.
 
-Search, batch scraping and OAuth linking are not enabled. Public ChatGPT plugin linking/submission is deferred until OAuth is implemented. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
+Search, batch scraping are not enabled. Target authentication, arbitrary actions/scripts, custom headers/cookies and webhooks are not accepted. DNS validation checks initial admission; redirect/subresource isolation remains subject to Browser Run. The service does not promise anti-bot bypass or success on every site.
 
-## Paid billing and plugin preparation
+## Paid billing
 
-See [billing operations](cloudflare/BILLING.md) for restricted-key permissions, dedicated live/sandbox catalog and portal setup, webhook events, ledger semantics and release evidence. The production gate additionally requires current-source Stripe sandbox and customer-credit integration proof. The current paid-plan branch is a staged implementation; a passing unit suite alone does not activate payment collection.
+See [billing operations](cloudflare/BILLING.md) for restricted-key permissions, dedicated live/sandbox catalog and portal setup, webhook events, ledger semantics and release evidence. The production gate additionally requires current-source Stripe sandbox and customer-credit integration proof.
 
-The prepared portable plugin is under `integrations/aihackr-plugin/` and packaged as `/aihackr-plugin.zip`. It contains no secrets and uses a customer API key with compatible clients. OAuth and public submission remain future work. See its README for the canonical-schema/OpenAI extension compatibility note.
+## OAuth and ChatGPT/MCP linking
+
+Connect an OAuth-capable client to https://aihackr.com/mcp and sign in with your existing email account. PKCE, discovery, ChatGPT CIMD, compatible-client DCR, rotating refresh tokens and immediate disconnect are handled by the official Cloudflare OAuth provider and existing AccountDirectory. Manage connections at https://aihackr.com/connections. OAuth tokens are limited to MCP; REST API keys and website sessions keep their existing roles.
+
+See [OAuth operations](cloudflare/OAUTH.md) for endpoints, scopes, storage semantics and test evidence. The portable development package is under `integrations/aihackr-plugin/` and downloadable as /aihackr-plugin.zip. Public directory submission is separate from implementing OAuth.
 
 ## Source and licenses
 

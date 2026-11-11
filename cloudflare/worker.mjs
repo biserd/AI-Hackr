@@ -10,6 +10,8 @@ import {operationContext} from './operations.mjs';
 import {digest} from './accounts.mjs';
 import {billingWebhook,billingConfig} from './billing.mjs';
 import {PLANS,FREE_MONTHLY_CREDITS} from './plans.mjs';
+import {OAuthService} from './oauth-service.mjs';
+import {resourceMetadata,oauthChallenge} from './oauth-config.mjs';
 
 export class BrowserWorkspace extends DurableObject {
   constructor(ctx,env){super(ctx,env);this.active=0;}
@@ -31,15 +33,16 @@ export class BrowserWorkspace extends DurableObject {
     try{const service=this.serviceFor(identity);let id;
       const key=request.headers.get('Idempotency-Key');
       if(key){if(!/^[A-Za-z0-9_-]{16,128}$/.test(key))reject('INVALID_INPUT','Use an idempotency key of 16–128 letters, digits, underscores or hyphens.');id=await digest(key);}
-      return await operationContext.run(id,()=>routeGateway(request,this.env,service,{authenticated:true,mcp:req=>handleMcp(req,this.env,this.ctx,service)}));}
+      return await operationContext.run(id,()=>routeGateway(request,this.env,service,{authenticated:true,mcp:req=>handleMcp(req,this.env,this.ctx,service,identity)}));}
     finally{this.active--;}
   }
   async alarm(){await (this.service??new BrowserService(this.env,this.ctx.storage)).cleanup();}
 }
 export class AccountDirectory extends DurableObject {
-  constructor(ctx,env){super(ctx,env);this.accounts=new AccountService(ctx.storage,{send:message=>env.EMAIL.send(message),globalLimit:Number(env.DAILY_PAGE_LIMIT??1000),monthlyFreeCredits:FREE_MONTHLY_CREDITS});}
+  constructor(ctx,env){super(ctx,env);this.accounts=new AccountService(ctx.storage,{send:message=>env.EMAIL.send(message),globalLimit:Number(env.DAILY_PAGE_LIMIT??1000),monthlyFreeCredits:FREE_MONTHLY_CREDITS});this.oauth=new OAuthService(ctx.storage,this.accounts,env);}
   async start(email,ip){return rpcResult(()=>this.accounts.start(email,ip));}
   async verify(challenge,code){return rpcResult(()=>this.accounts.verify(challenge,code));}
+  async reviewerLogin(email,password,ip){return rpcResult(()=>this.accounts.reviewerLogin(email,password,ip,this.env.REVIEWER_LOGIN_HASH,this.env.REVIEWER_LOGIN_EXPIRES_AT));}
   async authenticate(token,kind){return rpcResult(()=>this.accounts.authenticate(token,kind));}
   async logout(token){return rpcResult(()=>this.accounts.logout(token));}
   async keys(userId){return rpcResult(()=>this.accounts.keys(userId));}
@@ -61,7 +64,9 @@ export class AccountDirectory extends DurableObject {
   async billingThrottle(...args){return rpcResult(()=>this.accounts.billingThrottle(...args));}
   async checkoutAttempt(...args){return rpcResult(()=>this.accounts.checkoutAttempt(...args));}
   async checkoutPending(...args){return rpcResult(()=>this.accounts.checkoutPending(...args));}
-  async alarm(){await this.accounts.cleanup();}
+  async oauthHandle(request){return this.oauth.handle(request);}
+  async oauthValidate(token,resource){return rpcResult(()=>this.oauth.validate(token,resource));}
+  async alarm(){await this.accounts.cleanup();await this.oauth.cleanup();}
 }
 // Keep the former class identities/data inert until a separate retirement.
 export class AIHackrContainer extends DurableObject {async fetch(){return new Response('Retired application',{status:410});}}
@@ -82,6 +87,10 @@ export default {
         return json({ready,engine:engineName,note:'Configuration readiness; live functional checks verify browser and crawl execution.'},ready?200:503);
       }
       if(url.pathname==='/sse')return json({error:'Use the Streamable HTTP endpoint /mcp.'},410);
+      if(url.pathname==='/mcp'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, DELETE, OPTIONS','Access-Control-Allow-Headers':'authorization, content-type, mcp-session-id, mcp-protocol-version, last-event-id','Access-Control-Max-Age':'300'}});
+      if(url.pathname==='/mcp'&&request.headers.has('origin')&&request.headers.get('origin')!==url.origin&&!request.headers.has('authorization'))return json({error:'OAuth authorization required.'},401,{'WWW-Authenticate':oauthChallenge(env,{scope:'account:read web:read'}),'Access-Control-Allow-Origin':'*','Access-Control-Expose-Headers':'WWW-Authenticate'});
+      if(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'].includes(url.pathname)&&request.method==='GET')return json(resourceMetadata(env),200,{'Access-Control-Allow-Origin':'*'});
+      if(url.pathname.startsWith('/oauth/')||url.pathname==='/.well-known/oauth-authorization-server')return await env.ACCOUNT_DIRECTORY.getByName('accounts-v1').oauthHandle(request);
       if(url.pathname==='/api/plans'&&request.method==='GET')return json({plans:PLANS,ready:billingConfig(env).ready,freeCredits:FREE_MONTHLY_CREDITS,freeInterval:'month',taxCollection:false});
       if(url.pathname==='/stripe/webhook')return await billingWebhook(request,env);
       if(url.pathname.startsWith('/auth/'))return await authRoute(request,env);
@@ -90,6 +99,6 @@ export default {
       }
       const page=await publicSite(request,env);if(page)return page;
       reject('NOT_FOUND','Unknown route.',404);
-    }catch(error){return errorResponse(error);}
+    }catch(error){const response=errorResponse(error);if(new URL(request.url).pathname==='/mcp'&&response.status===401){response.headers.set('WWW-Authenticate',oauthChallenge(env,{error:request.headers.has('authorization')?'invalid_token':undefined,scope:'account:read web:read'}));response.headers.set('Access-Control-Allow-Origin','*');response.headers.set('Access-Control-Expose-Headers','WWW-Authenticate');}return response;}
   }
 };
