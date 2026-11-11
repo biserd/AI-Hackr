@@ -5,6 +5,25 @@ import {AccountService,rpcResult} from '../accounts.mjs';
 import {BrowserService} from '../browser-service.mjs';
 import {operationContext} from '../operations.mjs';
 import {Storage} from './storage.mjs';
+import {FREE_MONTHLY_CREDITS} from '../plans.mjs';
+
+test('free credits reset at the UTC month boundary without duplicating grants or moving old holds',async()=>{
+  const storage=new Storage();
+  await storage.put('user:u',{id:'u',trialLimit:20,trialReserved:14});
+  let now=Date.UTC(2026,10,30,23,59,59);
+  const ledger=new CreditLedger(storage,()=>now,FREE_MONTHLY_CREDITS);
+  const initial=await Promise.all([ledger.summary('u'),ledger.summary('u')]);
+  for(const summary of initial)assert.equal(summary.available,1206);
+  await ledger.reserve('u','old-month',5);
+  now=Date.UTC(2026,11,1);
+  const renewed=await ledger.summary('u');
+  assert.equal(renewed.available,1206);
+  assert.equal(renewed.held,5);
+  assert.equal(renewed.freeRenewsAt,Date.UTC(2027,0,1));
+  await ledger.settle('u','old-month',2);
+  assert.equal((await ledger.summary('u')).available,1206);
+  assert.equal((await ledger.entries('u')).items.filter(entry=>entry.type==='grant').length,2);
+});
 
 async function setup(){const storage=new Storage();let now=Date.now();await storage.put('user:u',{id:'u',trialLimit:20,trialReserved:0});const ledger=new CreditLedger(storage,()=>now);return {storage,ledger,advance:ms=>now+=ms};}
 test('legacy trials retain spent usage; parallel holds never overdraw and settlement is replay safe',async()=>{

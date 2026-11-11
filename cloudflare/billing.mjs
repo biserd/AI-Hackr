@@ -1,16 +1,33 @@
 import Stripe from 'stripe';
 import {directoryCall} from './accounts.mjs';
-import {PLANS,planFor} from './plans.mjs';
+import {PLANS,LEGACY_PLANS,planFor} from './plans.mjs';
 import {boundedJson,boundedText,json,onlyKeys,reject} from './policy.mjs';
 import {POLICY_VERSION} from './policies.mjs';
 
 export const BILLING_EVENTS=['checkout.session.completed','checkout.session.async_payment_succeeded','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted','invoice.paid','invoice.payment_failed','charge.refunded','charge.dispute.created','radar.early_fraud_warning.created'];
 const id=value=>typeof value==='string'?value:value?.id;
-export function billingConfig(env){let prices={};try{prices=JSON.parse(env.STRIPE_PRICES??'{}');}catch{}return {prices,ready:Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PORTAL_CONFIGURATION&&PLANS.every(p=>/^price_/.test(prices[p.id]??'')))};}
+function priceMap(value){
+  try{return JSON.parse(value??'{}')??{};}
+  catch{return {};}
+}
+export function billingConfig(env){
+  const prices=priceMap(env.STRIPE_PRICES_V2);
+  const legacyPrices=priceMap(env.STRIPE_PRICES);
+  const priceIds=PLANS.map(plan=>prices[plan.id]);
+  const ready=Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PORTAL_CONFIGURATION_V2&&
+    priceIds.every(price=>typeof price==='string'&&/^price_[a-zA-Z0-9]+$/.test(price))&&
+    new Set(priceIds).size===PLANS.length&&priceIds.every(price=>!Object.values(legacyPrices).includes(price)));
+  return {prices,legacyPrices,ready};
+}
 export function stripeClient(env){if(!env.STRIPE_SECRET_KEY)reject('BILLING_UNAVAILABLE','Billing is temporarily unavailable.',503);return new Stripe(env.STRIPE_SECRET_KEY,{apiVersion:'2026-09-30.endive',httpClient:Stripe.createFetchHttpClient(),maxNetworkRetries:2,timeout:15000});}
 export class BillingService{
   constructor(env,{client}={}){this.env=env;this.client=client??stripeClient(env);this.config=billingConfig(env);}
-  plan(price){return PLANS.find(p=>this.config.prices[p.id]===id(price));}
+  plan(price){
+    const priceId=id(price);
+    if(!priceId)return;
+    return PLANS.find(plan=>this.config.prices[plan.id]===priceId)
+      ??LEGACY_PLANS.find(plan=>this.config.legacyPrices[plan.id]===priceId);
+  }
   async validatePrice(plan){const price=await this.client.prices.retrieve(this.config.prices[plan.id],{expand:['product']});if(!price.active||price.currency!=='usd'||price.unit_amount!==plan.amount||price.recurring?.interval!=='month'||price.recurring?.interval_count!==1||price.recurring?.usage_type!=='licensed'||price.product?.metadata?.app!=='aihackr'||price.product?.metadata?.plan!==plan.id)reject('BILLING_CONFIGURATION','The selected plan is not configured correctly. Please contact support.',503);return price;}
   async owner(customer){return customer?directoryCall(this.env,'customerOwner',id(customer)):null;}
   async customer(user){
@@ -23,7 +40,7 @@ export class BillingService{
     const sub=await this.client.subscriptions.retrieve(id(subscription)),userId=await this.owner(sub.customer);if(!userId)return;
     const item=sub.items?.data?.find(item=>this.plan(item.price));if(!item||sub.items.data.length!==1)return;
     const plan=this.plan(item.price);
-    await directoryCall(this.env,'billingUpdate',userId,{plan:plan.id,status:sub.status,subscription:sub.id,periodStart:item.current_period_start*1000,periodEnd:item.current_period_end*1000,cancelAtPeriodEnd:sub.cancel_at_period_end,updated:observedAt});
+    await directoryCall(this.env,'billingUpdate',userId,{plan:plan.id,monthlyAmount:plan.amount,monthlyCredits:plan.credits,status:sub.status,subscription:sub.id,subscriptionCreated:sub.created,periodStart:item.current_period_start*1000,periodEnd:item.current_period_end*1000,cancelAtPeriodEnd:sub.cancel_at_period_end,updated:observedAt});
     return {userId,customer:id(sub.customer),subscription:sub.id};
   }
   async invoice(invoiceId){
@@ -65,14 +82,25 @@ export class BillingService{
     await directoryCall(this.env,'recordBillingConsent',user.id,POLICY_VERSION);
     const previous=await directoryCall(this.env,'checkoutPending',user.id);
     if(previous?.session){const session=await this.client.checkout.sessions.retrieve(previous.session);if(id(session.customer)!==customer)reject('BILLING_CONFLICT','Checkout ownership mismatch.',403);if(['expired','complete'].includes(session.status))await directoryCall(this.env,'checkoutPending',user.id,previous.id,null);}
-    const attempt=await directoryCall(this.env,'checkoutAttempt',user.id,planId);
+    const attempt=await directoryCall(this.env,'checkoutAttempt',user.id,planId,this.config.prices[planId]);
     const suffix=attempt.suffix??attempt.id.replace(/[^a-z]/g,'').padEnd(8,'a').slice(0,8);
     const session=await this.client.checkout.sessions.create({mode:'subscription',customer,line_items:[{price:this.config.prices[planId],quantity:1}],client_reference_id:user.id,metadata:{app:'aihackr',user_id:user.id,terms_version:POLICY_VERSION},subscription_data:{billing_mode:{type:'flexible'},metadata:{app:'aihackr',user_id:user.id,terms_version:POLICY_VERSION}},custom_text:{submit:{message:'Your AIHackr subscription renews monthly until cancelled. [Terms]('+origin+'/terms) and [Cancellation & Refund Policy]('+origin+'/refunds) apply. No automatic overage charges.'}},automatic_tax:{enabled:false},integration_identifier:'aihackr_launch_'+suffix,success_url:origin+'/dashboard?checkout=success',cancel_url:origin+'/dashboard?checkout=cancelled',expires_at:Math.floor(attempt.createdAt/1000)+1860},{idempotencyKey:'aihackr-checkout-'+attempt.id});
     await directoryCall(this.env,'checkoutPending',user.id,attempt.id,session.id);
     return {url:session.url};
   }
   async closeCheckout(user){const attempt=await directoryCall(this.env,'checkoutPending',user.id);if(!attempt)return {success:true};if(!attempt.session)reject('CHECKOUT_PENDING','Checkout is being created. Try again shortly.',409);const customer=await directoryCall(this.env,'billingCustomer',user.id),session=await this.client.checkout.sessions.retrieve(attempt.session);if(id(session.customer)!==customer)reject('BILLING_CONFLICT','Checkout ownership mismatch.',403);if(session.status==='complete')reject('CHECKOUT_COMPLETE','Checkout completed. Check payment status or manage your subscription.',409);if(session.status==='open')await this.client.checkout.sessions.expire(session.id);await directoryCall(this.env,'checkoutPending',user.id,attempt.id,null);return {success:true};}
-  async portal(user,origin){const customer=await directoryCall(this.env,'billingCustomer',user.id);if(!customer)reject('NOT_FOUND','Choose your first plan below.',404);if(!this.config.ready)reject('BILLING_UNAVAILABLE','Billing is temporarily unavailable.',503);const session=await this.client.billingPortal.sessions.create({customer,configuration:this.env.STRIPE_PORTAL_CONFIGURATION,return_url:origin+'/dashboard'});return {url:session.url};}
+  async portal(user,origin){
+    const customer=await directoryCall(this.env,'billingCustomer',user.id);
+    if(!customer)reject('NOT_FOUND','Choose your first plan below.',404);
+    const subscriptions=await this.client.subscriptions.list({customer,status:'all',limit:100});
+    const legacy=Object.values(this.config.legacyPrices);
+    const hasLegacySubscription=subscriptions.data.some(sub=>
+      !['canceled','incomplete_expired'].includes(sub.status)&&sub.items.data.some(item=>legacy.includes(id(item.price))));
+    const configuration=hasLegacySubscription?this.env.STRIPE_PORTAL_CONFIGURATION:this.env.STRIPE_PORTAL_CONFIGURATION_V2;
+    if(!configuration)reject('BILLING_UNAVAILABLE','Billing is temporarily unavailable.',503);
+    const session=await this.client.billingPortal.sessions.create({customer,configuration,return_url:origin+'/dashboard'});
+    return {url:session.url};
+  }
   async risk(object,type){
     const chargeId=type==='charge.refunded'?object.id:id(object.charge);if(!chargeId)return;
     const charge=await this.client.charges.retrieve(chargeId),userId=await this.owner(charge.customer);if(!userId)return;

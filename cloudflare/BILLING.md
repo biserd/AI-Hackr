@@ -2,7 +2,7 @@
 
 ## Commercial configuration
 
-Fixed monthly subscriptions, USD, quantity 1. Starter $9 / 1,000 credits; Builder $29 / 5,000; Scale $79 / 20,000. Free verified accounts retain 20 lifetime credits. Tax collection stays off. There are no monetary usage meters, automatic top-ups or overage charges.
+Fixed monthly subscriptions, USD, quantity 1. Starter is $7 for 3,000 credits, Builder is $15 for 7,500, and Scale is $29 for 20,000. Verified accounts receive 1,200 free credits per UTC calendar month. Tax collection stays off. There are no monetary usage meters, automatic top-ups or overage charges.
 
 Use the existing Big Apple Digital Stripe account `acct_1QaLCjRwvWaTf8xf` for live mode. Isolate development in a dedicated Stripe sandbox with its own catalog, portal configuration, customer data and endpoint secret. Do not modify the account's unrelated products or webhooks.
 
@@ -12,8 +12,12 @@ Store credentials in encrypted Cloudflare Worker secrets, separately in `aihackr
 
 - `STRIPE_SECRET_KEY`: a restricted runtime key. Customer read/write, Checkout Sessions read/write, Customer Portal read/write, Subscriptions read, Invoices/Invoice Payments read, Charges read, Products and Prices read. Do not grant refunds, transfers or payouts. Exact UI permission categories may differ; confirm against the runtime API calls.
 - `STRIPE_WEBHOOK_SECRET`: dedicated endpoint signing secret, never another app's webhook secret.
-- `STRIPE_PRICES`: JSON mapping `{ "starter": "price_…", "builder": "price_…", "scale": "price_…" }` to that environment's real recurring prices.
-- `STRIPE_PORTAL_CONFIGURATION`: dedicated `bpc_…` configuration ID.
+- Keep `STRIPE_PRICES` and `STRIPE_PORTAL_CONFIGURATION` for launch-era subscriptions, invoices and any open Checkout sessions created before the price change.
+
+Set the non-secret catalog bindings in the Worker configuration for each environment:
+
+- `STRIPE_PRICES_V2`: JSON mapping `{ "starter": "price_…", "builder": "price_…", "scale": "price_…" }` to the current recurring prices.
+- `STRIPE_PORTAL_CONFIGURATION_V2`: portal configuration for the current products.
 
 The last two are nonsecret IDs, but encrypted secret bindings avoid accidental replacement of Dashboard-managed variables by the existing Wrangler deployment. No publishable Stripe key or browser SDK is needed for hosted redirects. Never put runtime keys, cookies or signing secrets into a package, commit, CLI argument, transcript or report.
 

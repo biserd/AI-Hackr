@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-09T19:10:24.953Z",
+  "checkedAt": "2026-11-11T00:27:15.079Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "0400fa07-7e20-4536-a2b1-2429e3ea7a07",
+  "retainedCrawlId": "3ea3cceb-1bdc-403e-8148-01a4b6d0e9f1",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -44,105 +44,67 @@
     "cancel_crawl"
   ],
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-10T23:40:32.715Z",
-  "customerAccountGuardsVerifiedAt": "2026-11-10T23:40:33.971Z",
+  "redeployVerifiedAt": "2026-11-11T00:40:51.302Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-11T00:40:52.847Z",
   "billing": {
     "passed": true,
-    "checkedAt": "2026-11-10T23:55:52.051Z",
+    "checkedAt": "2026-11-11T00:41:48.327Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
-    "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e",
+    "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
+    "stagingVersion": "832f9cc8-1aeb-47e5-8de5-27c062d37b4d",
     "checks": {
       "checkout": {
         "passed": true,
         "interactive": true,
         "plan": "starter",
+        "amount": 700,
         "currency": "usd",
-        "amount": 900,
         "quantity": 1,
         "explicitPolicyAcceptance": true,
         "consentRequiredBeforeRedirect": true,
-        "taxCollection": false,
-        "realFundsMoved": false
+        "taxCollection": false
       },
       "paidInvoice": {
         "passed": true,
-        "invoice": "in_1UaOTv2OxvOkZCMOqH8rTFTb",
-        "event": "evt_1UaOTy2OxvOkZCMOSefmbtY2",
-        "stripePendingWebhookDeliveries": 0,
-        "openingAvailable": 16,
-        "availableAfterPayment": 1016,
-        "monthlyGrant": 1000
+        "invoice": "in_1UaPOy2OxvOkZCMOOfUoYKVo",
+        "event": "evt_1UaPP02OxvOkZCMOG9ORejfQ",
+        "availableBefore": 6209,
+        "availableAfter": 9209,
+        "creditsGranted": 3000
       },
       "duplicateEvents": {
         "passed": true,
-        "replayStatus": 200,
-        "appReconciliationVerified": true,
-        "availableAfterBoth": 1016
+        "reconciledFromDashboard": true,
+        "availableAfter": 9209,
+        "activeSubscriptionPreserved": true
       },
       "portal": {
         "passed": true,
-        "hosted": true,
-        "invoiceHistory": true,
-        "cancelAtPeriodEnd": true,
-        "remainingCreditsPreserved": true,
-        "upgrade": {
-          "invoice": "in_1UaOWN2OxvOkZCMOAdgiTsk8",
-          "event": "evt_1UaOWQ2OxvOkZCMORUzuIIH8",
-          "amount": 2000,
-          "proratedGrant": 4000,
-          "availableAfterUpgrade": 5016,
-          "stripePendingWebhookDeliveries": 0
-        },
-        "declinedAdjustment": {
-          "invoice": "in_1UaOYi2OxvOkZCMOtCwqQDIK",
-          "event": "evt_1UaOYo2OxvOkZCMOxhRugz77",
-          "amountPaid": 0,
-          "grant": 0,
-          "voidedTestInvoice": true
-        }
+        "starterMonthlyAmount": 700,
+        "paidInvoiceVisible": true,
+        "managedViaStripe": true
       },
       "creditSettlement": {
         "passed": true,
-        "operations": [
-          {
-            "tool": "scrape",
-            "site": "https://llmmargin.com/",
-            "charged": 1
-          },
-          {
-            "tool": "extract",
-            "site": "https://llmmargin.com/",
-            "charged": 5
-          },
-          {
-            "tool": "crawl",
-            "site": "https://example.com/",
-            "held": 5,
-            "charged": 1,
-            "returned": 4
-          }
-        ],
-        "dailyCredits": 7,
-        "availableAfterWork": 5009,
-        "heldAfterWork": 0,
-        "persistedAfterRedeploy": true,
-        "retainedCrawlDownloadPages": 1
+        "operation": "scrape",
+        "charged": 1,
+        "availableBefore": 9209,
+        "availableAfter": 9208,
+        "heldAfter": 0
       },
       "webhookSignature": {
         "passed": true,
         "tamperedStatus": 400,
-        "validReplayStatus": 200,
-        "realStripeEventsDelivered": true
+        "stripePendingWebhookDeliveries": 0
       }
     },
-    "note": "Verified hosted sandbox Checkout and portal in a real customer browser. The upgrade grant was observed on portal return without a billing reconciliation request. The replay used a fresh valid signature over the real sandbox event; it was not an additional Stripe-originated delivery. Full-period renewal, expiry, and partial cancelled crawl settlement are covered by automated tests; period-end cancellation was exercised in the hosted portal."
+    "note": "The staged checkout used a Stripe test card. The original and current price mappings remain available for invoice processing. Only the live catalog bindings differ from the tested staging catalog."
   },
   "site": {
-    "checkedAt": "2026-11-10T23:40:34.078Z",
+    "checkedAt": "2026-11-11T00:40:52.939Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
+    "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -373,44 +335,27 @@
   },
   "customerPortal": {
     "passed": true,
-    "checkedAt": "2026-11-10T23:55:52.051Z",
+    "checkedAt": "2026-11-11T00:41:48.327Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
-    "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e",
-    "emailDelivered": true,
-    "emailCodeLogin": true,
-    "signedOutEndpointsDenied": true,
+    "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
+    "stagingVersion": "832f9cc8-1aeb-47e5-8de5-27c062d37b4d",
+    "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
-    "privateCustomerExtract": true,
-    "privateCustomerCrawl": true,
-    "privateResultJsonDownload": true,
-    "sessionAndUsagePersistedAcrossWorkerRedeploy": true,
-    "usage": {
-      "available": 5009,
-      "held": 0,
-      "settledCreditsInLast14UtcDays": 7
-    },
+    "freeMonthlyAllowance": 1200,
+    "availableAfterRedeploy": 9208,
+    "activeSubscriptionAfterRedeploy": true,
     "desktop": {
       "viewport": 2515,
-      "document": 2500,
-      "bodyFontPx": 17,
-      "overflow": false
+      "content": 2500
     },
     "mobile": {
       "viewport": 390,
-      "document": 375,
-      "bodyFontPx": 17,
-      "overflow": false
-    },
-    "screenshots": [
-      "AIHackr_Stripe_Sandbox_Starter.jpg",
-      "AIHackr_Credit_Ledger_Staging.jpg",
-      "AIHackr_Dashboard_Mobile.jpg"
-    ],
-    "note": "Owner completed real email-code login. Dashboard, ledger and private results verified in Chrome. Key ownership and logout behavior are additionally verified by the account and routing test suite."
+      "content": 375,
+      "plansStacked": true
+    }
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "c850d0418286d6da3eeb3e1eecda1c7b8f6e2e6dfc81cb4daf7c8f2cae53b986",
+  "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
   "portalVerified": true,
-  "stagingVersion": "185b8ed8-8363-4c96-9757-fa60b6c90e5e"
+  "stagingVersion": "832f9cc8-1aeb-47e5-8de5-27c062d37b4d"
 }
