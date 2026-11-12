@@ -1,7 +1,7 @@
 export const published='2026-11-09';
 export const docs=[
   ['quickstart','Quickstart','Scrape your first public webpage with AIHackr. Sign in, create an API key and call the web scraping API with JavaScript, Python or cURL.','Start here'],
-  ['authentication','Accounts and API keys','Learn how AIHackr email sign-in, private workspaces and revocable API keys work. Keep credentials on your server and inspect trial usage.','Start here'],
+  ['authentication','Accounts and API keys','Learn how AIHackr email sign-in, private workspaces and revocable API keys work. Keep credentials on your server and track credit usage.','Start here'],
   ['scrape','Scrape API','Convert a public webpage to Markdown, HTML or links with the AIHackr Scrape API. Includes request examples, response fields and browser options.','API reference'],
   ['map','Map API','Discover same-origin links on a public webpage with the AIHackr Map API. Learn page-level discovery limits and when to use a recursive crawl.','API reference'],
   ['crawl','Crawl API','Start a bounded website crawl, poll status, paginate retained results and cancel jobs with the AIHackr Crawl API. Includes practical request examples.','API reference'],
