@@ -52,7 +52,7 @@
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -184,9 +184,9 @@
     }
   },
   "site": {
-    "checkedAt": "2026-11-13T00:23:16.296Z",
+    "checkedAt": "2026-11-13T14:04:36.972Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -411,7 +411,7 @@
   "oauth": {
     "checkedAt": "2026-11-13T00:22:10.586Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -460,12 +460,13 @@
       }
     },
     "accountFingerprint": "1e5ca11420126c9ba3d472aab6352401ec95c4ba372fe85c3b54124548c6e2c9",
-    "redeployVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8"
+    "redeployVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8",
+    "observedSourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72"
   },
   "oauthPublic": {
-    "checkedAt": "2026-11-13T00:23:13.613Z",
+    "checkedAt": "2026-11-13T14:04:36.972Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
     "passed": true,
     "checks": {
       "discovery": {
@@ -512,7 +513,7 @@
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -610,7 +611,16 @@
     }
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+  "sourceDigest": "3471f3da58011992846fff38e351d1062952e47cb03d5d201cfa7bfdcb33ffee",
   "portalVerified": true,
-  "stagingVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8"
+  "stagingVersion": "f5d634b1-4cbd-4aa7-928b-e45003fd9816",
+  "mcpGuideDiscoveryVerification": {
+    "checkedAt": "2026-11-13T14:04:36.972Z",
+    "priorSourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+    "priorStagingVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8",
+    "changedFiles": [
+      "content/pages.mjs"
+    ],
+    "evidenceBasis": "Only public guide copy changed. Live site and anonymous OAuth transport checks ran against this staging source. Prior integration evidence for the unchanged runtime is inherited and retains the original observed source digests."
+  }
 }
