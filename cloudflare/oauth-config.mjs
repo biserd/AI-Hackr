@@ -11,7 +11,7 @@ export const oauthResource=env=>oauthIssuer(env)+'/mcp';
 export const metadataUrl=env=>oauthIssuer(env)+'/.well-known/oauth-protected-resource/mcp';
 export function oauthChallenge(env,{error,scope}={}){return `Bearer resource_metadata="${metadataUrl(env)}"${error?`, error="${error}"`:''}${scope?`, scope="${scope}"`:''}`;}
 export function resourceMetadata(env){return {resource:oauthResource(env),authorization_servers:[oauthIssuer(env)],scopes_supported:['account:read','web:read'],bearer_methods_supported:['header'],resource_name:'AIHackr',resource_documentation:'https://aihackr.com/docs'};}
-export const hasToolScope=(identity,name)=>identity?.kind!=='oauth'||Boolean(TOOL_SCOPES[name]&&identity.scopes?.includes(TOOL_SCOPES[name]));
+export const hasToolScope=(identity,name)=>Boolean(identity&&(identity.kind!=='oauth'||(TOOL_SCOPES[name]&&identity.scopes?.includes(TOOL_SCOPES[name]))));
 export async function accountProfile(identity,storage){
   if(identity?.id)return {id:identity.id,...(identity.email?{email:identity.email}:{})};
   if(!identity?.operator)throw new Error('Authenticated profile required');

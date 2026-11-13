@@ -2,9 +2,9 @@ import {publicSite} from './public-site.mjs';
 import {DurableObject,WorkerEntrypoint} from 'cloudflare:workers';
 import {BrowserService,engineName} from './browser-service.mjs';
 import {capabilities,routeGateway} from './gateway.mjs';
-import {handleMcp} from './mcp.mjs';
+import {handleMcp,handlePublicMcp} from './mcp.mjs';
 import {errorResponse,json,reject} from './policy.mjs';
-import {AccountService,authRoute,rpcResult} from './accounts.mjs';
+import {AccountService,authRoute,cookie,rpcResult,SESSION_COOKIE} from './accounts.mjs';
 import {customerGateway} from './customer-gateway.mjs';
 import {operationContext} from './operations.mjs';
 import {digest} from './accounts.mjs';
@@ -87,8 +87,11 @@ export default {
         return json({ready,engine:engineName,note:'Configuration readiness; live functional checks verify browser and crawl execution.'},ready?200:503);
       }
       if(url.pathname==='/sse')return json({error:'Use the Streamable HTTP endpoint /mcp.'},410);
-      if(url.pathname==='/mcp'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, DELETE, OPTIONS','Access-Control-Allow-Headers':'authorization, content-type, mcp-session-id, mcp-protocol-version, last-event-id','Access-Control-Max-Age':'300'}});
-      if(url.pathname==='/mcp'&&request.headers.has('origin')&&request.headers.get('origin')!==url.origin&&!request.headers.has('authorization'))return json({error:'OAuth authorization required.'},401,{'WWW-Authenticate':oauthChallenge(env,{scope:'account:read web:read'}),'Access-Control-Allow-Origin':'*','Access-Control-Expose-Headers':'WWW-Authenticate'});
+      if(url.pathname==='/mcp'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, DELETE, OPTIONS','Access-Control-Allow-Headers':'authorization, content-type, mcp-session-id, mcp-protocol-version, mcp-method, mcp-name, last-event-id','Access-Control-Max-Age':'300'}});
+      if(url.pathname==='/mcp'&&!request.headers.has('authorization')){
+        const origin=request.headers.get('origin');
+        if((origin&&origin!==url.origin)||!cookie(request,SESSION_COOKIE))return await handlePublicMcp(request,env);
+      }
       if(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'].includes(url.pathname)&&request.method==='GET')return json(resourceMetadata(env),200,{'Access-Control-Allow-Origin':'*'});
       if(url.pathname.startsWith('/oauth/')||url.pathname==='/.well-known/oauth-authorization-server')return await env.ACCOUNT_DIRECTORY.getByName('accounts-v1').oauthHandle(request);
       if(url.pathname==='/api/plans'&&request.method==='GET')return json({plans:PLANS,ready:billingConfig(env).ready,freeCredits:FREE_MONTHLY_CREDITS,freeInterval:'month',taxCollection:false});

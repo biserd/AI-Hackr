@@ -8,6 +8,69 @@ const check=(name,details={})=>{report.checks[name]={passed:true,...details};con
 try{
   const prm=await(await fetch(origin+'/.well-known/oauth-protected-resource/mcp')).json(),metadata=await(await fetch(origin+'/.well-known/oauth-authorization-server')).json();assert.equal(prm.resource,resource);assert.equal(metadata.issuer,origin);assert.equal(metadata.client_id_metadata_document_supported,true);assert(metadata.code_challenge_methods_supported.includes('S256'));assert.equal(metadata.authorization_response_iss_parameter_supported,true);assert(!prm.scopes_supported.includes('offline_access'));check('discovery');
   const missing=await fetch(resource);assert.equal(missing.status,401);assert.match(missing.headers.get('www-authenticate'),/resource_metadata=/);check('transportChallenge');
+  const mcp=async (method,params={},headers={})=>fetch(resource,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',...headers},body:JSON.stringify({jsonrpc:'2.0',...(method==='notifications/initialized'?{}:{id:1}),method,params})});
+  const message=async response=>{
+    assert.equal(response.status,200);
+    if(response.headers.get('content-type')?.includes('text/event-stream')){
+      const reader=response.body.getReader(),decoder=new TextDecoder();
+      let data='';
+      try {
+        for(;;){
+          const {done,value}=await reader.read();
+          if(done)throw new Error('MCP stream ended before the JSON-RPC result.');
+          data+=decoder.decode(value,{stream:true});
+          const event=data.match(/^data: (.+)\r?\n\r?\n/m);
+          if(event){
+            const parsed=JSON.parse(event[1]);
+            if(parsed.id===1)return parsed;
+            data=data.slice(event.index+event[0].length);
+          }
+        }
+      } finally {await reader.cancel();}
+    }
+    return response.json();
+  };
+  const init=await mcp('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'AIHackr public verification',version:'1.0.0'}});
+  assert.equal(init.headers.get('mcp-session-id'),null);
+  const initialized=(await message(init)).result;
+  assert.match(initialized.serverInfo.name,/AIHackr/);
+  const protocol={'MCP-Protocol-Version':initialized.protocolVersion};
+  assert.equal((await mcp('notifications/initialized',{},protocol)).status,202);
+  assert.deepEqual((await message(await mcp('ping',{},protocol))).result,{});
+  const tools=(await message(await mcp('tools/list',{},protocol))).result.tools;
+  assert.deepEqual(tools.map(tool=>tool.name).sort(),['cancel_crawl','get_account','get_crawl_result','get_url_html_content','get_url_json','get_url_links','get_url_markdown','scrape_url_elements','start_crawl']);
+  for(const tool of tools) {
+    assert(tool.inputSchema);
+    assert(tool._meta?.securitySchemes?.some(scheme=>scheme.type==='oauth2'&&scheme.scopes.length));
+  }
+  assert.equal(tools.find(tool=>tool.name==='get_account')._meta['openai/profile'],true);
+  const chatgpt=await mcp('tools/list',{}, {...protocol,Origin:'https://chatgpt.com'});
+  assert.equal(chatgpt.headers.get('access-control-allow-origin'),'*');
+  assert.deepEqual((await message(chatgpt)).result.tools,tools);
+  check('anonymousMcpDiscovery',{toolCount:tools.length,stateless:true});
+  const modernVersion='2026-07-28';
+  const modernParams={_meta:{'io.modelcontextprotocol/protocolVersion':modernVersion,'io.modelcontextprotocol/clientCapabilities':{},'io.modelcontextprotocol/clientInfo':{name:'AIHackr public verification',version:'1.0.0'}}};
+  const modern=(method,params={})=>mcp(method,{...params,...modernParams},{'MCP-Protocol-Version':modernVersion,'Mcp-Method':method,...(params.name?{'Mcp-Name':params.name}:{})});
+  const discover=(await message(await modern('server/discover'))).result;
+  assert(discover.supportedVersions.includes(modernVersion));
+  assert.deepEqual((await message(await modern('tools/list'))).result.tools.map(tool=>tool.name).sort(),tools.map(tool=>tool.name).sort());
+  assert.equal((await modern('tools/call',{name:'get_account',arguments:{}})).status,401);
+  check('anonymousStatelessDiscovery',{protocolVersion:modernVersion,toolCount:tools.length});
+  for(const tool of tools){
+    const blocked=await mcp('tools/call',{name:tool.name,arguments:{url:'https://fixtures.aihackr.com'}},protocol);
+    assert.equal(blocked.status,401,tool.name);
+    assert.match(blocked.headers.get('www-authenticate'),/resource_metadata=/);
+  }
+  const wrongOrigin=await mcp('tools/list',{}, {...protocol,Origin:'https://example.org'});
+  assert.equal(wrongOrigin.status,403);
+  for(const authorization of ['Basic invalid','Bearer invalid']){
+    const rejected=await mcp('tools/list',{}, {...protocol,Authorization:authorization});
+    assert.equal(rejected.status,401);
+    assert.match(rejected.headers.get('www-authenticate'),/invalid_token/);
+  }
+  const batch=await fetch(resource,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify([{jsonrpc:'2.0',id:1,method:'tools/list'},{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'get_account',arguments:{}}}])});
+  assert.equal(batch.status,400);
+  check('anonymousToolCallsBlocked',{toolCount:tools.length});
   const register=await fetch(metadata.registration_endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'AIHackr protocol verification',application_type:'native',redirect_uris:['http://127.0.0.1:8795/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'})});assert.equal(register.status,201);const client=await register.json();assert.equal(client.client_secret,undefined);check('publicNativeClientRegistration');
   const verifier=randomBytes(32).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url'),state=randomBytes(20).toString('hex');
   const params=new URLSearchParams({client_id:client.client_id,response_type:'code',redirect_uri:'http://127.0.0.1:8795/callback',resource,scope:'account:read web:read offline_access',state,code_challenge:challenge,code_challenge_method:'S256'});
