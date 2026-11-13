@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-11-11T01:20:08.762Z",
+  "checkedAt": "2026-11-13T00:15:11.810Z",
   "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
   "engine": "cloudflare-browser-run",
   "checks": {
@@ -29,7 +29,7 @@
     }
   },
   "passed": true,
-  "retainedCrawlId": "3f20f511-0e40-4e1c-80d4-91521b7680cd",
+  "retainedCrawlId": "2e0a59fb-db73-45f0-8344-4c628a094776",
   "paginationPages": 12,
   "cancellationVerified": true,
   "mcpCrawlLifecycleVerified": true,
@@ -44,16 +44,15 @@
     "cancel_crawl",
     "get_account"
   ],
-  "customerAccountGuardsVerifiedAt": "2026-11-11T01:20:49.190Z",
+  "customerAccountGuardsVerifiedAt": "2026-11-13T00:15:52.159Z",
   "persistenceAcrossWorkerRedeploy": true,
-  "redeployVerifiedAt": "2026-11-11T01:27:18.008Z",
-  "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
+  "redeployVerifiedAt": "2026-11-13T00:23:14.059Z",
   "billing": {
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "livemode": false,
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "checks": {
       "checkout": {
@@ -102,7 +101,7 @@
       }
     },
     "note": "The staged checkout used a Stripe test card. The original and current price mappings remain available for invoice processing. Only the live catalog bindings differ from the tested staging catalog.",
-    "evidenceBasis": "Prior successful sandbox Checkout, paid invoice, duplicate reconciliation and Stripe Portal checks are retained from the pricing release. Billing, credit-ledger, plan, policy, operation and Browser Run runtime files are byte-equivalent after line-ending normalization. All 61 current local tests passed. Current-source live OAuth tests verified one exact customer credit settlement. Public plans and invalid webhook rejection were rechecked.",
+    "evidenceBasis": "The code changes are limited to MCP routing and authorization. Prior Stripe sandbox and responsive portal evidence is retained. Current-source staging checks verified the signed-in dashboard, credit settlement, billing readiness, and rejection of an invalid webhook signature.",
     "originalSandboxEvidence": {
       "sourceDigest": "48d16e16043719f2abcf34a461ad6260be64be62c2f06daa80d8e9d19a05fc47",
       "checkedAt": "2026-11-11T00:41:48.327Z",
@@ -169,12 +168,25 @@
       "heldAfter": 0
     },
     "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
-    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs",
+    "adjacentStagingChecks": {
+      "heldCredits": 0,
+      "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+      "plans": 3,
+      "billingReady": true,
+      "taxCollection": false,
+      "checkedAt": "2026-11-13T00:23:01.0397966Z",
+      "livemode": false,
+      "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+      "authenticatedReviewerSession": true,
+      "passed": true,
+      "invalidWebhookStatus": 400
+    }
   },
   "site": {
-    "checkedAt": "2026-11-12T14:09:59.766Z",
+    "checkedAt": "2026-11-13T00:23:16.296Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
     "passed": true,
     "checks": {
       "pagesAndMetadata": {
@@ -397,9 +409,9 @@
     ]
   },
   "oauth": {
-    "checkedAt": "2026-11-11T01:26:29.041Z",
+    "checkedAt": "2026-11-13T00:22:10.586Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
     "passed": true,
     "checks": {
       "authorizationCodeAndPkce": {
@@ -423,8 +435,8 @@
       },
       "customerCreditSettlement": {
         "passed": true,
-        "availableBefore": 1199,
-        "availableAfter": 1198,
+        "availableBefore": 1196,
+        "availableAfter": 1195,
         "charged": 1,
         "heldAfter": 0
       },
@@ -448,14 +460,12 @@
       }
     },
     "accountFingerprint": "1e5ca11420126c9ba3d472aab6352401ec95c4ba372fe85c3b54124548c6e2c9",
-    "redeployVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
-    "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
-    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
+    "redeployVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8"
   },
   "oauthPublic": {
-    "checkedAt": "2026-11-11T13:45:51.975Z",
+    "checkedAt": "2026-11-13T00:23:13.613Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
     "passed": true,
     "checks": {
       "discovery": {
@@ -463,6 +473,20 @@
       },
       "transportChallenge": {
         "passed": true
+      },
+      "anonymousMcpDiscovery": {
+        "passed": true,
+        "toolCount": 9,
+        "stateless": true
+      },
+      "anonymousStatelessDiscovery": {
+        "passed": true,
+        "protocolVersion": "2026-07-28",
+        "toolCount": 9
+      },
+      "anonymousToolCallsBlocked": {
+        "passed": true,
+        "toolCount": 9
       },
       "publicNativeClientRegistration": {
         "passed": true
@@ -482,14 +506,13 @@
       "htmlRoutesAndPrivateConnectionList": {
         "passed": true
       }
-    },
-    "observedSourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33"
+    }
   },
   "customerPortal": {
     "passed": true,
     "checkedAt": "2026-11-11T01:28:01.774Z",
     "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-    "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+    "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
     "stagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
     "authenticatedCustomerSession": true,
     "privateCustomerScrape": true,
@@ -570,55 +593,24 @@
     },
     "note": "Current-source reviewer login, private account summary and MCP credit settlement verified by the live OAuth client. Browser-observed owner credits changed from 9208 to 9207 with zero held. Existing responsive dashboard evidence is retained from the pricing release.",
     "observedSourceDigest": "26a2d0eac1edd8955e738ceb28652e2dfc8822978a225966989c80fa93581543",
-    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs"
+    "verificationOnlyChange": "cloudflare/scripts/verify-site.mjs",
+    "evidenceBasis": "The code changes are limited to MCP routing and authorization. Prior Stripe sandbox and responsive portal evidence is retained. Current-source staging checks verified the signed-in dashboard, credit settlement, billing readiness, and rejection of an invalid webhook signature.",
+    "adjacentStagingChecks": {
+      "heldCredits": 0,
+      "origin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
+      "plans": 3,
+      "billingReady": true,
+      "taxCollection": false,
+      "checkedAt": "2026-11-13T00:23:01.0397966Z",
+      "livemode": false,
+      "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
+      "authenticatedReviewerSession": true,
+      "passed": true,
+      "invalidWebhookStatus": 400
+    }
   },
   "stagingOrigin": "https://aihackr-browser-run-stage.biser-d.workers.dev",
-  "sourceDigest": "a5290ef7052d7d699961898cb64fbe6d08ccd42c910e3eb41c2bab4967295254",
+  "sourceDigest": "ad07a3e1915aaa293c1518cd19189e7470184ba493bb81f9074e5df4c0ab2f72",
   "portalVerified": true,
-  "stagingVersion": "dee18aeb-9ee4-49f7-8358-d3bd17bb71c7",
-  "siteCleanupVerification": {
-    "checkedAt": "2026-11-11T01:56:44.188Z",
-    "htmlRoutesChecked": 35,
-    "stagingSiteAndAccountGuardsPassed": true,
-    "priorRuntimeRelease": "c9c21b066bb7f65455b10cef156fad15afdf62cc",
-    "priorRuntimeStagingVersion": "d9efc81b-9269-466c-bca6-4bb94ea2910e",
-    "evidenceBasis": "Content, public static routes and support contact metadata changed. Live site parity, contact removal, retirement routes, account guards, plan readiness and OAuth discovery were checked on staging. All 61 automated tests passed. Prior full Browser Run, billing and OAuth evidence is retained for the unchanged workflows."
-  },
-  "guideRefreshVerification": {
-    "checkedAt": "2026-11-11T13:46:27.200Z",
-    "priorSourceDigest": "96435a0cf899430d70ddce43e4bc56baa3cec8af190ccc448182e02089d665d0",
-    "priorStagingVersion": "e5c6caa1-9c18-44be-adba-ff689de52845",
-    "changedFiles": [
-      "cloudflare/scripts/build-content.mjs",
-      "content/SEO.md",
-      "content/manifest.mjs",
-      "content/pages.mjs",
-      "content/posts.mjs",
-      "web/index.html"
-    ],
-    "restMarkdownAndSourceMetadata": true,
-    "mcpMarkdown": true,
-    "publicOAuth": true,
-    "plansReady": true,
-    "evidenceBasis": "Guide copy, page metadata and the static site generator changed. Public paths and backend logic for billing, browser operations, OAuth and customer accounts are unchanged. The earlier end-to-end integration evidence is retained with its observed source digest. Fresh staging checks covered all public pages, OAuth discovery and access guards, plan readiness, and the exact Markdown example through REST and MCP."
-  },
-  "blogCopyVerification": {
-    "checkedAt": "2026-11-11T13:59:07.049Z",
-    "priorSourceDigest": "748186bd8be8ed7f4d1d8da9939058c3a8b16a15d8cd3242ec6e5d8d47e62a33",
-    "priorStagingVersion": "dcaf7659-67d1-4425-b6de-18645003bddb",
-    "changedFiles": [
-      "content/posts.mjs"
-    ],
-    "evidenceBasis": "Only the static scrape, crawl and map article copy changed. All 28 pages passed live source parity on staging. Runtime evidence is inherited from the prior release with observed digests preserved."
-  },
-  "creditTerminologyVerification": {
-    "checkedAt": "2026-11-12T14:09:59.766Z",
-    "priorSourceDigest": "24b48f86497be8b8db0959873e8481dbf65df35c398ecef931e5363746de5b21",
-    "priorStagingVersion": "ebca070a-c82f-4a98-8fa2-147166bbc583",
-    "changedFiles": [
-      "content/manifest.mjs",
-      "content/pages.mjs"
-    ],
-    "evidenceBasis": "Only public copy and the authentication description changed. All 28 public pages passed staging checks against the generated HTML. Integration evidence for the unchanged runtime is inherited and retains the observed source digests."
-  }
+  "stagingVersion": "c922e91e-cd6a-41ea-bf43-03a2e2781bd8"
 }

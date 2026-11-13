@@ -154,6 +154,7 @@ export class AccountService {
 
 export async function authenticate(request,env){
   const token=bearer(request.headers);
+  if(!token&&request.headers.has('authorization')&&new URL(request.url).pathname==='/mcp')reject('AUTH_REQUIRED','Provide a valid bearer token.',401);
   if(token&&await credentialMatches(token,env.AIHACKR_API_KEY)){sameOrigin(request);return {operator:true,kind:'operator'};}
   if(token?.includes(':')){
     if(new URL(request.url).href.split('?')[0]!==oauthResource(env))reject('AUTH_REQUIRED','This OAuth token is only valid at the AIHackr MCP endpoint.',401);
